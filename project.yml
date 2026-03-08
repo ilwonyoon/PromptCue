@@ -1,0 +1,43 @@
+name: PromptCue
+options:
+  bundleIdPrefix: com.promptcue
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+    DEVELOPMENT_TEAM: ""
+packages:
+  PromptCueCore:
+    path: .
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    exactVersion: 7.8.0
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts.git
+    exactVersion: 2.3.0
+targets:
+  PromptCue:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: PromptCue
+    dependencies:
+      - package: PromptCueCore
+        product: PromptCueCore
+      - package: GRDB
+        product: GRDB
+      - package: KeyboardShortcuts
+        product: KeyboardShortcuts
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
+        PRODUCT_NAME: Prompt Cue
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Prompt Cue
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSHighResolutionCapable: YES
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1

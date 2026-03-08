@@ -1,0 +1,36 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  swift-test:
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Run package tests
+        run: swift test
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app target
+        run: xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug -derivedDataPath /tmp/PromptCueDerivedData CODE_SIGNING_ALLOWED=NO build
+
+      - name: Validate UI token usage
+        run: python3 scripts/validate_ui_tokens.py

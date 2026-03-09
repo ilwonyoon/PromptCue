@@ -19,36 +19,36 @@ extension View {
     func promptCueGlassShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.glassAmbient,
-            radius: 10,
+            radius: PrimitiveTokens.Shadow.panelKeyBlur,
             x: 0,
-            y: 2
+            y: PrimitiveTokens.Shadow.panelKeyY
         )
     }
 
     func promptCuePanelShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
-            radius: 10,
+            radius: PrimitiveTokens.Shadow.panelKeyBlur,
             x: 0,
-            y: 2
+            y: PrimitiveTokens.Shadow.panelKeyY
         )
     }
 
     func promptCueCardShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,
-            radius: 14,
+            radius: PrimitiveTokens.Shadow.cardAmbientBlur,
             x: 0,
-            y: 8
+            y: PrimitiveTokens.Shadow.cardAmbientY
         )
     }
 
     func promptCueNotificationCardShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft),
-            radius: 10,
+            radius: PrimitiveTokens.Shadow.notificationKeyBlur,
             x: 0,
-            y: 4
+            y: PrimitiveTokens.Shadow.notificationKeyY
         )
     }
 

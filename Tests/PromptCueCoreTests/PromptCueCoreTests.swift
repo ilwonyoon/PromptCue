@@ -101,6 +101,72 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func captureCardJSONCodecRoundTrip() throws {
+        let id = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let lastCopiedAt = Date(timeIntervalSince1970: 1_700_001_000)
+        let original = CaptureCard(
+            id: id,
+            text: "round-trip test",
+            createdAt: createdAt,
+            screenshotPath: "/tmp/screenshot.png",
+            lastCopiedAt: lastCopiedAt,
+            sortOrder: 42.0
+        )
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(CaptureCard.self, from: data)
+
+        #expect(decoded == original)
+        #expect(decoded.id == id)
+        #expect(decoded.text == "round-trip test")
+        #expect(decoded.createdAt == createdAt)
+        #expect(decoded.screenshotPath == "/tmp/screenshot.png")
+        #expect(decoded.lastCopiedAt == lastCopiedAt)
+        #expect(decoded.sortOrder == 42.0)
+    }
+
+    @Test
+    func captureCardJSONCodecRoundTripMinimalFields() throws {
+        let original = CaptureCard(
+            text: "minimal card",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(CaptureCard.self, from: data)
+
+        #expect(decoded == original)
+        #expect(decoded.screenshotPath == nil)
+        #expect(decoded.lastCopiedAt == nil)
+        #expect(decoded.sortOrder == original.createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
+    func captureCardDecodesWithMissingSortOrderFallback() throws {
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let id = UUID()
+        let json = """
+        {
+            "id": "\(id.uuidString)",
+            "text": "legacy card",
+            "createdAt": \(createdAt.timeIntervalSinceReferenceDate)
+        }
+        """
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(CaptureCard.self, from: Data(json.utf8))
+
+        #expect(decoded.id == id)
+        #expect(decoded.text == "legacy card")
+        #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
     func exportFormatterBuildsBulletedClipboardPayloadInOrder() {
         let cards = [
             CaptureCard(text: "mobile layout broken", createdAt: .now),

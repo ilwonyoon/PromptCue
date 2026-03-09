@@ -11,7 +11,7 @@ enum PanelMetrics {
     static let captureSurfaceTopPadding: CGFloat = 12
     static let captureSurfaceBottomPadding: CGFloat = 4
     static let capturePanelOuterPadding: CGFloat = 24
-    static let capturePanelShadowTopInset: CGFloat = 18
+    static let capturePanelShadowTopInset: CGFloat = 28
     static let capturePanelShadowBottomInset: CGFloat = 42
     static let capturePanelWidth: CGFloat = 448
     static let capturePanelVerticalSpacing: CGFloat = 12

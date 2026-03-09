@@ -7,6 +7,7 @@ import Combine
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
     private let model: AppModel
     private let shadowHostView = CapturePanelShadowHostView()
+    private let shadowCasterView = CapturePanelShadowCasterView()
     private let shellView = CapturePanelShellView()
     private let contentStack = NSStackView()
     private let screenshotContainer = NSView()
@@ -19,7 +20,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var shellHeightConstraint: NSLayoutConstraint!
     private var screenshotHeightConstraint: NSLayoutConstraint!
     private var editorHeightConstraint: NSLayoutConstraint!
-    private var preferredPanelHeight: CGFloat = PanelMetrics.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
+    private var preferredPanelHeight: CGFloat =
+        PanelMetrics.capturePanelShadowTopInset
+        + PrimitiveTokens.Size.searchFieldHeight
+        + PanelMetrics.capturePanelShadowBottomInset
     private var cancellables = Set<AnyCancellable>()
     private var isApplyingDraftExternally = false
     private var imageLoadTask: Task<Void, Never>?
@@ -68,17 +72,23 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func buildViewHierarchy() {
         shadowHostView.translatesAutoresizingMaskIntoConstraints = false
+        shadowCasterView.translatesAutoresizingMaskIntoConstraints = false
         shellView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(shadowHostView)
+        shadowHostView.addSubview(shadowCasterView)
         shadowHostView.addSubview(shellView)
 
         shellHeightConstraint = shadowHostView.heightAnchor.constraint(equalToConstant: PrimitiveTokens.Size.searchFieldHeight)
 
         NSLayoutConstraint.activate([
-            shadowHostView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelOuterPadding),
+            shadowHostView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelShadowTopInset),
             shadowHostView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: PanelMetrics.capturePanelOuterPadding),
             shadowHostView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
             shellHeightConstraint,
+            shadowCasterView.leadingAnchor.constraint(equalTo: shadowHostView.leadingAnchor),
+            shadowCasterView.trailingAnchor.constraint(equalTo: shadowHostView.trailingAnchor),
+            shadowCasterView.topAnchor.constraint(equalTo: shadowHostView.topAnchor),
+            shadowCasterView.bottomAnchor.constraint(equalTo: shadowHostView.bottomAnchor),
             shellView.leadingAnchor.constraint(equalTo: shadowHostView.leadingAnchor),
             shellView.trailingAnchor.constraint(equalTo: shadowHostView.trailingAnchor),
             shellView.topAnchor.constraint(equalTo: shadowHostView.topAnchor),
@@ -282,7 +292,11 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         )
 
         shellHeightConstraint.constant = surfaceHeight
-        preferredPanelHeight = ceil((PanelMetrics.capturePanelOuterPadding * 2) + surfaceHeight)
+        preferredPanelHeight = ceil(
+            PanelMetrics.capturePanelShadowTopInset
+            + surfaceHeight
+            + PanelMetrics.capturePanelShadowBottomInset
+        )
         onPreferredPanelHeightChange?(preferredPanelHeight)
     }
 
@@ -319,7 +333,25 @@ private final class CapturePanelShadowHostView: NSView {
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
         layer?.masksToBounds = false
-        updateShadow()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private final class CapturePanelShadowCasterView: NSView {
+    private let ambientLayer = CAShapeLayer()
+    private let keyLayer = CAShapeLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = false
+        layer?.addSublayer(ambientLayer)
+        layer?.addSublayer(keyLayer)
+        updateAppearance()
     }
 
     required init?(coder: NSCoder) {
@@ -328,31 +360,46 @@ private final class CapturePanelShadowHostView: NSView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        updateShadow()
+        updateAppearance()
     }
 
     override func layout() {
         super.layout()
-        updateShadowPath()
+        updateShape()
     }
 
-    private func updateShadow() {
-        guard let layer else { return }
-        layer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
-        layer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
-        layer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
-        layer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
-        updateShadowPath()
+    private func updateAppearance() {
+        ambientLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
+        ambientLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
+        ambientLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
+        ambientLayer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
+        // Light is assumed to come from above, so both ambient and key shadow
+        // should bias downward instead of blooming symmetrically around the shell.
+        ambientLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureAmbientY)
+
+        keyLayer.fillColor = NSColor.white.withAlphaComponent(0.02).cgColor
+        keyLayer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellKey).cgColor
+        keyLayer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureKeyOpacity)
+        keyLayer.shadowRadius = PrimitiveTokens.Shadow.captureKeyBlur / 2
+        keyLayer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
+
+        updateShape()
     }
 
-    private func updateShadowPath() {
-        guard let layer else { return }
-        layer.shadowPath = CGPath(
+    private func updateShape() {
+        let path = CGPath(
             roundedRect: bounds,
             cornerWidth: PrimitiveTokens.Radius.lg,
             cornerHeight: PrimitiveTokens.Radius.lg,
             transform: nil
         )
+        ambientLayer.frame = bounds
+        ambientLayer.path = path
+        ambientLayer.shadowPath = path
+
+        keyLayer.frame = bounds
+        keyLayer.path = path
+        keyLayer.shadowPath = path
     }
 }
 

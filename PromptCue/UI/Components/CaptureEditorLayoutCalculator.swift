@@ -40,29 +40,16 @@ enum CaptureEditorLayoutCalculator {
         viewportWidth: CGFloat,
         maxContentHeight: CGFloat,
         minimumLineHeight: CGFloat,
-        scrollerReservationWidth: CGFloat,
         measureHeight: (CGFloat) -> CGFloat
     ) -> CaptureEditorMetrics {
         let safeViewportWidth = max(viewportWidth, 1)
         let unconstrainedHeight = max(minimumLineHeight, ceil(measureHeight(safeViewportWidth)))
-        let initiallyScrollable = unconstrainedHeight > maxContentHeight + 0.5
-
-        if initiallyScrollable {
-            let finalWidth = max(safeViewportWidth - max(scrollerReservationWidth, 0), 1)
-            let finalContentHeight = max(minimumLineHeight, ceil(measureHeight(finalWidth)))
-
-            return CaptureEditorMetrics(
-                contentHeight: finalContentHeight,
-                visibleHeight: min(finalContentHeight, maxContentHeight),
-                isScrollable: finalContentHeight > maxContentHeight + 0.5,
-                layoutWidth: finalWidth
-            )
-        }
+        let isScrollable = unconstrainedHeight > maxContentHeight + 0.5
 
         return CaptureEditorMetrics(
             contentHeight: unconstrainedHeight,
             visibleHeight: min(unconstrainedHeight, maxContentHeight),
-            isScrollable: false,
+            isScrollable: isScrollable,
             layoutWidth: safeViewportWidth
         )
     }
@@ -72,7 +59,6 @@ enum CaptureEditorLayoutCalculator {
         viewportWidth: CGFloat,
         maxContentHeight: CGFloat,
         minimumLineHeight: CGFloat,
-        scrollerReservationWidth: CGFloat,
         font: NSFont,
         lineHeight: CGFloat
     ) -> CaptureEditorMetrics {
@@ -88,8 +74,7 @@ enum CaptureEditorLayoutCalculator {
         return metrics(
             viewportWidth: viewportWidth,
             maxContentHeight: maxContentHeight,
-            minimumLineHeight: minimumLineHeight,
-            scrollerReservationWidth: scrollerReservationWidth
+            minimumLineHeight: minimumLineHeight
         ) { width in
             measuredTextHeight(
                 text: text,

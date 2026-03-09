@@ -1,10 +1,11 @@
 import AppKit
 
 final class CaptureEditorRuntimeHostView: NSView {
-    let scrollView = NSScrollView()
+    let scrollView = IndicatorAwareScrollView()
     let textView = WrappingCueTextView()
     private let placeholderField = ClickThroughTextField(labelWithString: "")
     private let bottomBreathingRoomView = NSView()
+    private let scrollIndicatorThumbView = NSView()
 
     var maxMeasuredHeight: CGFloat = AppUIConstants.captureEditorMaxHeight {
         didSet {
@@ -26,6 +27,8 @@ final class CaptureEditorRuntimeHostView: NSView {
     private var lastEmittedPreferredHeight: CGFloat = CaptureEditorResolvedHeight.empty.preferredHeight
     private var lastMeasuredViewportWidth: CGFloat = 0
     private var pendingScrollToSelection = false
+    private var scrollBoundsObserver: NSObjectProtocol?
+    private var scrollIndicatorHideWorkItem: DispatchWorkItem?
     private let shouldLogMetrics = ProcessInfo.processInfo.environment["PROMPTCUE_LOG_EDITOR_METRICS"] == "1"
 
     private lazy var scrollViewHeightConstraint = scrollView.heightAnchor.constraint(
@@ -34,6 +37,8 @@ final class CaptureEditorRuntimeHostView: NSView {
     private lazy var bottomBreathingHeightConstraint = bottomBreathingRoomView.heightAnchor.constraint(
         equalToConstant: AppUIConstants.captureEditorBottomBreathingRoom
     )
+    private lazy var scrollIndicatorTopConstraint = scrollIndicatorThumbView.topAnchor.constraint(equalTo: topAnchor)
+    private lazy var scrollIndicatorHeightConstraint = scrollIndicatorThumbView.heightAnchor.constraint(equalToConstant: 0)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -42,6 +47,13 @@ final class CaptureEditorRuntimeHostView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let scrollBoundsObserver {
+            NotificationCenter.default.removeObserver(scrollBoundsObserver)
+        }
+        scrollIndicatorHideWorkItem?.cancel()
     }
 
     override var isFlipped: Bool { true }
@@ -56,7 +68,7 @@ final class CaptureEditorRuntimeHostView: NSView {
 
     override func layout() {
         super.layout()
-        let width = scrollView.contentSize.width
+        let width = stableViewportWidth
         guard width > 0 else {
             return
         }
@@ -64,6 +76,8 @@ final class CaptureEditorRuntimeHostView: NSView {
         if abs(width - lastMeasuredViewportWidth) > 0.5 {
             updateMeasuredMetrics(forceMeasure: true)
         }
+
+        updateScrollIndicatorFrame()
     }
 
     func applyExternalText(
@@ -141,7 +155,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         forceMeasure: Bool = false,
         emitMetrics: Bool = true
     ) {
-        let viewportWidth = scrollView.contentSize.width
+        let viewportWidth = stableViewportWidth
         guard viewportWidth > 0 else {
             return
         }
@@ -153,16 +167,9 @@ final class CaptureEditorRuntimeHostView: NSView {
 
         lastMeasuredViewportWidth = viewportWidth
 
-        var measurement = measureResolvedHeight(for: viewportWidth)
-        scrollView.hasVerticalScroller = measurement.isScrollable
+        let measurement = measureResolvedHeight(for: viewportWidth)
 
-        let adjustedViewportWidth = scrollView.contentSize.width
-        if abs(adjustedViewportWidth - measurement.layoutWidth) > 0.5 {
-            measurement = measureResolvedHeight(for: adjustedViewportWidth)
-            scrollView.hasVerticalScroller = measurement.isScrollable
-        }
-
-        let shouldScrollToSelection = forceScrollToSelection || pendingScrollToSelection || measurement.isScrollable
+        let shouldScrollToSelection = forceScrollToSelection || pendingScrollToSelection
         pendingScrollToSelection = false
 
         apply(resolvedHeight: measurement, viewportWidth: viewportWidth)
@@ -181,10 +188,12 @@ final class CaptureEditorRuntimeHostView: NSView {
                     return
                 }
                 self.textView.scrollRangeToVisible(self.textView.selectedRange())
+                self.flashScrollIndicatorIfNeeded()
             }
         } else if scrollView.contentView.bounds.origin.y > 0.5 || scrollView.contentView.bounds.origin.x > 0.5 {
             scrollView.contentView.scroll(to: .zero)
             scrollView.reflectScrolledClipView(scrollView.contentView)
+            updateScrollIndicatorFrame()
         }
     }
 
@@ -194,10 +203,13 @@ final class CaptureEditorRuntimeHostView: NSView {
         scrollView.borderType = .noBorder
         scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
+        scrollView.autohidesScrollers = false
         scrollView.scrollerStyle = .overlay
         scrollView.verticalScrollElasticity = .allowed
         scrollView.contentView.postsBoundsChangedNotifications = true
+        scrollView.onUserScroll = { [weak self] in
+            self?.flashScrollIndicatorIfNeeded()
+        }
 
         addSubview(scrollView)
 
@@ -216,6 +228,22 @@ final class CaptureEditorRuntimeHostView: NSView {
             bottomBreathingRoomView.trailingAnchor.constraint(equalTo: trailingAnchor),
             bottomBreathingRoomView.bottomAnchor.constraint(equalTo: bottomAnchor),
             bottomBreathingHeightConstraint,
+        ])
+
+        scrollIndicatorThumbView.translatesAutoresizingMaskIntoConstraints = false
+        scrollIndicatorThumbView.wantsLayer = true
+        scrollIndicatorThumbView.layer?.backgroundColor = NSColor.tertiaryLabelColor.withAlphaComponent(
+            AppUIConstants.captureScrollIndicatorShowAlpha
+        ).cgColor
+        scrollIndicatorThumbView.layer?.cornerRadius = AppUIConstants.captureScrollIndicatorWidth / 2
+        scrollIndicatorThumbView.alphaValue = 0
+        addSubview(scrollIndicatorThumbView)
+
+        NSLayoutConstraint.activate([
+            scrollIndicatorThumbView.widthAnchor.constraint(equalToConstant: AppUIConstants.captureScrollIndicatorWidth),
+            scrollIndicatorThumbView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -AppUIConstants.captureScrollIndicatorTrailingInset),
+            scrollIndicatorTopConstraint,
+            scrollIndicatorHeightConstraint,
         ])
 
         scrollView.documentView = textView
@@ -241,6 +269,14 @@ final class CaptureEditorRuntimeHostView: NSView {
             placeholderField.topAnchor.constraint(equalTo: topAnchor, constant: AppUIConstants.captureEditorVerticalInset),
         ])
 
+        scrollBoundsObserver = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleScrollBoundsDidChange()
+        }
+
         updatePlaceholderVisibility()
     }
 
@@ -248,8 +284,7 @@ final class CaptureEditorRuntimeHostView: NSView {
         let metrics = CaptureEditorLayoutCalculator.metrics(
             viewportWidth: viewportWidth,
             maxContentHeight: maxMeasuredHeight,
-            minimumLineHeight: AppUIConstants.captureEditorMinimumVisibleHeight,
-            scrollerReservationWidth: scrollerReservationWidth
+            minimumLineHeight: AppUIConstants.captureEditorMinimumVisibleHeight
         ) { [weak self] layoutWidth in
             self?.measuredTotalHeight(for: layoutWidth) ?? AppUIConstants.captureEditorMinimumVisibleHeight
         }
@@ -265,7 +300,6 @@ final class CaptureEditorRuntimeHostView: NSView {
 
     private func apply(resolvedHeight: CaptureEditorResolvedHeight, viewportWidth: CGFloat) {
         currentResolvedHeight = resolvedHeight
-        scrollView.hasVerticalScroller = resolvedHeight.isScrollable
         updatePlaceholderVisibility()
 
         let bodyVisibleHeight = max(
@@ -295,6 +329,7 @@ final class CaptureEditorRuntimeHostView: NSView {
 
         invalidateIntrinsicContentSize()
         needsLayout = true
+        updateScrollIndicatorFrame()
     }
 
     private func emitMetricsIfNeeded(_ metrics: CaptureEditorMetrics) {
@@ -327,11 +362,6 @@ final class CaptureEditorRuntimeHostView: NSView {
 
     private var minimumBodyVisibleHeight: CGFloat {
         AppUIConstants.captureEditorMinimumVisibleHeight - AppUIConstants.captureEditorBottomBreathingRoom
-    }
-
-    private var scrollerReservationWidth: CGFloat {
-        let measuredWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: scrollView.scrollerStyle)
-        return max(measuredWidth, PrimitiveTokens.Space.md)
     }
 
     private func measuredTotalHeight(for layoutWidth: CGFloat) -> CGFloat {
@@ -379,6 +409,75 @@ final class CaptureEditorRuntimeHostView: NSView {
         placeholderField.isHidden = !textView.string.isEmpty
     }
 
+    private var stableViewportWidth: CGFloat {
+        max(scrollView.frame.width, bounds.width, 1)
+    }
+
+    private func handleScrollBoundsDidChange() {
+        updateScrollIndicatorFrame()
+    }
+
+    private func updateScrollIndicatorFrame() {
+        guard currentResolvedHeight.isScrollable else {
+            scrollIndicatorTopConstraint.constant = 0
+            scrollIndicatorHeightConstraint.constant = 0
+            hideScrollIndicatorImmediately()
+            return
+        }
+
+        let visibleHeight = scrollViewHeightConstraint.constant
+        let contentHeight = max(
+            currentResolvedHeight.contentHeight - AppUIConstants.captureEditorBottomBreathingRoom,
+            visibleHeight
+        )
+        let trackInset = AppUIConstants.captureScrollIndicatorVerticalInset
+        let trackHeight = max(visibleHeight - (trackInset * 2), 1)
+        let thumbHeight = max(
+            AppUIConstants.captureScrollIndicatorMinHeight,
+            (visibleHeight / contentHeight) * trackHeight
+        )
+        let maxOffset = max(contentHeight - visibleHeight, 1)
+        let scrollOffset = min(max(scrollView.contentView.bounds.origin.y, 0), maxOffset)
+        let progress = scrollOffset / maxOffset
+        let thumbTravel = max(trackHeight - thumbHeight, 0)
+        let thumbY = trackInset + (thumbTravel * progress)
+
+        scrollIndicatorTopConstraint.constant = thumbY
+        scrollIndicatorHeightConstraint.constant = thumbHeight
+    }
+
+    private func flashScrollIndicatorIfNeeded() {
+        guard currentResolvedHeight.isScrollable else {
+            hideScrollIndicatorImmediately()
+            return
+        }
+
+        scrollIndicatorHideWorkItem?.cancel()
+        scrollIndicatorThumbView.animator().alphaValue = 1
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else {
+                return
+            }
+
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = AppUIConstants.captureScrollIndicatorFadeDuration
+                self.scrollIndicatorThumbView.animator().alphaValue = 0
+            }
+        }
+
+        scrollIndicatorHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + AppUIConstants.captureScrollIndicatorFadeDelay,
+            execute: workItem
+        )
+    }
+
+    private func hideScrollIndicatorImmediately() {
+        scrollIndicatorHideWorkItem?.cancel()
+        scrollIndicatorThumbView.alphaValue = 0
+    }
+
     private func configureTextView() {
         textView.drawsBackground = false
         textView.backgroundColor = .clear
@@ -409,5 +508,14 @@ final class CaptureEditorRuntimeHostView: NSView {
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraphStyle,
         ]
+    }
+}
+
+final class IndicatorAwareScrollView: NSScrollView {
+    var onUserScroll: (() -> Void)?
+
+    override func scrollWheel(with event: NSEvent) {
+        onUserScroll?()
+        super.scrollWheel(with: event)
     }
 }

@@ -17,6 +17,13 @@ enum AppUIConstants {
     static let capturePanelVerticalSpacing: CGFloat = 12
     static let captureTextLineHeight: CGFloat = 22
     static let captureEditorMaxHeight: CGFloat = 176
+    static let captureScrollIndicatorWidth: CGFloat = 2.5
+    static let captureScrollIndicatorMinHeight: CGFloat = 24
+    static let captureScrollIndicatorTrailingInset: CGFloat = 2
+    static let captureScrollIndicatorVerticalInset: CGFloat = 4
+    static let captureScrollIndicatorShowAlpha: CGFloat = 0.56
+    static let captureScrollIndicatorFadeDelay: TimeInterval = 0.10
+    static let captureScrollIndicatorFadeDuration: TimeInterval = 0.10
     static let settingsPanelWidth: CGFloat = 560
     static let settingsPanelHeight: CGFloat = 620
     static let settingsExportTailEditorMinHeight: CGFloat = 96

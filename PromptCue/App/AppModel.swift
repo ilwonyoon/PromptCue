@@ -270,10 +270,6 @@ final class AppModel: ObservableObject {
             viewportWidth: AppUIConstants.captureEditorViewportWidth,
             maxContentHeight: AppUIConstants.captureEditorMaxHeight,
             minimumLineHeight: AppUIConstants.captureTextLineHeight,
-            scrollerReservationWidth: max(
-                NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay),
-                PrimitiveTokens.Space.md
-            ),
             font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )

@@ -18,6 +18,15 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         super.init()
     }
 
+    deinit {
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+        }
+    }
+
     func show() {
         model.beginCaptureSession()
         let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()

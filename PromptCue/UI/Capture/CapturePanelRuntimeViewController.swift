@@ -34,6 +34,11 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        imageLoadTask?.cancel()
+        cancellables.removeAll()
+    }
+
     override func loadView() {
         view = NSView()
         view.wantsLayer = true

@@ -20,6 +20,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         self.model = model
     }
 
+    deinit {
+        if let localMouseMonitor {
+            NSEvent.removeMonitor(localMouseMonitor)
+        }
+        if let globalMouseMonitor {
+            NSEvent.removeMonitor(globalMouseMonitor)
+        }
+    }
+
     func show() {
         guard !isAnimatingClose else {
             return
@@ -68,9 +77,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             context.duration = PrimitiveTokens.Motion.quick
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().setFrame(offscreenPanelFrame(for: panel.frame.size), display: true)
-        } completionHandler: { [weak self] in
-            panel.orderOut(nil)
-            panel.alphaValue = 1
+        } completionHandler: { [weak self, weak panel] in
+            panel?.orderOut(nil)
+            panel?.alphaValue = 1
             self?.isAnimatingClose = false
         }
     }

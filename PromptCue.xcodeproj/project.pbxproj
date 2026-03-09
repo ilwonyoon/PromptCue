@@ -32,6 +32,7 @@
 		821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */; };
 		8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = 72E63F66D51437F9424F0BB5 /* PromptCueCore */; };
 		9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */; };
+		9C1E4A86D3B0421CBF7C6A11 /* SelectorAlignmentSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEB75D6624A41A4A80F85F0 /* SelectorAlignmentSnapshotTests.swift */; };
 		A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */; };
 		A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */; };
 		AAEE765E6306C005070C399D /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 6072B9D68F6A5C85EA50D901 /* GRDB */; };
@@ -85,6 +86,7 @@
 		5A701332249F0A64002B3F01 /* DesignSystemPreviewTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemPreviewTokens.swift; sourceTree = "<group>"; };
 		5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueApp.swift; sourceTree = "<group>"; };
 		5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServicesTests.swift; sourceTree = "<group>"; };
+		6BEB75D6624A41A4A80F85F0 /* SelectorAlignmentSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectorAlignmentSnapshotTests.swift; sourceTree = "<group>"; };
 		6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsModel.swift; sourceTree = "<group>"; };
 		7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueSettingsView.swift; sourceTree = "<group>"; };
 		89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptCueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -249,6 +251,7 @@
 		AF83515198E7EA1B81754D52 /* PromptCueTests */ = {
 			isa = PBXGroup;
 			children = (
+				6BEB75D6624A41A4A80F85F0 /* SelectorAlignmentSnapshotTests.swift */,
 				5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */,
 			);
 			path = PromptCueTests;
@@ -380,6 +383,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C1E4A86D3B0421CBF7C6A11 /* SelectorAlignmentSnapshotTests.swift in Sources */,
 				A8FF21FF3EA560720F63B376 /* StorageServicesTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

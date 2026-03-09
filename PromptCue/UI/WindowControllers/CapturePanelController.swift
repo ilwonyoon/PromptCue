@@ -277,24 +277,29 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     private func desiredSuggestedTargetPanelHeight() -> CGFloat {
-        let rowCount = model.availableSuggestedTargets.count
-            + (model.automaticSuggestedTarget == nil ? 0 : 1)
-        let clampedRowCount = min(max(rowCount, 1), 5)
-        let rowHeight: CGFloat = 40
-        let rowSpacing = PrimitiveTokens.Space.xxs
-        let rowsHeight = (CGFloat(clampedRowCount) * rowHeight)
-            + (CGFloat(max(0, clampedRowCount - 1)) * rowSpacing)
-        let contentHeight = rowsHeight
-            + PrimitiveTokens.Space.sm
-            + PrimitiveTokens.Space.xxs
-            + PrimitiveTokens.LineHeight.meta
-            + (PrimitiveTokens.Space.xs * 2)
+        let visibleRowUnits = suggestedTargetVisibleRowUnits()
+        let fullRowCount = max(Int(floor(visibleRowUnits)), 1)
+        let partialRowUnits = max(visibleRowUnits - CGFloat(fullRowCount), 0)
+        let rowsHeight = (CGFloat(fullRowCount) * AppUIConstants.captureChooserRowHeight)
+            + (CGFloat(max(0, fullRowCount - 1)) * AppUIConstants.captureChooserRowSpacing)
+            + (partialRowUnits * AppUIConstants.captureChooserRowHeight)
+        let contentHeight = AppUIConstants.captureChooserSurfaceVerticalPadding
+            + (AppUIConstants.captureChooserPromptVerticalPadding * 2)
+            + AppUIConstants.captureChooserPromptLineHeight
+            + AppUIConstants.captureChooserPromptBottomSpacing
+            + rowsHeight
+            + AppUIConstants.captureChooserSurfaceVerticalPadding
         let surfaceHeight = max(
             PrimitiveTokens.Size.searchFieldHeight,
-            contentHeight + (AppUIConstants.captureChooserSurfacePadding * 2)
+            contentHeight
         )
 
         return ceil(surfaceHeight + (AppUIConstants.captureChooserPanelOuterPadding * 2))
+    }
+
+    private func suggestedTargetVisibleRowUnits() -> CGFloat {
+        let totalRows = model.captureSuggestedTargetChoiceCount
+        return AppUIConstants.captureChooserVisibleRowUnits(for: totalRows)
     }
 
     private func hasMeaningfulFrameChange(from currentFrame: NSRect, to targetFrame: NSRect) -> Bool {

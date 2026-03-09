@@ -3,6 +3,8 @@ import Testing
 @testable import PromptCueCore
 
 struct PromptCueCoreTests {
+    private let referenceDate = Date(timeIntervalSince1970: 1_000)
+
     @Test
     func emptyDraftHasNoContent() {
         let draft = CaptureDraft()
@@ -116,6 +118,132 @@ struct PromptCueCoreTests {
             • auth redirect incorrect
             • screenshot attached
             """
+        )
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelFallsBackToWindowTitleWhenRepoAndCwdAreMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue.swift",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue.swift")
+    }
+
+    @Test
+    func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
+        let terminalTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            capturedAt: referenceDate
+        )
+        let ideTarget = makeSuggestedTarget()
+
+        #expect(terminalTarget.sourceKind == .terminal)
+        #expect(ideTarget.sourceKind == .ide)
+    }
+
+    @Test
+    func suggestedTargetFallbackDisplayLabelUsesWindowTitleThenAppName() {
+        let titledTarget = makeSuggestedTarget(
+            windowTitle: "Antigravity Workspace",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+        let untitledTarget = makeSuggestedTarget(
+            appName: "Antigravity",
+            windowTitle: nil,
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(titledTarget.fallbackDisplayLabel == "Antigravity Workspace")
+        #expect(untitledTarget.fallbackDisplayLabel == "Antigravity")
+    }
+
+    @Test
+    func suggestedTargetChooserSectionTitleFollowsSourceKind() {
+        let terminalTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            capturedAt: referenceDate
+        )
+        let ideTarget = makeSuggestedTarget()
+
+        #expect(terminalTarget.chooserSectionTitle == "Open Terminals")
+        #expect(ideTarget.chooserSectionTitle == "Open IDEs")
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelFallsBackToAppNameWhenWindowTitleAndPathsAreMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: nil,
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(target.workspaceLabel == "Cursor")
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelUsesWorkingDirectoryLeafWhenRepoMetadataIsMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: nil,
+            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+    }
+
+    @Test
+    func suggestedTargetShortBranchLabelUsesLeafAndTruncatesToEighteenCharacters() {
+        let target = makeSuggestedTarget(branch: "feature/12345678901234567890")
+
+        #expect(target.shortBranchLabel == "12345678901234567…")
+    }
+
+    @Test
+    func suggestedTargetChooserSecondaryLabelFallsBackToSessionIdentifierWhenWindowTitleMatchesWorkspaceLabel() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue",
+            sessionIdentifier: "tab-2",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserSecondaryLabel == "Cursor · tab-2")
+    }
+
+    private func makeSuggestedTarget(
+        appName: String = "Cursor",
+        windowTitle: String? = "PromptCue",
+        sessionIdentifier: String? = "tab-1",
+        currentWorkingDirectory: String? = "/Users/ilwon/dev/PromptCue/App",
+        repositoryRoot: String? = "/Users/ilwon/dev/PromptCue",
+        repositoryName: String? = "PromptCue",
+        branch: String? = "feature/initial-work"
+    ) -> CaptureSuggestedTarget {
+        CaptureSuggestedTarget(
+            appName: appName,
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            windowTitle: windowTitle,
+            sessionIdentifier: sessionIdentifier,
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            repositoryName: repositoryName,
+            branch: branch,
+            capturedAt: referenceDate
         )
     }
 }

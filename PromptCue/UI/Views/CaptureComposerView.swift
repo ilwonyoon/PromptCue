@@ -43,16 +43,16 @@ struct CaptureComposerView: View {
         SuggestedTargetOriginButton(
             currentTarget: suggestedTarget,
             availableTargets: model.availableSuggestedTargets,
-            emptyLabel: "No open terminal windows",
+            emptyLabel: "No open supported apps",
             onRefreshTargets: model.refreshAvailableSuggestedTargets,
             onSelectTarget: model.chooseDraftSuggestedTarget,
             automaticTarget: model.automaticSuggestedTarget,
             isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
             onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
-            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser
+            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser,
+            controlWidth: AppUIConstants.captureSelectorControlWidth
         )
         .frame(maxWidth: .infinity, minHeight: AppUIConstants.captureDebugLineHeight, alignment: .leading)
-        .padding(.leading, CueInlineTokenMetrics.editorHorizontalInset)
         .accessibilityLabel(model.captureDebugSuggestedTargetLine)
     }
 
@@ -60,16 +60,16 @@ struct CaptureComposerView: View {
         SuggestedTargetOriginButton(
             currentTarget: nil,
             availableTargets: model.availableSuggestedTargets,
-            emptyLabel: "Choose terminal origin",
+            emptyLabel: "Choose working app",
             onRefreshTargets: model.refreshAvailableSuggestedTargets,
             onSelectTarget: model.chooseDraftSuggestedTarget,
             automaticTarget: model.automaticSuggestedTarget,
             isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
             onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
-            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser
+            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser,
+            controlWidth: AppUIConstants.captureSelectorControlWidth
         )
         .frame(maxWidth: .infinity, minHeight: AppUIConstants.captureDebugLineHeight, alignment: .leading)
-        .padding(.leading, CueInlineTokenMetrics.editorHorizontalInset)
         .accessibilityLabel(model.captureDebugSuggestedTargetLine)
     }
 
@@ -217,7 +217,7 @@ struct CaptureSuggestedTargetListPanelView: View {
                 selectedTarget: model.captureChooserTarget ?? model.availableSuggestedTargets.first,
                 highlightedTarget: model.highlightedCaptureSuggestedTarget,
                 availableTargets: model.availableSuggestedTargets,
-                emptyLabel: "No open terminal windows",
+                emptyLabel: "No open supported apps",
                 automaticTarget: model.automaticSuggestedTarget,
                 isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
                 isAutomaticHighlighted: model.isAutomaticCaptureSuggestedTargetHighlighted,
@@ -227,6 +227,7 @@ struct CaptureSuggestedTargetListPanelView: View {
                 onHighlightAutomaticTarget: {
                     _ = model.highlightAutomaticCaptureSuggestedTarget()
                 },
+                controlWidth: AppUIConstants.captureSelectorControlWidth,
                 fixedWidth: nil,
                 onRefreshTargets: model.refreshAvailableSuggestedTargets,
                 onSelectTarget: model.chooseDraftSuggestedTarget,

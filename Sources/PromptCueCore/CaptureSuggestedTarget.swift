@@ -5,6 +5,11 @@ public enum CaptureSuggestedTargetConfidence: String, Codable, Equatable, Sendab
     case low
 }
 
+public enum CaptureSuggestedTargetSourceKind: String, Equatable, Sendable {
+    case terminal
+    case ide
+}
+
 public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     public let appName: String
     public let bundleIdentifier: String
@@ -73,6 +78,34 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         return appName
     }
 
+    public var sourceKind: CaptureSuggestedTargetSourceKind {
+        if Self.terminalBundleIdentifiers.contains(bundleIdentifier) {
+            return .terminal
+        }
+
+        return .ide
+    }
+
+    public var fallbackDisplayLabel: String {
+        if let windowTitle, !windowTitle.isEmpty {
+            return Self.truncate(windowTitle, maxLength: 28)
+        }
+
+        return Self.truncate(appName, maxLength: 28)
+    }
+
+    public var choiceKey: String {
+        [
+            bundleIdentifier,
+            sessionIdentifier ?? "",
+            repositoryRoot ?? "",
+            currentWorkingDirectory ?? "",
+            windowTitle ?? "",
+            workspaceLabel,
+        ]
+        .joined(separator: "|")
+    }
+
     public var shortBranchLabel: String? {
         guard let branch else {
             return nil
@@ -105,6 +138,15 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         }
 
         return appName
+    }
+
+    public var chooserSectionTitle: String {
+        switch sourceKind {
+        case .terminal:
+            return "Open Terminals"
+        case .ide:
+            return "Open IDEs"
+        }
     }
 
     public var debugDetailText: String? {
@@ -151,4 +193,9 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
 
         return trimmed
     }
+
+    private static let terminalBundleIdentifiers: Set<String> = [
+        "com.apple.Terminal",
+        "com.googlecode.iterm2",
+    ]
 }

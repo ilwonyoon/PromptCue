@@ -77,6 +77,13 @@ struct StackNotificationCardSurface<Content: View>: View {
             return SemanticTokens.Border.notificationCardHover
         }
 
-        return SemanticTokens.Border.notificationCard
+        switch colorScheme {
+        case .light:
+            return SemanticTokens.Border.notificationCard.opacity(0.92)
+        case .dark:
+            return SemanticTokens.Border.notificationCard.opacity(0.82)
+        @unknown default:
+            return SemanticTokens.Border.notificationCard.opacity(0.82)
+        }
     }
 }

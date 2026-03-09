@@ -3,13 +3,13 @@ import SwiftUI
 extension View {
     func promptCueCaptureSurfaceShadow() -> some View {
         shadow(
-            color: SemanticTokens.Shadow.panelAmbient.opacity(PrimitiveTokens.Shadow.captureAmbientOpacity),
+            color: SemanticTokens.Shadow.captureShellAmbient.opacity(PrimitiveTokens.Shadow.captureAmbientOpacity),
             radius: PrimitiveTokens.Shadow.captureAmbientBlur,
             x: PrimitiveTokens.Shadow.zeroX,
             y: PrimitiveTokens.Shadow.captureAmbientY
         )
         .shadow(
-            color: SemanticTokens.Shadow.panelKey.opacity(PrimitiveTokens.Shadow.captureKeyOpacity),
+            color: SemanticTokens.Shadow.captureShellKey.opacity(PrimitiveTokens.Shadow.captureKeyOpacity),
             radius: PrimitiveTokens.Shadow.captureKeyBlur,
             x: PrimitiveTokens.Shadow.zeroX,
             y: PrimitiveTokens.Shadow.captureKeyY

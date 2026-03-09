@@ -38,6 +38,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Core UI | In progress | Capture and stack views now render real MVP UI |
 | Quality audit | Completed | Findings captured and prioritized for remediation |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
+| Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host |
@@ -81,6 +82,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 7. Stack card overflow and hover expansion
 8. DMG packaging, Gumroad release prep, and MAS compatibility review
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
+10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
 
 ## Remediation Merge Order
 
@@ -127,9 +129,12 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 6. Land `AI Export Tail / Prompt Suffix` as an export-only formatter + Settings slice
 7. Land long-card overflow handling so Stack remains scannable under extreme text length
 8. Resume grouped export validation against target paste destinations
+9. Run `DP1` capture elevation and `DP2` stack brightness in bounded parallel tracks
+10. Keep semantic token changes master-owned while capture/stack recipe changes land through review packets
 
 Guardrail:
 
 - do not accept work that turns Backtick into a general note app
 - prefer raw dump in Capture and structured compression/export in Stack
 - do not accept design-system cleanup that collapses stack backdrop, stack card, or capture runtime ownership into one generic abstraction
+- do not accept visual polish that ships without light/dark before-after review artifacts

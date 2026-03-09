@@ -6,6 +6,7 @@ import Combine
 // This file coordinates the live AppKit capture shell and must not be flattened into token-only styling work.
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
     private let model: AppModel
+    private let shadowHostView = CapturePanelShadowHostView()
     private let shellView = CapturePanelShellView()
     private let contentStack = NSStackView()
     private let screenshotContainer = NSView()
@@ -66,16 +67,22 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func buildViewHierarchy() {
+        shadowHostView.translatesAutoresizingMaskIntoConstraints = false
         shellView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(shellView)
+        view.addSubview(shadowHostView)
+        shadowHostView.addSubview(shellView)
 
-        shellHeightConstraint = shellView.heightAnchor.constraint(equalToConstant: PrimitiveTokens.Size.searchFieldHeight)
+        shellHeightConstraint = shadowHostView.heightAnchor.constraint(equalToConstant: PrimitiveTokens.Size.searchFieldHeight)
 
         NSLayoutConstraint.activate([
-            shellView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelOuterPadding),
-            shellView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: PanelMetrics.capturePanelOuterPadding),
-            shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
+            shadowHostView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelOuterPadding),
+            shadowHostView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: PanelMetrics.capturePanelOuterPadding),
+            shadowHostView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
             shellHeightConstraint,
+            shellView.leadingAnchor.constraint(equalTo: shadowHostView.leadingAnchor),
+            shellView.trailingAnchor.constraint(equalTo: shadowHostView.trailingAnchor),
+            shellView.topAnchor.constraint(equalTo: shadowHostView.topAnchor),
+            shellView.bottomAnchor.constraint(equalTo: shadowHostView.bottomAnchor),
         ])
 
         contentStack.translatesAutoresizingMaskIntoConstraints = false
@@ -306,14 +313,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 }
 
-private final class CapturePanelShellView: NSVisualEffectView {
+private final class CapturePanelShadowHostView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        state = .active
-        blendingMode = .withinWindow
-        material = .hudWindow
         wantsLayer = true
-        updateAppearance()
+        layer?.backgroundColor = NSColor.clear.cgColor
+        layer?.masksToBounds = false
+        updateShadow()
     }
 
     required init?(coder: NSCoder) {
@@ -322,23 +328,109 @@ private final class CapturePanelShellView: NSVisualEffectView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
+        updateShadow()
+    }
+
+    override func layout() {
+        super.layout()
+        updateShadowPath()
+    }
+
+    private func updateShadow() {
+        guard let layer else { return }
+        layer.shadowColor = NSColor(SemanticTokens.Shadow.captureShellAmbient).cgColor
+        layer.shadowOpacity = Float(PrimitiveTokens.Shadow.captureAmbientOpacity)
+        layer.shadowRadius = PrimitiveTokens.Shadow.captureAmbientBlur / 2
+        layer.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.captureKeyY)
+        updateShadowPath()
+    }
+
+    private func updateShadowPath() {
+        guard let layer else { return }
+        layer.shadowPath = CGPath(
+            roundedRect: bounds,
+            cornerWidth: PrimitiveTokens.Radius.lg,
+            cornerHeight: PrimitiveTokens.Radius.lg,
+            transform: nil
+        )
+    }
+}
+
+private final class CapturePanelShellView: NSVisualEffectView {
+    private let fillLayer = CAShapeLayer()
+    private let borderLayer = CAShapeLayer()
+    private let topHighlightLayer = CAShapeLayer()
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
         updateAppearance()
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        state = .active
+        blendingMode = .withinWindow
+        material = .hudWindow
+        wantsLayer = true
+        layer?.masksToBounds = true
+        layer?.addSublayer(fillLayer)
+        layer?.addSublayer(borderLayer)
+        layer?.addSublayer(topHighlightLayer)
+        updateAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        updateShape()
     }
 
     private func updateAppearance() {
         guard let layer else { return }
+
+        fillLayer.fillColor = NSColor(SemanticTokens.Surface.captureShellFill).cgColor
+        borderLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellStroke).cgColor
+        borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        borderLayer.fillColor = NSColor.clear.cgColor
+        topHighlightLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellTopHighlight).cgColor
+        topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
+        topHighlightLayer.fillColor = NSColor.clear.cgColor
         layer.cornerRadius = PrimitiveTokens.Radius.lg
-        layer.masksToBounds = true
+        layer.backgroundColor = NSColor.clear.cgColor
+        updateShape()
+    }
 
-        if effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            layer.backgroundColor = NSColor(calibratedWhite: 0.26, alpha: 0.9).cgColor
-            layer.borderColor = NSColor.white.withAlphaComponent(0.14).cgColor
-        } else {
-            layer.backgroundColor = NSColor.white.withAlphaComponent(0.78).cgColor
-            layer.borderColor = NSColor.black.withAlphaComponent(0.08).cgColor
-        }
+    private func updateShape() {
+        guard let layer else { return }
+        let boundsRect = bounds
+        let radius = PrimitiveTokens.Radius.lg
+        let fullPath = CGPath(
+            roundedRect: boundsRect,
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil
+        )
 
-        layer.borderWidth = 1
+        fillLayer.frame = boundsRect
+        fillLayer.path = fullPath
+
+        borderLayer.frame = boundsRect
+        borderLayer.path = fullPath
+
+        let topRect = CGRect(x: 0, y: max(0, boundsRect.height - PrimitiveTokens.Space.lg), width: boundsRect.width, height: PrimitiveTokens.Space.lg)
+        topHighlightLayer.frame = boundsRect
+        topHighlightLayer.path = fullPath
+        topHighlightLayer.mask = {
+            let maskLayer = CALayer()
+            maskLayer.frame = topRect
+            maskLayer.backgroundColor = NSColor.white.cgColor
+            return maskLayer
+        }()
+
+        layer.cornerRadius = radius
     }
 }
 
@@ -378,14 +470,8 @@ private final class CaptureScreenshotSurfaceView: NSView {
     }
 
     private func updateAppearance() {
-        if effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
-            layer?.borderColor = NSColor.white.withAlphaComponent(0.1).cgColor
-            loadingOverlay.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.05).cgColor
-        } else {
-            layer?.backgroundColor = NSColor.black.withAlphaComponent(0.04).cgColor
-            layer?.borderColor = NSColor.black.withAlphaComponent(0.08).cgColor
-            loadingOverlay.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.35).cgColor
-        }
+        layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotFill).cgColor
+        layer?.borderColor = NSColor(SemanticTokens.Surface.captureShellScreenshotBorder).cgColor
+        loadingOverlay.layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotLoadingFill).cgColor
     }
 }

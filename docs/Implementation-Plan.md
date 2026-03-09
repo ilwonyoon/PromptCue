@@ -23,6 +23,7 @@
 - A quality audit has now been completed and a remediation lane is active in `docs/Quality-Remediation-Plan.md`.
 - A current-main-aligned design-system boundary proposal now exists in `docs/Design-System-Architecture-Proposal.md`.
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
+- A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.
 - `Phase DS1`, `Phase DS2`, and `Phase DS3` are now implemented in the design-system strategy branch, and `Phase DS4` has started where reuse is already proven.
 
 ## Phase Summary
@@ -40,6 +41,7 @@
 | Phase DS2 | Runtime/value ownership split | Completed in strategy branch | Grouped contracts now back runtime callers; `AppUIConstants` is only a compatibility facade |
 | Phase DS3 | Pattern recipe centralization | Completed in strategy branch | Capture shell chrome, stack card chrome, copied-stack recipe, and stack backdrop recipe now live in owner files |
 | Phase DS4 | Reusable surface rationalization | In progress in strategy branch | Shared notification-card chrome and top-edge highlight helpers are now extracted where reuse is proven; broader reusable-surface cleanup is still pending |
+| Phase DP | Capture and stack design polish | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation with review still pending |
 
 ## Current Hot Slice
 
@@ -49,6 +51,7 @@ The immediate implementation slice is:
 - `Phase R7: capture input system hardening`
 - queued next: `Phase R8: AI Export Tail / Prompt Suffix`
 - queued after that: `Phase R9: stack card overflow and hover expansion`
+- in parallel planning/visual lane: `Phase DP0 -> DP4` from `docs/Design-Polish-Execution-Plan.md`
 
 This slice exists because the app currently has a user-visible mismatch between:
 
@@ -101,6 +104,8 @@ That remediation lane is now authoritative for:
 Design-system rule for all future polish work:
 
 - generic tokenization must not collapse runtime-owned AppKit behavior or Backtick-specific pattern surfaces
+- visual polish must follow the review gates in `docs/Design-Polish-Execution-Plan.md`, not ad hoc local tuning
+- `Phase DP0` is now complete in docs; the first code slice should be `DP1` capture elevation with master-owned token changes
 
 ## Queued Next Slice
 

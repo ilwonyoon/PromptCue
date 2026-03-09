@@ -22,52 +22,60 @@ enum CopiedStackRecipe {
     static func headerTextColor(colorScheme: ColorScheme) -> Color {
         switch colorScheme {
         case .light:
-            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
+            return SemanticTokens.Text.primary.opacity(0.74)
         case .dark:
-            return SemanticTokens.Text.secondary
+            return SemanticTokens.Text.secondary.opacity(0.78)
         @unknown default:
-            return SemanticTokens.Text.secondary
+            return SemanticTokens.Text.secondary.opacity(0.78)
         }
     }
 
     static func previewTextColor(colorScheme: ColorScheme) -> Color {
         switch colorScheme {
         case .light:
-            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
+            return SemanticTokens.Text.primary.opacity(0.78)
         case .dark:
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+            return SemanticTokens.Text.secondary.opacity(0.62)
         @unknown default:
-            return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+            return SemanticTokens.Text.secondary.opacity(0.62)
         }
     }
 
     static func backPlateBorderOpacity(index: Int, colorScheme: ColorScheme) -> Double {
         switch colorScheme {
         case .light:
-            return 0.42
+            switch index {
+            case 1: return 0.32
+            case 2: return 0.24
+            default: return 0.20
+            }
         case .dark:
             switch index {
-            case 1: return 0.42
-            case 2: return 0.32
-            default: return 0.28
+            case 1: return 0.34
+            case 2: return 0.26
+            default: return 0.22
             }
         @unknown default:
-            return 0.28
+            return 0.22
         }
     }
 
     static func backPlateFillOpacity(index: Int, colorScheme: ColorScheme) -> Double {
         switch colorScheme {
         case .light:
-            return 0.36 - (Double(index - 1) * 0.08)
+            switch index {
+            case 1: return 0.26
+            case 2: return 0.20
+            default: return 0.18
+            }
         case .dark:
             switch index {
-            case 1: return 0.72
-            case 2: return 0.60
-            default: return 0.52
+            case 1: return 0.56
+            case 2: return 0.46
+            default: return 0.40
             }
         @unknown default:
-            return 0.52
+            return 0.40
         }
     }
 

@@ -262,6 +262,7 @@ Remove the current mismatch between successful capture submission and what the s
 8. Phase R7 capture input system hardening
 9. Phase R8 AI Export Tail / Prompt Suffix
 10. Phase R9 stack card overflow and hover expansion
+11. Phase DP capture/stack visual polish under explicit review gates
 
 ## Immediate Next Slice
 
@@ -276,6 +277,42 @@ The current slice status is:
 7. Phase R6 stack sync and light-mode readability: in progress
 
 The next slice should close Phase R6 first, then return to the remaining parts of Phase R2 and the broader Phase R5 verification work.
+
+## Phase DP: Capture And Stack Visual Polish
+
+### Goal
+
+Finish the visible capture/stack polish work without reopening structural regressions or allowing ad hoc UI drift.
+
+Reference:
+
+- [Design-Polish-Execution-Plan.md](/Users/ilwonyoon/Documents/PromptCue/docs/Design-Polish-Execution-Plan.md)
+
+### Why This Needs A Separate Phase
+
+Backtick now has enough structural ownership to polish safely, but the remaining issues are visual and subjective enough that they require:
+
+- explicit ownership boundaries
+- screenshot-based review packets
+- master-owned token changes
+
+### Exit Criteria
+
+- capture shell elevation is clear in both appearance modes
+- stack cards are brighter and easier to scan without flattening the UI
+- semantic tokens expose the needed light/dark polish roles
+- every slice ships with before/after review artifacts
+
+### Current Status
+
+- `DP0`: complete in docs
+- next bounded slices:
+  - `DP1`: capture elevation pass
+  - `DP2`: stack card brightness pass
+- current state:
+  - semantic token and runtime-shell extraction is in progress for `DP1`
+  - stack-card brightness and copied-stack quieting are in progress for `DP2`
+  - final light/dark review artifacts are still the gate
 
 That means:
 

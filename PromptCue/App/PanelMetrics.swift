@@ -6,12 +6,14 @@ enum PanelMetrics {
     static let stackPanelMinimumHeight: CGFloat = 360
     static let stackPanelFallbackVisibleHeight: CGFloat = 600
 
-    static let capturePanelWidth: CGFloat = 448
     static let captureSurfaceWidth: CGFloat = 400
     static let captureSurfaceInnerPadding: CGFloat = 24
     static let captureSurfaceTopPadding: CGFloat = 12
     static let captureSurfaceBottomPadding: CGFloat = 4
     static let capturePanelOuterPadding: CGFloat = 24
+    static let capturePanelShadowTopInset: CGFloat = 18
+    static let capturePanelShadowBottomInset: CGFloat = 42
+    static let capturePanelWidth: CGFloat = 448
     static let capturePanelVerticalSpacing: CGFloat = 12
     static let capturePanelFallbackVisibleHeight: CGFloat = 240
 

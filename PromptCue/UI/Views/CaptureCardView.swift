@@ -176,14 +176,21 @@ private struct CaptureCardActionStyle {
         isDeleteHovered: Bool,
         isShowingCopyFeedback: Bool
     ) -> CaptureCardActionStyle {
-        let usesPersistentActionBackdrop = colorScheme == .light && card.screenshotURL != nil
+        let usesPersistentActionBackdrop = card.screenshotURL != nil
         let isPrimaryCopyHover = isCopyHovered || (isCardHovered && !selectionMode)
 
         let bodyColor: Color
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             bodyColor = SemanticTokens.Text.primary
         } else if card.isCopied {
-            bodyColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+            switch colorScheme {
+            case .light:
+                bodyColor = SemanticTokens.Text.primary.opacity(0.74)
+            case .dark:
+                bodyColor = SemanticTokens.Text.secondary.opacity(0.78)
+            @unknown default:
+                bodyColor = SemanticTokens.Text.secondary.opacity(0.78)
+            }
         } else {
             bodyColor = SemanticTokens.Text.primary
         }
@@ -196,7 +203,14 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             copyIconColor = SemanticTokens.Text.primary
         } else {
-            copyIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+            switch colorScheme {
+            case .light:
+                copyIconColor = SemanticTokens.Text.secondary.opacity(0.80)
+            case .dark:
+                copyIconColor = SemanticTokens.Text.secondary.opacity(0.86)
+            @unknown default:
+                copyIconColor = SemanticTokens.Text.secondary.opacity(0.86)
+            }
         }
 
         let copyIconSystemName: String
@@ -212,9 +226,23 @@ private struct CaptureCardActionStyle {
         if isDeleteHovered {
             deleteIconColor = SemanticTokens.Text.primary
         } else if card.isCopied {
-            deleteIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.subtle)
+            switch colorScheme {
+            case .light:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.62)
+            case .dark:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.56)
+            @unknown default:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.56)
+            }
         } else {
-            deleteIconColor = SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+            switch colorScheme {
+            case .light:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.76)
+            case .dark:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.82)
+            @unknown default:
+                deleteIconColor = SemanticTokens.Text.secondary.opacity(0.82)
+            }
         }
 
         let copyIconBackground: Color
@@ -225,7 +253,14 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             copyIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         } else if usesPersistentActionBackdrop {
-            copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
+            switch colorScheme {
+            case .light:
+                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
+            case .dark:
+                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
+            @unknown default:
+                copyIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.54)
+            }
         } else {
             copyIconBackground = .clear
         }
@@ -234,7 +269,14 @@ private struct CaptureCardActionStyle {
         if isDeleteHovered {
             deleteIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
         } else if usesPersistentActionBackdrop {
-            deleteIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.6)
+            switch colorScheme {
+            case .light:
+                deleteIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.60)
+            case .dark:
+                deleteIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.46)
+            @unknown default:
+                deleteIconBackground = SemanticTokens.Surface.notificationCardBackdrop.opacity(0.46)
+            }
         } else {
             deleteIconBackground = .clear
         }

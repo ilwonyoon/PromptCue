@@ -206,12 +206,17 @@ Goal:
 
 - improve macOS fidelity after boundaries are stable
 
+Reference:
+
+- [Design-Polish-Execution-Plan.md](/Users/ilwonyoon/Documents/PromptCue/docs/Design-Polish-Execution-Plan.md)
+
 Tasks:
 
 1. audit materials and blur recipes against actual macOS utility behavior
 2. audit typography and control density against system expectations
 3. audit settings layout against native preference-pane conventions
 4. verify appearance in both light and dark mode
+5. complete the bounded capture/stack polish slices defined in the design-polish execution plan
 
 Exit criteria:
 
@@ -256,7 +261,7 @@ Required before any design-system work is considered done:
 - `DS2`: complete
 - `DS3`: complete
 - `DS4`: started
-- `DS5`: not started
+- `DS5`: active via `Phase DP0` planning and review-lock work
 
 What is already true in code:
 
@@ -272,8 +277,8 @@ The next step is not a large refactor.
 It is:
 
 1. expand `Phase DS4` only where reuse is already proven
-2. keep feature-specific surfaces specialized while removing only genuinely duplicated shared chrome
-3. leave `Phase DS5` for a final native-macOS alignment pass after recipe ownership is stable
-3. split value ownership without touching runtime-critical behavior
+2. enter `Phase DS5` through the bounded capture/stack polish plan
+3. keep feature-specific surfaces specialized while removing only genuinely duplicated shared chrome
+4. split value ownership without touching runtime-critical behavior
 
 That gives future design-system cleanup a safe foundation.

@@ -12,7 +12,7 @@ enum CloudSyncPreferences {
     private static let syncEnabledKey = "cloudSync.enabled"
 
     static func load(defaults: UserDefaults = .standard) -> Bool {
-        defaults.object(forKey: syncEnabledKey) as? Bool ?? true
+        defaults.object(forKey: syncEnabledKey) as? Bool ?? false
     }
 
     static func save(enabled: Bool, defaults: UserDefaults = .standard) {

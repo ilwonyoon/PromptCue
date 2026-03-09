@@ -35,35 +35,50 @@ struct SearchFieldSurface<Content: View>: View {
     private var backgroundSurface: some View {
         switch style {
         case .quiet:
-            if colorScheme == .light {
-                quietLightBackground
-            } else {
-                quietDarkBackground
-            }
+            quietBackground
         case .showcase:
             showcaseBackground
         }
     }
 
-    private var quietLightBackground: some View {
+    private var quietBackground: some View {
         baseQuietBackground
-            .overlay { quietLightSheenOverlay }
-            .overlay { quietLightStrokeOverlay }
-            .overlay { quietLightInnerStrokeOverlay }
-            .overlay(alignment: .top) { quietLightHighlightOverlay }
-            .overlay { quietLightBottomStrokeOverlay }
+            .overlay {
+                shape.fill(CaptureShellChromeRecipe.quietRaisedFill(colorScheme: colorScheme))
+            }
+            .overlay {
+                shape.fill(CaptureShellChromeRecipe.quietSheenGradient(colorScheme: colorScheme))
+            }
+            .overlay {
+                shape.stroke(CaptureShellChromeRecipe.quietStroke(colorScheme: colorScheme))
+            }
+            .overlay {
+                shape
+                    .inset(by: PrimitiveTokens.Stroke.subtle)
+                    .stroke(CaptureShellChromeRecipe.quietInnerStroke(colorScheme: colorScheme))
+                    .mask(alignment: .top) {
+                        Rectangle()
+                            .frame(height: PrimitiveTokens.Space.xl)
+                    }
+            }
+            .overlay(alignment: .top) {
+                TopEdgeStrokeOverlay(
+                    shape: shape,
+                    color: CaptureShellChromeRecipe.quietTopHighlight(colorScheme: colorScheme),
+                    lineWidth: PrimitiveTokens.Stroke.subtle,
+                    frameHeight: PrimitiveTokens.Space.lg,
+                    maskHeight: PrimitiveTokens.Space.sm
+                )
+            }
+            .overlay {
+                shape
+                    .stroke(CaptureShellChromeRecipe.quietBottomStroke(colorScheme: colorScheme))
+                    .mask(alignment: .bottom) {
+                        Rectangle()
+                            .frame(height: PrimitiveTokens.Space.sm)
+                    }
+            }
             .promptCueCaptureSurfaceShadow()
-    }
-
-    private var quietDarkBackground: some View {
-        baseQuietBackground
-            .overlay {
-                shape.fill(CaptureShellChromeRecipe.quietRaisedFill(colorScheme: .dark))
-            }
-            .overlay {
-                shape.stroke(SemanticTokens.Border.notificationCard)
-            }
-            .promptCuePanelShadow()
     }
 
     private var showcaseBackground: some View {
@@ -99,42 +114,5 @@ struct SearchFieldSurface<Content: View>: View {
 
     private var basePanelFillOverlay: some View {
         shape.fill(SemanticTokens.Surface.panelFill)
-    }
-
-    private var quietLightSheenOverlay: some View {
-        shape.fill(CaptureShellChromeRecipe.quietLightGradient)
-    }
-
-    private var quietLightStrokeOverlay: some View {
-        shape.stroke(SemanticTokens.Border.notificationCard)
-    }
-
-    private var quietLightInnerStrokeOverlay: some View {
-        shape
-            .inset(by: PrimitiveTokens.Stroke.subtle)
-            .stroke(CaptureShellChromeRecipe.quietLightInnerStroke)
-            .mask(alignment: .top) {
-                Rectangle()
-                    .frame(height: PrimitiveTokens.Space.xl)
-            }
-    }
-
-    private var quietLightHighlightOverlay: some View {
-        TopEdgeStrokeOverlay(
-            shape: shape,
-            color: CaptureShellChromeRecipe.quietLightHighlight,
-            lineWidth: PrimitiveTokens.Stroke.subtle,
-            frameHeight: PrimitiveTokens.Space.lg,
-            maskHeight: PrimitiveTokens.Space.sm
-        )
-    }
-
-    private var quietLightBottomStrokeOverlay: some View {
-        shape
-            .stroke(CaptureShellChromeRecipe.quietLightBottomStroke)
-            .mask(alignment: .bottom) {
-                Rectangle()
-                    .frame(height: PrimitiveTokens.Space.sm)
-            }
     }
 }

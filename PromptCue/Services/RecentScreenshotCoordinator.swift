@@ -394,7 +394,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         settleTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] timer in
             Task { @MainActor [weak self] in
-                guard let self else {
+                guard let self, self.isStarted else {
                     timer.invalidate()
                     return
                 }
@@ -433,7 +433,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         invalidateExpirationTimer()
         expirationTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.expireCurrentSessionIfNeeded()
+                guard let self, self.isStarted else {
+                    return
+                }
+                self.expireCurrentSessionIfNeeded()
             }
         }
     }

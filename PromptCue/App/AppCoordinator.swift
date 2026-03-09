@@ -36,13 +36,15 @@ final class AppCoordinator {
         }
 
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_STACK_ON_START"] == "1" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
                 self?.stackPanelController.show()
             }
         }
 
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_CAPTURE_ON_START"] == "1" {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
                 self?.showCapturePanel()
             }
         }

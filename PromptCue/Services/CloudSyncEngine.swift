@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import Network
 import PromptCueCore
 
 enum SyncChange: Sendable {
@@ -7,11 +8,19 @@ enum SyncChange: Sendable {
     case delete(UUID)
 }
 
+enum CloudSyncAccountStatus: Sendable {
+    case available
+    case noAccount
+    case restricted
+    case unknown
+}
+
 @MainActor
 protocol CloudSyncDelegate: AnyObject {
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange])
     func cloudSyncDidComplete(_ engine: CloudSyncEngine)
     func cloudSync(_ engine: CloudSyncEngine, didFailWithError message: String)
+    func cloudSync(_ engine: CloudSyncEngine, accountStatusChanged status: CloudSyncAccountStatus)
 }
 
 @MainActor
@@ -19,6 +28,7 @@ final class CloudSyncEngine {
     private static let zoneName = "Cards"
     private static let recordType = "CaptureCard"
     private static let serverChangeTokenKey = "CloudSyncEngine.serverChangeToken"
+    private static let maxRetryAttempts = 3
 
     private let container: CKContainer
     private let database: CKDatabase
@@ -26,6 +36,9 @@ final class CloudSyncEngine {
     private let zone: CKRecordZone
     private var recentlyPushedIDs = Set<UUID>()
     private var isFetching = false
+    private var networkMonitor: NWPathMonitor?
+    private(set) var isNetworkAvailable = true
+    private(set) var accountStatus: CloudSyncAccountStatus = .unknown
 
     weak var delegate: CloudSyncDelegate?
 
@@ -62,12 +75,70 @@ final class CloudSyncEngine {
     // MARK: - Setup
 
     func setup() async {
+        startNetworkMonitor()
+
+        let status = await checkAccountStatus()
+        accountStatus = status
+        delegate?.cloudSync(self, accountStatusChanged: status)
+
+        guard status == .available else {
+            let message: String
+            switch status {
+            case .noAccount:
+                message = "No iCloud account. Sign in via System Settings."
+            case .restricted:
+                message = "iCloud access is restricted on this device."
+            case .unknown, .available:
+                message = "Unable to verify iCloud account status."
+            }
+            delegate?.cloudSync(self, didFailWithError: message)
+            return
+        }
+
         do {
             try await createZoneIfNeeded()
             try await subscribeToChanges()
         } catch {
             NSLog("CloudSyncEngine setup failed: %@", String(describing: error))
+            delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
         }
+    }
+
+    private func checkAccountStatus() async -> CloudSyncAccountStatus {
+        do {
+            let status = try await container.accountStatus()
+            switch status {
+            case .available:
+                return .available
+            case .noAccount:
+                return .noAccount
+            case .restricted:
+                return .restricted
+            case .couldNotDetermine, .temporarilyUnavailable:
+                return .unknown
+            @unknown default:
+                return .unknown
+            }
+        } catch {
+            NSLog("CloudSync account status check failed: %@", String(describing: error))
+            return .unknown
+        }
+    }
+
+    private func startNetworkMonitor() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                self?.isNetworkAvailable = path.status == .satisfied
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "CloudSyncEngine.network"))
+        networkMonitor = monitor
+    }
+
+    func stopNetworkMonitor() {
+        networkMonitor?.cancel()
+        networkMonitor = nil
     }
 
     private func createZoneIfNeeded() async throws {
@@ -104,11 +175,18 @@ final class CloudSyncEngine {
     func pushLocalChange(card: CaptureCard) {
         recentlyPushedIDs.insert(card.id)
 
+        guard isNetworkAvailable else {
+            NSLog("CloudSync push skipped (offline) for %@", card.id.uuidString)
+            return
+        }
+
         Task {
             do {
-                let record = try await fetchOrCreateRecord(for: card)
-                applyCardFields(card, to: record)
-                _ = try await database.save(record)
+                try await retryOnTransientError {
+                    let record = try await self.fetchOrCreateRecord(for: card)
+                    self.applyCardFields(card, to: record)
+                    _ = try await self.database.save(record)
+                }
                 delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .serverRecordChanged {
                 handleConflict(error: error, localCard: card)
@@ -121,11 +199,19 @@ final class CloudSyncEngine {
 
     func pushDeletion(id: UUID) {
         recentlyPushedIDs.insert(id)
+
+        guard isNetworkAvailable else {
+            NSLog("CloudSync delete skipped (offline) for %@", id.uuidString)
+            return
+        }
+
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
 
         Task {
             do {
-                try await database.deleteRecord(withID: recordID)
+                try await retryOnTransientError {
+                    try await self.database.deleteRecord(withID: recordID)
+                }
                 delegate?.cloudSyncDidComplete(self)
             } catch let error as CKError where error.code == .unknownItem {
                 delegate?.cloudSyncDidComplete(self)
@@ -180,6 +266,7 @@ final class CloudSyncEngine {
 
     func fetchRemoteChanges() {
         guard !isFetching else { return }
+        guard isNetworkAvailable else { return }
         isFetching = true
 
         let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
@@ -337,6 +424,29 @@ final class CloudSyncEngine {
         let record = CKRecord(recordType: Self.recordType, recordID: recordID)
         applyCardFields(card, to: record)
         return record
+    }
+
+    private func retryOnTransientError(
+        attempt: Int = 0,
+        operation: @escaping () async throws -> Void
+    ) async throws {
+        do {
+            try await operation()
+        } catch let error as CKError where isRetryableError(error) && attempt < Self.maxRetryAttempts {
+            let delay = error.retryAfterSeconds ?? Double(attempt + 1) * 2.0
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            try await retryOnTransientError(attempt: attempt + 1, operation: operation)
+        }
+    }
+
+    private func isRetryableError(_ error: CKError) -> Bool {
+        switch error.code {
+        case .networkUnavailable, .networkFailure, .serviceUnavailable,
+             .requestRateLimited, .zoneBusy:
+            return true
+        default:
+            return false
+        }
     }
 
     private func captureCard(from record: CKRecord) -> CaptureCard? {

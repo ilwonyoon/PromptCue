@@ -49,7 +49,8 @@ final class AppModel: ObservableObject {
     }
 
     convenience init() {
-        let syncEnabled = CloudSyncPreferences.load()
+        let isTestEnvironment = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let syncEnabled = !isTestEnvironment && CloudSyncPreferences.load()
         self.init(
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
@@ -604,7 +605,19 @@ extension AppModel: CloudSyncDelegate {
         )
     }
 
+    func cloudSync(_ engine: CloudSyncEngine, accountStatusChanged status: CloudSyncAccountStatus) {
+        NotificationCenter.default.post(
+            name: .cloudSyncAccountStatusChanged,
+            object: nil,
+            userInfo: ["status": status]
+        )
+    }
+
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
+        applyRemoteChanges(changes)
+    }
+
+    func applyRemoteChanges(_ changes: [SyncChange]) {
         var updatedCards = cards
         var removedCards: [CaptureCard] = []
 

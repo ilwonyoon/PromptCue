@@ -6,7 +6,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         coordinator = AppCoordinator()
         coordinator?.start()
-        NSApplication.shared.registerForRemoteNotifications()
+
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+            NSApplication.shared.registerForRemoteNotifications()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

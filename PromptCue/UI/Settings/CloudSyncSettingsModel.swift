@@ -5,6 +5,7 @@ extension Notification.Name {
     static let cloudSyncDidComplete = Notification.Name("cloudSyncDidComplete")
     static let cloudSyncDidFail = Notification.Name("cloudSyncDidFail")
     static let cloudSyncEnabledChanged = Notification.Name("cloudSyncEnabledChanged")
+    static let cloudSyncAccountStatusChanged = Notification.Name("cloudSyncAccountStatusChanged")
 }
 
 enum CloudSyncPreferences {
@@ -24,6 +25,7 @@ final class CloudSyncSettingsModel: ObservableObject {
     @Published var isSyncEnabled = true
     @Published private(set) var lastSyncedAt: Date?
     @Published private(set) var syncError: String?
+    @Published var accountStatus: CloudSyncAccountStatus = .unknown
 
     private var cancellables = Set<AnyCancellable>()
     private static let relativeFormatter: RelativeDateTimeFormatter = {
@@ -79,11 +81,29 @@ final class CloudSyncSettingsModel: ObservableObject {
                 self?.updateSyncError(message)
             }
             .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .cloudSyncAccountStatusChanged)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] notification in
+                if let status = notification.userInfo?["status"] as? CloudSyncAccountStatus {
+                    self?.accountStatus = status
+                }
+            }
+            .store(in: &cancellables)
     }
 
     var syncStatusText: String {
         if !isSyncEnabled {
             return "Disabled"
+        }
+
+        switch accountStatus {
+        case .noAccount:
+            return "No iCloud account"
+        case .restricted:
+            return "iCloud restricted"
+        case .unknown, .available:
+            break
         }
 
         if let error = syncError {

@@ -5,9 +5,3 @@ enum ScreenshotFolderAccessState: Equatable, Sendable {
     case connected(url: URL, displayPath: String)
     case needsReconnect(lastKnownDisplayPath: String)
 }
-
-protocol ScreenshotFolderAccessing {
-    var state: ScreenshotFolderAccessState { get }
-
-    func resolvedDirectoryURL() -> URL?
-}

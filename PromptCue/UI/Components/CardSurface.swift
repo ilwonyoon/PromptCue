@@ -6,6 +6,7 @@ enum CardSurfaceStyle: Equatable {
 }
 
 struct CardSurface<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
     let isSelected: Bool
     let isEmphasized: Bool
     let style: CardSurfaceStyle
@@ -30,19 +31,7 @@ struct CardSurface<Content: View>: View {
             .background(
                 Group {
                     if style == .notification {
-                        shape
-                            .fill(SemanticTokens.MaterialStyle.notificationCard)
-                            .overlay {
-                                shape.fill(SemanticTokens.Surface.notificationCardBackdrop)
-                            }
-                            .overlay {
-                                shape.fill(backgroundFill)
-                            }
-                            .overlay {
-                                if isEmphasized {
-                                    shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
-                                }
-                            }
+                        notificationBackground(for: shape)
                     } else {
                         shape.fill(backgroundFill)
                     }
@@ -55,6 +44,7 @@ struct CardSurface<Content: View>: View {
                         lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle
                     )
             }
+            .clipShape(shape)
 
         Group {
             if style == .notification {
@@ -62,6 +52,47 @@ struct CardSurface<Content: View>: View {
             } else {
                 surface.promptCueCardShadow()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func notificationBackground(for shape: RoundedRectangle) -> some View {
+        if colorScheme == .light {
+            shape
+                .fill(SemanticTokens.MaterialStyle.notificationCard)
+                .overlay {
+                    shape.fill(backgroundFill)
+                }
+                .overlay {
+                    if isEmphasized {
+                        shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
+                    }
+                }
+                .overlay(alignment: .top) {
+                    shape
+                        .stroke(
+                            SemanticTokens.Border.glassHighlight.opacity(0.18),
+                            lineWidth: PrimitiveTokens.Stroke.subtle
+                        )
+                        .mask(alignment: .top) {
+                            Rectangle()
+                                .frame(height: PrimitiveTokens.Space.sm)
+                        }
+                }
+        } else {
+            shape
+                .fill(SemanticTokens.MaterialStyle.notificationCard)
+                .overlay {
+                    shape.fill(SemanticTokens.Surface.notificationCardBackdrop)
+                }
+                .overlay {
+                    shape.fill(backgroundFill)
+                }
+                .overlay {
+                    if isEmphasized {
+                        shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
+                    }
+                }
         }
     }
 

@@ -4,10 +4,30 @@ import SwiftUI
 
 struct CueTextEditor: NSViewRepresentable {
     @Binding var text: String
+    let placeholder: String
     let maxContentHeight: CGFloat
-    let onHeightChange: (CGFloat) -> Void
+    let onMetricsChange: (CaptureEditorMetrics) -> Void
+    let onResolvedPreferredHeightChange: (CGFloat) -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
+
+    init(
+        text: Binding<String>,
+        placeholder: String,
+        maxContentHeight: CGFloat,
+        onMetricsChange: @escaping (CaptureEditorMetrics) -> Void,
+        onResolvedPreferredHeightChange: @escaping (CGFloat) -> Void = { _ in },
+        onSubmit: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        _text = text
+        self.placeholder = placeholder
+        self.maxContentHeight = maxContentHeight
+        self.onMetricsChange = onMetricsChange
+        self.onResolvedPreferredHeightChange = onResolvedPreferredHeightChange
+        self.onSubmit = onSubmit
+        self.onCancel = onCancel
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -18,12 +38,17 @@ struct CueTextEditor: NSViewRepresentable {
         let textView = container.textView
 
         textView.delegate = context.coordinator
-        textView.string = text
         container.maxMeasuredHeight = maxContentHeight
-        container.onHeightChange = onHeightChange
+        container.onMetricsChange = onMetricsChange
+        container.onResolvedPreferredHeightChange = onResolvedPreferredHeightChange
+        container.placeholderText = placeholder
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
+        textView.onPaste = { [weak container] in
+            container?.requestScrollToSelectionOnNextMeasurement()
+        }
         configure(textView)
+        container.applyExternalText(text, forceScrollToSelection: !text.isEmpty, forceMeasure: true)
 
         DispatchQueue.main.async {
             container.window?.makeFirstResponder(textView)
@@ -35,16 +60,20 @@ struct CueTextEditor: NSViewRepresentable {
     func updateNSView(_ container: CueEditorContainerView, context: Context) {
         let textView = container.textView
 
-        if textView.string != text {
-            textView.string = text
-            container.layoutSubtreeIfNeeded()
-        }
-
         container.maxMeasuredHeight = maxContentHeight
-        container.onHeightChange = onHeightChange
+        container.onMetricsChange = onMetricsChange
+        container.onResolvedPreferredHeightChange = onResolvedPreferredHeightChange
+        container.placeholderText = placeholder
         textView.onSubmit = onSubmit
         textView.onCancel = onCancel
-        configure(textView)
+        textView.onPaste = { [weak container] in
+            container?.requestScrollToSelectionOnNextMeasurement()
+        }
+
+        if textView.string != text {
+            container.applyExternalText(text, forceScrollToSelection: !text.isEmpty, forceMeasure: true)
+        }
+
         requestFocusIfNeeded(in: container)
     }
 
@@ -80,12 +109,13 @@ struct CueTextEditor: NSViewRepresentable {
         textView.isAutomaticTextReplacementEnabled = false
         textView.isContinuousSpellCheckingEnabled = false
         textView.isGrammarCheckingEnabled = false
-        textView.textContainerInset = .zero
+        textView.allowsUndo = true
+        textView.textContainerInset = NSSize(width: 0, height: AppUIConstants.captureEditorVerticalInset)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.alignment = .left
         textView.defaultParagraphStyle = paragraphStyle
-        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.widthTracksTextView = false
         textView.textContainer?.lineFragmentPadding = 0
         textView.textContainer?.lineBreakMode = .byWordWrapping
         textView.typingAttributes = [
@@ -93,16 +123,6 @@ struct CueTextEditor: NSViewRepresentable {
             .foregroundColor: NSColor.labelColor,
             .paragraphStyle: paragraphStyle,
         ]
-
-        if let textStorage = textView.textStorage, textStorage.length > 0 {
-            textStorage.beginEditing()
-            textStorage.addAttributes([
-                .font: font,
-                .foregroundColor: NSColor.labelColor,
-                .paragraphStyle: paragraphStyle,
-            ], range: NSRange(location: 0, length: textStorage.length))
-            textStorage.endEditing()
-        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
@@ -113,95 +133,36 @@ struct CueTextEditor: NSViewRepresentable {
         }
 
         func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else {
+            guard let textView = notification.object as? NSTextView,
+                  let container = textView.enclosingScrollView?.superview as? CueEditorContainerView else {
                 return
             }
+
+            container.updateMeasuredMetrics(forceMeasure: true, emitMetrics: false)
 
             if parent.text != textView.string {
                 parent.text = textView.string
             }
 
-            (textView.enclosingScrollView?.superview as? CueEditorContainerView)?.updateMeasuredHeight()
+            container.flushPendingMetricsIfNeeded()
         }
     }
 }
 
-final class CueEditorContainerView: NSView {
-    let scrollView = NSScrollView()
-    let textView = WrappingCueTextView()
-    var maxMeasuredHeight: CGFloat = AppUIConstants.captureEditorMaxHeight
-    var onHeightChange: ((CGFloat) -> Void)?
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        setup()
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override var isFlipped: Bool { true }
-
-    override func layout() {
-        super.layout()
-        updateMeasuredHeight()
-    }
-
-    private func setup() {
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
-        scrollView.scrollerStyle = .overlay
-        scrollView.verticalScrollElasticity = .allowed
-
-        addSubview(scrollView)
-
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-
-        scrollView.documentView = textView
-        textView.minSize = .zero
-        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        textView.isHorizontallyResizable = false
-        textView.isVerticallyResizable = true
-        textView.autoresizingMask = [.width]
-    }
-
-    func updateMeasuredHeight() {
-        let width = scrollView.contentSize.width
-        guard width > 0 else {
-            return
-        }
-
-        if let textContainer = textView.textContainer {
-            textContainer.containerSize = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
-        }
-
-        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
-        let usedHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
-        let contentHeight = max(PrimitiveTokens.LineHeight.capture, ceil(usedHeight))
-        let visibleHeight = min(contentHeight, maxMeasuredHeight)
-        let shouldScroll = contentHeight > maxMeasuredHeight + 0.5
-
-        scrollView.hasVerticalScroller = shouldScroll
-        textView.frame = NSRect(x: 0, y: 0, width: width, height: contentHeight)
-        onHeightChange?(visibleHeight)
-    }
-}
+typealias CueEditorContainerView = CaptureEditorRuntimeHostView
+typealias CaptureEditorHostView = CaptureEditorRuntimeHostView
 
 final class WrappingCueTextView: NSTextView {
     var onSubmit: (() -> Void)?
     var onCancel: (() -> Void)?
+    var onPaste: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
+        if hasMarkedText() {
+            super.keyDown(with: event)
+            return
+        }
+
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         switch Int(event.keyCode) {
@@ -216,5 +177,16 @@ final class WrappingCueTextView: NSTextView {
         default:
             super.keyDown(with: event)
         }
+    }
+
+    override func paste(_ sender: Any?) {
+        super.paste(sender)
+        onPaste?()
+    }
+}
+
+final class ClickThroughTextField: NSTextField {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }

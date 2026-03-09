@@ -1,5 +1,4 @@
 import AppKit
-import Combine
 import Carbon
 import SwiftUI
 
@@ -7,29 +6,25 @@ import SwiftUI
 final class CapturePanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var panel: CapturePanel?
-    private var sizingObserver: AnyCancellable?
+    private var runtimeViewController: CapturePanelRuntimeViewController?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var anchoredTopY: CGFloat?
     private var anchoredOriginX: CGFloat?
+    private var preferredPanelHeight: CGFloat = AppUIConstants.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
 
     init(model: AppModel) {
         self.model = model
         super.init()
-
-        sizingObserver = Publishers.CombineLatest3(
-            model.$draftEditorContentHeight.removeDuplicates(),
-            model.$pendingScreenshotAttachment.map { $0 != nil }.removeDuplicates(),
-            model.$isAwaitingRecentScreenshot.removeDuplicates()
-        )
-        .sink { [weak self] _, _, _ in
-            self?.resizePanelIfNeeded()
-        }
     }
 
     func show() {
-        let panel = panel ?? makePanel()
         model.beginCaptureSession()
+        let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()
+        runtimeViewController.prepareForPresentation()
+        preferredPanelHeight = runtimeViewController.currentPreferredPanelHeight
+        let panel = panel ?? makePanel(contentViewController: runtimeViewController)
+        primePanelLayout(panel)
         let frame = initialPanelFrame()
         anchoredTopY = frame.maxY
         anchoredOriginX = frame.minX
@@ -37,6 +32,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
+        runtimeViewController.focusEditorIfPossible()
         installDismissMonitors()
     }
 
@@ -52,7 +48,26 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel?.isVisible == true
     }
 
-    private func makePanel() -> CapturePanel {
+    private func makeRuntimeViewController() -> CapturePanelRuntimeViewController {
+        let controller = CapturePanelRuntimeViewController(model: model)
+        controller.onPreferredPanelHeightChange = { [weak self] height in
+            guard let self else {
+                return
+            }
+            self.preferredPanelHeight = height
+            self.resizePanelIfNeeded()
+        }
+        controller.onSubmitSuccess = { [weak self] in
+            self?.close()
+        }
+        controller.onCancelRequest = { [weak self] in
+            self?.close()
+        }
+        runtimeViewController = controller
+        return controller
+    }
+
+    private func makePanel(contentViewController: NSViewController) -> CapturePanel {
         let panel = CapturePanel(
             contentRect: initialPanelFrame(),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
@@ -78,14 +93,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = NSHostingController(
-            rootView: CaptureComposerView(
-                model: model,
-                onSubmitSuccess: { [weak self] in
-                    self?.close()
-                }
-            )
-        )
+        panel.contentViewController = contentViewController
 
         self.panel = panel
         return panel
@@ -95,7 +103,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         let visibleFrame = screenVisibleFrame()
         let size = NSSize(
             width: AppUIConstants.capturePanelWidth,
-            height: min(desiredPanelHeight(), visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
+            height: min(preferredPanelHeight, visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
         )
 
         return NSRect(
@@ -110,7 +118,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         let visibleFrame = screenVisibleFrame()
         let size = NSSize(
             width: AppUIConstants.capturePanelWidth,
-            height: min(desiredPanelHeight(), visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
+            height: min(preferredPanelHeight, visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
         )
         let fallbackFrame = initialPanelFrame()
         let resolvedOriginX = anchoredOriginX ?? fallbackFrame.minX
@@ -149,25 +157,13 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.setFrame(anchoredPanelFrame(), display: true, animate: false)
     }
 
-    private func desiredPanelHeight() -> CGFloat {
-        let editorHeight = max(model.draftEditorContentHeight, AppUIConstants.captureTextLineHeight)
-        let attachmentHeight: CGFloat
-
-        if model.pendingScreenshotAttachment != nil || model.isAwaitingRecentScreenshot {
-            attachmentHeight = PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm
-        } else {
-            attachmentHeight = 0
+    private func primePanelLayout(_ panel: CapturePanel) {
+        guard let contentView = panel.contentView else {
+            return
         }
 
-        let surfaceHeight = max(
-            PrimitiveTokens.Size.searchFieldHeight,
-            editorHeight + attachmentHeight + (AppUIConstants.captureSurfaceInnerPadding * 2)
-        )
-
-        return ceil(
-            (AppUIConstants.capturePanelOuterPadding * 2)
-            + surfaceHeight
-        )
+        contentView.needsLayout = true
+        contentView.layoutSubtreeIfNeeded()
     }
 
     private func installDismissMonitors() {

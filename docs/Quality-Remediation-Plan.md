@@ -203,6 +203,36 @@ Raise confidence in the real app surface, not just the core package.
 - Core flows have repeatable verification.
 - Release readiness is based on observed behavior, not optimism.
 
+## Phase R6: Stack Sync And Light-Mode Readability
+
+### Goal
+
+Remove the current mismatch between successful capture submission and what the stack panel actually shows, and make the light-mode stack legible enough that new cards are unmistakable.
+
+### Current Diagnosis
+
+1. Capture submission is now async for screenshot-backed drafts, but stack presentation can still happen before that async path fully settles.
+2. The stack panel currently reloads store-backed data when it opens, which can race with the in-flight submit path and briefly present a stale snapshot.
+3. In light mode, the stack backdrop and notification-card surfaces are too close in luminance, so a newly inserted active card can appear as if it is missing even when it exists.
+4. The original `Enter` submit path queued work in a `Task`, which created a short gap where `Cmd + 2` could fire before capture submission was actually marked in-flight.
+
+### Tasks
+
+| Task | Owner | Dependency | Parallelizable | Exit Criteria |
+| --- | --- | --- | --- | --- |
+| Add explicit capture-submission flush behavior before stack presentation | Track A + Master wiring | Existing screenshot submit flow | No | Stack never opens from a stale pre-save snapshot after `Enter` |
+| Make `AppModel` the in-memory source of truth during normal app interactions | Track A + Master wiring | Flush behavior | No | Stack presentation no longer depends on store reload timing |
+| Add regression tests for `submit -> immediate stack open` | Track A | Flush behavior | Yes | Async save races are automated |
+| Rebuild light-mode stack veil so underlying content is not readable behind cards | Track B | Existing semantic tokens | Yes | Backdrop acts like a quiet veil instead of a transparent white sheet |
+| Increase separation between light-mode stack cards and the panel backdrop | Track B | Veil update | Yes | New active cards are immediately visible in light mode |
+| Re-run end-to-end smoke for `capture -> save -> open stack` in both appearance modes | Master | Track A and B | No | Sync and contrast issues are manually confirmed |
+
+### Exit Criteria
+
+- Saving a cue and immediately opening the stack shows the new card without delay or stale counts.
+- Light-mode cards and collapsed copied stacks are clearly distinct from the background.
+- The stack panel no longer depends on "try again" behavior to reflect the latest state.
+
 ## Merge Order
 
 1. Phase R0 contract lock
@@ -211,6 +241,7 @@ Raise confidence in the real app surface, not just the core package.
 4. Track B, selection and clipboard export
 5. Track D, design-system reconciliation
 6. Phase R5 verification pass
+7. Phase R6 stack sync and light-mode readability
 
 ## Immediate Next Slice
 
@@ -222,11 +253,58 @@ The current slice status is:
 4. Phase R2 selection and grouped export: in progress
 5. Phase R4 design-system reconciliation: pending
 6. Phase R5 app-level verification: started, but still too light
+7. Phase R6 stack sync and light-mode readability: in progress
 
-The next slice should finish the remaining parts of Phase R2 and expand Phase R5.
+The next slice should close Phase R6 first, then return to the remaining parts of Phase R2 and the broader Phase R5 verification work.
 
 That means:
 
-1. Verify grouped export against target apps that consume image + text differently
-2. Add app-level tests around storage and export-sensitive services
-3. Reconcile design-system docs and semantic usage before more surface polish
+## Phase R7: Capture Input System Hardening
+
+### Goal
+
+Rebuild the capture input so it behaves like a production-quality AppKit text system instead of a best-effort SwiftUI wrapper.
+
+### Current Diagnosis
+
+1. The current editor sizing path is two-phase: AppKit content grows first, then SwiftUI shell height catches up.
+2. That architecture is especially fragile under multiline wrap and large paste payloads.
+3. The current editor bridge still performs too much work through SwiftUI update cycles for a high-frequency text surface.
+4. The app has no dedicated paste burst strategy, IME/composition contract, or deterministic QA harness for input stress cases.
+5. Current code review confirms split height ownership across `CueEditorContainerView -> CaptureComposerView -> AppModel -> CapturePanelController`.
+6. Bottom padding is still encoded as part of measured editor height instead of being owned as shell chrome.
+
+### Tasks
+
+| Task | Owner | Dependency | Parallelizable | Exit Criteria |
+| --- | --- | --- | --- | --- |
+| Lock an explicit editor state contract (`contentHeight`, `visibleHeight`, `isScrollable`, composition state) | Master | None | No | input geometry is no longer implicit |
+| Promote the AppKit editor host to own clamped sizing and scroll threshold behavior | Track A + Master wiring | editor state contract | No | wrap and paste do not leak outside the shell |
+| Add paste-specific handling and composition-safe submit behavior | Track A | editor host rewrite | Yes | paste bursts and IME do not break the editor |
+| Move placeholder ownership out of loose SwiftUI overlay logic | Track B | editor host rewrite | Yes | placeholder no longer fights real text state |
+| Add QA harness scenarios for wrap, large paste, and screenshot-slot interaction | Track B | editor host rewrite | Yes | known regressions are reproducible on demand |
+| Replace live SwiftUI capture composition with an AppKit-owned capture host | Master + Track A | editor host rewrite | No | runtime capture panel no longer depends on per-keystroke SwiftUI frame updates |
+
+### Current Status
+
+- Explicit editor metrics contract is now live via `CaptureEditorMetrics`.
+- The capture editor now reserves scroller width in measurement and clips to the surface.
+- Initial presentation now precomputes draft metrics before panel display.
+- A deterministic local QA harness now exists in `scripts/qa_capture_input.sh`.
+- Automated capture QA has been run against a multiline fixture and produced:
+  - screenshot artifact: `/tmp/promptcue-qa/manual-r7/capture.png`
+  - metrics log showing `width=336.0 content=1232.0 visible=176.0 scroll=true`
+- Remaining follow-up is no longer “minor polish.” The blocker is architectural: sizing authority still spans AppKit, SwiftUI, the model, and the panel.
+- R7B is now authorized: the live capture panel will be rewritten around an AppKit-owned host while preserving the current visual shell.
+
+### Exit Criteria
+
+- Wrap does not visibly jump.
+- Large paste never renders outside the capture surface.
+- Fast input, paste, and composition behavior are explicitly covered.
+
+1. QA the new tracked capture-submission path in real `Enter -> Cmd + 2` flow
+2. Fine-tune any remaining light-mode veil and shadow issues without reopening the sync path
+3. Keep app-level tests around `capture -> submit -> immediate stack open` green
+4. Verify grouped export against target apps that consume image + text differently
+5. Reconcile design-system docs and semantic usage before more surface polish

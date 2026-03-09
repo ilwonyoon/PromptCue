@@ -21,36 +21,33 @@ enum CardSection {
 final class AppModel: ObservableObject {
     @Published private(set) var cards: [CaptureCard] = []
     @Published private(set) var storageErrorMessage: String?
+    @Published private(set) var recentScreenshotState: RecentScreenshotState = .idle
     @Published var draftText = ""
-    @Published var draftEditorContentHeight: CGFloat = 0
-    @Published var pendingScreenshotAttachment: ScreenshotAttachment?
-    @Published var isAwaitingRecentScreenshot = false
+    @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
     @Published var selectedCardIDs: Set<UUID> = []
+    @Published private(set) var isSubmittingCapture = false
 
     private let cardStore: CardStore
-    private let screenshotMonitor: ScreenshotMonitor
     private let attachmentStore: AttachmentStoring
+    private let recentScreenshotCoordinator: RecentScreenshotCoordinating
     private var cleanupTimer: Timer?
-    private var captureSessionTimer: Timer?
-    private var ignoredRecentScreenshotIdentity: String?
-    private var pendingScreenshotReservationIdentity: String?
-    private var pendingScreenshotReservationDeadline: Date?
+    private var captureSubmissionTask: Task<Bool, Never>?
 
     init(
         cardStore: CardStore,
-        screenshotMonitor: ScreenshotMonitor,
-        attachmentStore: AttachmentStoring
+        attachmentStore: AttachmentStoring,
+        recentScreenshotCoordinator: RecentScreenshotCoordinating
     ) {
         self.cardStore = cardStore
-        self.screenshotMonitor = screenshotMonitor
         self.attachmentStore = attachmentStore
+        self.recentScreenshotCoordinator = recentScreenshotCoordinator
     }
 
     convenience init() {
         self.init(
             cardStore: CardStore(),
-            screenshotMonitor: ScreenshotMonitor(),
-            attachmentStore: AttachmentStore()
+            attachmentStore: AttachmentStore(),
+            recentScreenshotCoordinator: RecentScreenshotCoordinator()
         )
     }
 
@@ -62,16 +59,41 @@ final class AppModel: ObservableObject {
         cards.filter { selectedCardIDs.contains($0.id) }
     }
 
-    func start() {
-        screenshotMonitor.onChange = { [weak self] in
-            guard let self, self.captureSessionTimer != nil else {
-                return
-            }
-
-            self.reservePendingScreenshotSlotIfNeeded()
-            self.refreshPendingScreenshot()
+    var showsRecentScreenshotSlot: Bool {
+        switch recentScreenshotState {
+        case .detected, .previewReady:
+            return true
+        case .idle, .expired, .consumed:
+            return false
         }
-        screenshotMonitor.startWatching()
+    }
+
+    var showsRecentScreenshotPlaceholder: Bool {
+        switch recentScreenshotState {
+        case .detected, .previewReady(_, _, .loading):
+            return true
+        case .idle, .previewReady(_, _, .ready), .expired, .consumed:
+            return false
+        }
+    }
+
+    var recentScreenshotPreviewURL: URL? {
+        switch recentScreenshotState {
+        case .previewReady(_, let cacheURL, .ready):
+            return cacheURL
+        case .idle, .detected, .previewReady(_, _, .loading), .expired, .consumed:
+            return nil
+        }
+    }
+
+    func start() {
+        recentScreenshotCoordinator.onStateChange = { [weak self] state in
+            Task { @MainActor [weak self] in
+                self?.applyRecentScreenshotState(state)
+            }
+        }
+        recentScreenshotCoordinator.start()
+        applyRecentScreenshotState(recentScreenshotCoordinator.state)
         reloadCards()
         cleanupTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -83,10 +105,9 @@ final class AppModel: ObservableObject {
     func stop() {
         cleanupTimer?.invalidate()
         cleanupTimer = nil
-        captureSessionTimer?.invalidate()
-        captureSessionTimer = nil
-        screenshotMonitor.onChange = nil
-        screenshotMonitor.stopWatching()
+        recentScreenshotCoordinator.onStateChange = nil
+        recentScreenshotCoordinator.stop()
+        applyRecentScreenshotState(.idle)
     }
 
     func reloadCards() {
@@ -104,83 +125,76 @@ final class AppModel: ObservableObject {
     }
 
     func beginCaptureSession() {
-        screenshotMonitor.startWatching()
-        reservePendingScreenshotSlotIfNeeded()
-        refreshPendingScreenshot()
-
-        if let captureSessionTimer {
-            captureSessionTimer.invalidate()
-        }
-
-        captureSessionTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.reservePendingScreenshotSlotIfNeeded()
-                self?.refreshPendingScreenshot()
-            }
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            Task { @MainActor [weak self] in
-                guard self?.captureSessionTimer != nil else {
-                    return
-                }
-
-                self?.refreshPendingScreenshot()
-            }
-        }
+        prepareDraftMetricsForPresentation()
+        recentScreenshotCoordinator.prepareForCaptureSession()
+        syncRecentScreenshotState()
     }
 
     func endCaptureSession() {
-        captureSessionTimer?.invalidate()
-        captureSessionTimer = nil
-        clearPendingScreenshotReservation()
+        syncRecentScreenshotState()
     }
 
     func refreshPendingScreenshot() {
-        let candidate = screenshotMonitor.mostRecentScreenshot(maxAge: AppUIConstants.recentScreenshotMaxAge)
+        recentScreenshotCoordinator.prepareForCaptureSession()
+        syncRecentScreenshotState()
+    }
 
-        if let candidate {
-            guard candidate != pendingScreenshotAttachment else {
-                return
+    func beginCaptureSubmission(onSuccess: @escaping @MainActor () -> Void = {}) {
+        guard captureSubmissionTask == nil else {
+            return
+        }
+
+        isSubmittingCapture = true
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else {
+                return false
             }
 
-            guard candidate.identityKey != ignoredRecentScreenshotIdentity else {
-                return
+            defer {
+                self.captureSubmissionTask = nil
+                self.isSubmittingCapture = false
             }
 
-            pendingScreenshotAttachment = candidate
-            clearPendingScreenshotReservation()
-            return
+            let didSubmit = await self.submitCapture()
+            if didSubmit {
+                onSuccess()
+            }
+            return didSubmit
         }
 
-        guard pendingScreenshotAttachment == nil else {
-            return
-        }
-
-        if let signal = screenshotMonitor.mostRecentScreenshotSignal(maxAge: AppUIConstants.recentScreenshotMaxAge),
-           signal.identityKey != ignoredRecentScreenshotIdentity {
-            beginPendingScreenshotReservation(identityKey: signal.identityKey)
-            return
-        }
-
-        if screenshotMonitor.hasRecentDirectoryActivity(maxAge: AppUIConstants.recentScreenshotPlaceholderGrace) {
-            beginPendingScreenshotReservation(identityKey: pendingScreenshotReservationIdentity)
-            return
-        }
-
-        if let deadline = pendingScreenshotReservationDeadline, Date() >= deadline {
-            clearPendingScreenshotReservation()
-        }
+        captureSubmissionTask = task
     }
 
     @discardableResult
-    func submitCapture() -> Bool {
+    func submitCapture() async -> Bool {
+        let managesSubmittingState = !isSubmittingCapture
+        if managesSubmittingState {
+            isSubmittingCapture = true
+        }
+        defer {
+            if managesSubmittingState {
+                isSubmittingCapture = false
+            }
+        }
+
         let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty || pendingScreenshotAttachment != nil else {
+        var attachment = currentRecentScreenshotAttachment
+
+        if attachment == nil, recentScreenshotState.showsCaptureSlot {
+            if let resolvedURL = await recentScreenshotCoordinator.resolveCurrentCaptureAttachment(
+                timeout: AppUIConstants.recentScreenshotSubmitResolveTimeout
+            ) {
+                attachment = ScreenshotAttachment(path: resolvedURL.path)
+            }
+
+            syncRecentScreenshotState()
+        }
+
+        guard !trimmed.isEmpty || attachment != nil else {
             return false
         }
 
-        let attachment = pendingScreenshotAttachment
         let newCardID = UUID()
         let importedScreenshotPath: String?
 
@@ -223,36 +237,71 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         draftText = ""
-        draftEditorContentHeight = 0
-        if let attachment {
-            ignoredRecentScreenshotIdentity = attachment.identityKey
+        draftEditorMetrics = .empty
+        if attachment != nil {
+            recentScreenshotCoordinator.consumeCurrent()
         }
-        pendingScreenshotAttachment = nil
-        clearPendingScreenshotReservation()
+        syncRecentScreenshotState()
         return true
     }
 
     func clearDraft() {
         draftText = ""
-        draftEditorContentHeight = 0
-        pendingScreenshotAttachment = nil
-        clearPendingScreenshotReservation()
+        draftEditorMetrics = .empty
+    }
+
+    func updateDraftEditorMetrics(_ metrics: CaptureEditorMetrics) {
+        if draftEditorMetrics != metrics {
+            draftEditorMetrics = metrics
+        }
+    }
+
+    func prepareDraftMetricsForPresentation() {
+        let trimmed = draftText.trimmingCharacters(in: .newlines)
+        guard !trimmed.isEmpty else {
+            if draftEditorMetrics.layoutWidth == 0 {
+                draftEditorMetrics = .empty
+            }
+            return
+        }
+
+        let estimatedMetrics = CaptureEditorLayoutCalculator.estimatedMetrics(
+            text: draftText,
+            viewportWidth: AppUIConstants.captureEditorViewportWidth,
+            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
+            minimumLineHeight: AppUIConstants.captureTextLineHeight,
+            scrollerReservationWidth: max(
+                NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay),
+                PrimitiveTokens.Space.md
+            ),
+            font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
+            lineHeight: PrimitiveTokens.LineHeight.capture
+        )
+
+        if draftEditorMetrics.layoutWidth == 0 || estimatedMetrics.visibleHeight > draftEditorMetrics.visibleHeight {
+            draftEditorMetrics = estimatedMetrics
+        }
+    }
+
+    func waitForCaptureSubmissionToSettle(timeout: TimeInterval) async {
+        if let captureSubmissionTask {
+            _ = await captureSubmissionTask.value
+            return
+        }
+
+        guard timeout > 0 else {
+            return
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while isSubmittingCapture && Date() < deadline {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
     }
 
     func dismissPendingScreenshot() {
-        if let pendingScreenshotAttachment {
-            ignoredRecentScreenshotIdentity = pendingScreenshotAttachment.identityKey
-            self.pendingScreenshotAttachment = nil
-            clearPendingScreenshotReservation()
-            return
-        }
-
-        guard let pendingScreenshotReservationIdentity else {
-            return
-        }
-
-        ignoredRecentScreenshotIdentity = pendingScreenshotReservationIdentity
-        clearPendingScreenshotReservation()
+        recentScreenshotCoordinator.dismissCurrent()
+        syncRecentScreenshotState()
     }
 
     func toggleSelection(for card: CaptureCard) {
@@ -392,6 +441,15 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private var currentRecentScreenshotAttachment: ScreenshotAttachment? {
+        switch recentScreenshotState {
+        case .previewReady(_, let cacheURL, _):
+            return ScreenshotAttachment(path: cacheURL.path)
+        case .idle, .detected, .expired, .consumed:
+            return nil
+        }
+    }
+
     private func migrateLegacyExternalAttachmentsIfNeeded() {
         var migratedCards = cards
         var didChange = false
@@ -453,46 +511,6 @@ final class AppModel: ObservableObject {
         NSLog("%@: %@", message, String(describing: error))
     }
 
-    private func reservePendingScreenshotSlotIfNeeded() {
-        guard pendingScreenshotAttachment == nil else {
-            clearPendingScreenshotReservation()
-            return
-        }
-
-        if let signal = screenshotMonitor.mostRecentScreenshotSignal(maxAge: AppUIConstants.recentScreenshotMaxAge),
-           signal.identityKey != ignoredRecentScreenshotIdentity {
-            beginPendingScreenshotReservation(identityKey: signal.identityKey)
-            return
-        }
-
-        if screenshotMonitor.hasRecentDirectoryActivity(maxAge: AppUIConstants.recentScreenshotPlaceholderGrace) {
-            beginPendingScreenshotReservation(identityKey: pendingScreenshotReservationIdentity)
-            return
-        }
-
-        if let deadline = pendingScreenshotReservationDeadline, Date() < deadline {
-            isAwaitingRecentScreenshot = true
-            return
-        }
-
-        clearPendingScreenshotReservation()
-    }
-
-    private func clearPendingScreenshotReservation() {
-        pendingScreenshotReservationIdentity = nil
-        pendingScreenshotReservationDeadline = nil
-        isAwaitingRecentScreenshot = false
-    }
-
-    private func beginPendingScreenshotReservation(identityKey: String?) {
-        pendingScreenshotReservationIdentity = identityKey
-        pendingScreenshotReservationDeadline = Date().addingTimeInterval(
-            AppUIConstants.recentScreenshotPlaceholderGrace
-        )
-        isAwaitingRecentScreenshot = true
-    }
-
-
     private func nextTopSortOrder(in section: CardSection) -> Double {
         let maximum = cards
             .filter { section.matches($0) }
@@ -502,4 +520,11 @@ final class AppModel: ObservableObject {
         return maximum + 1
     }
 
+    private func syncRecentScreenshotState() {
+        applyRecentScreenshotState(recentScreenshotCoordinator.state)
+    }
+
+    private func applyRecentScreenshotState(_ state: RecentScreenshotState) {
+        recentScreenshotState = state
+    }
 }

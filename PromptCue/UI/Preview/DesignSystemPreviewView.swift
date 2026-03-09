@@ -319,7 +319,7 @@ struct DesignSystemPreviewView: View {
                     }
                     .frame(maxWidth: .infinity)
 
-                    SearchFieldSurface(style: .showcase) {
+                    SearchFieldSurface(style: .quiet) {
                         VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                             Text("Type and press Enter to save")
                                 .font(PrimitiveTokens.Typography.captureInput)
@@ -675,21 +675,22 @@ private struct ComponentInventoryCard: View {
 
 private struct CueEditorLivePreview: View {
     @State private var text = "Type and press Enter to save"
-    @State private var measuredHeight = PrimitiveTokens.LineHeight.capture
+    @State private var metrics = CaptureEditorMetrics.empty
 
     var body: some View {
         CueTextEditor(
             text: $text,
+            placeholder: "Type and press Enter to save",
             maxContentHeight: AppUIConstants.captureEditorMaxHeight,
-            onHeightChange: { height in
-                measuredHeight = height
+            onMetricsChange: { nextMetrics in
+                metrics = nextMetrics
             },
             onSubmit: {},
             onCancel: {}
         )
         .frame(
             maxWidth: .infinity,
-            minHeight: max(DesignSystemPreviewTokens.previewFieldTextHeight, measuredHeight),
+            minHeight: max(DesignSystemPreviewTokens.previewFieldTextHeight, metrics.visibleHeight),
             alignment: .topLeading
         )
     }

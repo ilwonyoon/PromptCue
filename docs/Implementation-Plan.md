@@ -26,6 +26,36 @@
 | Phase 5 | Polish, validation, and release prep | Pending | Final integration phase |
 | Phase R | Audit remediation and quality closure | In progress | Resolves MVP gaps, privacy model drift, and design-system drift |
 
+## Current Hot Slice
+
+The immediate implementation slice is:
+
+- `Phase R6: stack sync and light-mode readability`
+- `Phase R7: capture input system hardening`
+
+This slice exists because the app currently has a user-visible mismatch between:
+
+- a successful capture submission
+- the stack panel's first rendered state
+- the visibility of new cards in light mode
+
+That means current work is prioritized in this order:
+
+1. lock capture submission immediately when `Enter` is pressed so hotkeys cannot outrun the save path
+2. keep `AppModel` as the source of truth for stack presentation during normal interaction
+3. rework light-mode stack veil and card separation
+4. rebuild the capture input around an AppKit-owned sizing model
+5. then return to grouped export validation and broader release verification
+
+Progress on this slice:
+
+- `Phase R7A` contract lock is implemented through `CaptureEditorMetrics`
+- initial draft presentation now precomputes editor metrics before the panel is shown
+- reserved-width remeasurement is in place at the scroll threshold
+- automated capture QA now runs through `scripts/qa_capture_input.sh` and has produced screenshot + metrics artifacts
+- current diagnosis confirms the next R7 step must move height ownership back into the AppKit editor host; further padding-only tweaks are not sufficient
+- `Phase R7B` is now the active implementation lane: replace the live SwiftUI capture composition with an AppKit-owned host and keep geometry out of `AppModel`
+
 ## Active Remediation Lane
 
 The current highest-priority work is tracked in:

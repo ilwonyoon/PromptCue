@@ -13,11 +13,13 @@ final class AppCoordinator {
         screenshotSettingsModel: screenshotSettingsModel
     )
     private var statusItem: NSStatusItem?
+    private var pendingStackToggleTask: Task<Void, Never>?
 
     func start() {
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         model.start()
+        applyCaptureQADraftSeedIfNeeded()
         hotKeyCenter.registerDefaultShortcuts(
             onCapture: { [weak self] in
                 self?.showCapturePanel()
@@ -32,9 +34,23 @@ final class AppCoordinator {
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_DESIGN_SYSTEM"] == "1" {
             showDesignSystemWindow()
         }
+
+        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_STACK_ON_START"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.stackPanelController.show()
+            }
+        }
+
+        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_CAPTURE_ON_START"] == "1" {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.showCapturePanel()
+            }
+        }
     }
 
     func stop() {
+        pendingStackToggleTask?.cancel()
+        pendingStackToggleTask = nil
         hotKeyCenter.unregisterAll()
         model.stop()
     }
@@ -84,16 +100,39 @@ final class AppCoordinator {
     }
 
     private func showCapturePanel() {
+        pendingStackToggleTask?.cancel()
+        pendingStackToggleTask = nil
         stackPanelController.close()
         capturePanelController.show()
     }
 
     private func toggleStackPanel() {
-        capturePanelController.close()
-        if stackPanelController.isPresentedOrTransitioning {
-            stackPanelController.close()
-        } else {
-            stackPanelController.show()
+        if let pendingStackToggleTask {
+            pendingStackToggleTask.cancel()
+            self.pendingStackToggleTask = nil
+            return
+        }
+
+        pendingStackToggleTask = Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+            defer { self.pendingStackToggleTask = nil }
+
+            await self.model.waitForCaptureSubmissionToSettle(
+                timeout: AppUIConstants.captureSubmissionFlushTimeout
+            )
+
+            guard !Task.isCancelled else {
+                return
+            }
+
+            self.capturePanelController.close()
+            if self.stackPanelController.isPresentedOrTransitioning {
+                self.stackPanelController.close()
+            } else {
+                self.stackPanelController.show()
+            }
         }
     }
 
@@ -125,5 +164,22 @@ final class AppCoordinator {
             }
         }
         #endif
+    }
+
+    private func applyCaptureQADraftSeedIfNeeded() {
+        let environment = ProcessInfo.processInfo.environment
+
+        if let directText = environment["PROMPTCUE_QA_DRAFT_TEXT"], !directText.isEmpty {
+            model.draftText = directText
+            return
+        }
+
+        guard let filePath = environment["PROMPTCUE_QA_DRAFT_TEXT_FILE"], !filePath.isEmpty else {
+            return
+        }
+
+        if let seededText = try? String(contentsOfFile: filePath, encoding: .utf8) {
+            model.draftText = seededText
+        }
     }
 }

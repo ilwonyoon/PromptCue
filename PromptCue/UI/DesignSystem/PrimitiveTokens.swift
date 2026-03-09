@@ -83,12 +83,22 @@ enum PrimitiveTokens {
     }
 
     enum Shadow {
-        static let cardBlur: CGFloat = 14
-        static let cardY: CGFloat = 8
-        static let notificationCardBlur: CGFloat = 10
-        static let notificationCardY: CGFloat = 4
-        static let panelBlur: CGFloat = 10
-        static let panelY: CGFloat = 2
+        static let cardAmbientBlur: CGFloat = 20
+        static let cardAmbientY: CGFloat = 12
+        static let cardKeyBlur: CGFloat = 8
+        static let cardKeyY: CGFloat = 3
+        static let captureAmbientBlur: CGFloat = 30
+        static let captureAmbientY: CGFloat = 14
+        static let captureKeyBlur: CGFloat = 12
+        static let captureKeyY: CGFloat = 4
+        static let notificationAmbientBlur: CGFloat = 20
+        static let notificationAmbientY: CGFloat = 10
+        static let notificationKeyBlur: CGFloat = 9
+        static let notificationKeyY: CGFloat = 3
+        static let panelAmbientBlur: CGFloat = 28
+        static let panelAmbientY: CGFloat = 16
+        static let panelKeyBlur: CGFloat = 12
+        static let panelKeyY: CGFloat = 4
     }
 
     enum Typography {

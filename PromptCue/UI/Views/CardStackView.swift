@@ -1,11 +1,13 @@
+import AppKit
 import SwiftUI
 
 struct CardStackView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
     let onCopyCard: (CaptureCard) -> Void
     let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
-    @State private var isCopiedStackExpanded = false
+    @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
 
     var body: some View {
         ZStack {
@@ -171,7 +173,7 @@ struct CardStackView: View {
                         HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
                             Text("Copied")
                                 .font(PrimitiveTokens.Typography.metaStrong)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                .foregroundStyle(copiedHeaderTextColor)
 
                             Spacer(minLength: PrimitiveTokens.Space.xs)
 
@@ -183,10 +185,7 @@ struct CardStackView: View {
                         if let card = copiedCards.first {
                             Text(card.text)
                                 .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(
-                                    SemanticTokens.Text.secondary
-                                        .opacity(PrimitiveTokens.Opacity.soft)
-                                )
+                                .foregroundStyle(copiedPreviewTextColor)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,11 +218,11 @@ struct CardStackView: View {
         RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
             .fill(
                 SemanticTokens.Surface.notificationStackPlateBase
-                    .opacity(0.56 - (Double(index) * 0.08))
+                    .opacity(stackedBackPlateOpacity(for: index))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(SemanticTokens.Border.notificationCard.opacity(0.72))
+                    .stroke(SemanticTokens.Border.notificationCard.opacity(stackedBackPlateBorderOpacity))
             }
             .frame(height: PrimitiveTokens.Size.notificationStackPlateHeight)
             .padding(.top, CGFloat(index) * PrimitiveTokens.Space.xs)
@@ -231,31 +230,96 @@ struct CardStackView: View {
     }
 
     private var stackBackdrop: some View {
-        VisualEffectBackdrop(material: .hudWindow)
-            .overlay {
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        Color.black.opacity(0.02),
-                        Color.black.opacity(0.06),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        Group {
+            if colorScheme == .light {
+                VisualEffectBackdrop(material: .sidebar)
+                    .overlay {
+                        Rectangle()
+                            .fill(SemanticTokens.Surface.stackPanelBackdropTint)
+                    }
+                    .overlay {
+                        LinearGradient(
+                            colors: [
+                                SemanticTokens.Surface.stackPanelGradientTop,
+                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(PrimitiveTokens.Opacity.medium),
+                                SemanticTokens.Surface.stackPanelGradientBottom,
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .overlay(alignment: .leading) {
+                        LinearGradient(
+                            colors: [
+                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(0.92),
+                                SemanticTokens.Surface.stackPanelBackdropTint.opacity(0.72),
+                                .clear,
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: PrimitiveTokens.Space.xxl * 2.5)
+                    }
+            } else {
+                VisualEffectBackdrop(material: .hudWindow)
+                    .overlay {
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.black.opacity(0.02),
+                                Color.black.opacity(0.06),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .mask {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .white.opacity(0.10), location: 0.18),
+                                .init(color: .white.opacity(0.42), location: 0.46),
+                                .init(color: .white.opacity(0.92), location: 0.78),
+                                .init(color: .white, location: 1),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    }
             }
-            .mask {
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0),
-                        .init(color: .white.opacity(0.10), location: 0.18),
-                        .init(color: .white.opacity(0.42), location: 0.46),
-                        .init(color: .white.opacity(0.92), location: 0.78),
-                        .init(color: .white, location: 1),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            }
-            .ignoresSafeArea()
+        }
+        .ignoresSafeArea()
+    }
+
+    private var copiedPreviewTextColor: Color {
+        if colorScheme == .light {
+            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
+        }
+
+        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+    }
+
+    private var copiedHeaderTextColor: Color {
+        if colorScheme == .light {
+            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
+        }
+
+        return SemanticTokens.Text.secondary
+    }
+
+    private var stackedBackPlateBorderOpacity: Double {
+        if colorScheme == .light {
+            return 0.42
+        }
+
+        return 0.72
+    }
+
+    private func stackedBackPlateOpacity(for index: Int) -> Double {
+        if colorScheme == .light {
+            return 0.36 - (Double(index - 1) * 0.08)
+        }
+
+        return 0.56 - (Double(index) * 0.08)
     }
 }

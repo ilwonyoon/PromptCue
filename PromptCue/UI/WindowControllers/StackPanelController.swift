@@ -30,7 +30,6 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
-        model.reloadCards()
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
         panel.alphaValue = 1

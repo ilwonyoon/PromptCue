@@ -15,7 +15,7 @@ struct CaptureComposerView: View {
         SearchFieldSurface {
             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
                 if shouldShowScreenshotSlot {
-                    screenshotPreview(for: recentScreenshotAttachment)
+                    screenshotPreview
                 }
 
                 cueEditor
@@ -23,8 +23,10 @@ struct CaptureComposerView: View {
         }
         .frame(width: AppUIConstants.captureSurfaceWidth, alignment: .center)
         .frame(maxWidth: .infinity, alignment: .center)
-        .padding(PrimitiveTokens.Space.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .padding(.horizontal, PrimitiveTokens.Space.xl)
+        .padding(.top, PrimitiveTokens.Space.xl)
+        .padding(.bottom, PrimitiveTokens.Space.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             model.refreshPendingScreenshot()
         }
@@ -33,31 +35,34 @@ struct CaptureComposerView: View {
         }
     }
 
-    private var trimmedDraft: String {
-        model.draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var recentScreenshotAttachment: ScreenshotAttachment? {
-        model.pendingScreenshotAttachment
+    private var recentScreenshotPreviewURL: URL? {
+        model.recentScreenshotPreviewURL
     }
 
     private var shouldShowScreenshotSlot: Bool {
-        recentScreenshotAttachment != nil || model.isAwaitingRecentScreenshot
+        model.showsRecentScreenshotSlot
     }
 
-    private var cueEditor: some View {
-        let editorVisibleHeight = max(AppUIConstants.captureTextLineHeight, model.draftEditorContentHeight)
+    private var shouldShowScreenshotPlaceholder: Bool {
+        model.showsRecentScreenshotPlaceholder
+    }
 
-        return CueTextEditor(
+    @ViewBuilder
+    private var cueEditor: some View {
+        let editorVisibleHeight = max(
+            AppUIConstants.captureEditorMinimumVisibleHeight,
+            model.draftEditorMetrics.visibleHeight
+        )
+
+        CueTextEditor(
             text: $model.draftText,
+            placeholder: "Type and press Enter to save",
             maxContentHeight: AppUIConstants.captureEditorMaxHeight,
-            onHeightChange: { height in
-                if abs(model.draftEditorContentHeight - height) > 0.5 {
-                    model.draftEditorContentHeight = height
-                }
+            onMetricsChange: { metrics in
+                model.updateDraftEditorMetrics(metrics)
             },
             onSubmit: {
-                if model.submitCapture() {
+                model.beginCaptureSubmission {
                     onSubmitSuccess()
                 }
             },
@@ -69,28 +74,32 @@ struct CaptureComposerView: View {
             maxHeight: editorVisibleHeight,
             alignment: .topLeading
         )
-        .overlay(alignment: .topLeading) {
-            if trimmedDraft.isEmpty {
-                Text("Type and press Enter to save")
-                    .font(PrimitiveTokens.Typography.captureInput)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .opacity(PrimitiveTokens.Opacity.soft)
-                    .allowsHitTesting(false)
-            }
-        }
     }
 
-    private func screenshotPreview(for attachment: ScreenshotAttachment?) -> some View {
+    private var screenshotPreview: some View {
         ZStack(alignment: .topTrailing) {
-            if let attachment {
-                LocalImageThumbnail(
-                    url: URL(fileURLWithPath: attachment.path),
-                    width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
-                    height: PrimitiveTokens.Size.captureAttachmentPreviewSize
-                )
-            } else {
+            ZStack {
                 screenshotPlaceholder
+
+                if let recentScreenshotPreviewURL {
+                    LocalImageThumbnail(
+                        url: recentScreenshotPreviewURL,
+                        width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
+                        height: PrimitiveTokens.Size.captureAttachmentPreviewSize
+                    )
+                    .transition(.opacity)
+                }
+
+                if model.isSubmittingCapture {
+                    screenshotPlaceholder
+                        .opacity(1)
+                }
             }
+            .frame(
+                width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
+                height: PrimitiveTokens.Size.captureAttachmentPreviewSize
+            )
+            .animation(.easeOut(duration: 0.16), value: model.recentScreenshotState)
 
             Button(action: clearRecentScreenshot) {
                 Image(systemName: "xmark.circle.fill")
@@ -114,13 +123,12 @@ struct CaptureComposerView: View {
     private var screenshotPlaceholder: some View {
         RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
             .fill(SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.faint))
-            .frame(
-                width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
-                height: PrimitiveTokens.Size.captureAttachmentPreviewSize
-            )
+            .opacity(shouldShowScreenshotPlaceholder ? 1 : 0)
             .overlay {
-                ProgressView()
-                    .controlSize(.small)
+                if shouldShowScreenshotPlaceholder {
+                    ProgressView()
+                        .controlSize(.small)
+                }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)

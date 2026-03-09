@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CaptureCardView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
     let isSelected: Bool
     let selectionMode: Bool
@@ -18,7 +19,7 @@ struct CaptureCardView: View {
             isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback,
             style: .notification
         ) {
-            HStack(alignment: .top, spacing: PrimitiveTokens.Space.sm) {
+            ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: contentSpacing) {
                     if let screenshotURL = card.screenshotURL {
                         LocalImageThumbnail(
@@ -35,6 +36,7 @@ struct CaptureCardView: View {
                         .lineSpacing(PrimitiveTokens.Space.xxxs)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .padding(.trailing, actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(spacing: PrimitiveTokens.Space.xs) {
@@ -63,6 +65,7 @@ struct CaptureCardView: View {
                     }
                 }
                 .frame(width: actionColumnWidth, alignment: .topTrailing)
+                .zIndex(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -148,6 +151,10 @@ struct CaptureCardView: View {
             return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         }
 
+        if usesPersistentActionBackdrop {
+            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.72)
+        }
+
         return .clear
     }
 
@@ -156,11 +163,23 @@ struct CaptureCardView: View {
             return SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
         }
 
+        if usesPersistentActionBackdrop {
+            return SemanticTokens.Surface.notificationCardBackdrop.opacity(0.6)
+        }
+
         return .clear
     }
 
     private var actionColumnWidth: CGFloat {
         PrimitiveTokens.Space.xl
+    }
+
+    private var actionColumnReservedWidth: CGFloat {
+        actionColumnWidth + PrimitiveTokens.Space.sm
+    }
+
+    private var usesPersistentActionBackdrop: Bool {
+        colorScheme == .light && card.screenshotURL != nil
     }
 
     private func performPrimaryAction() {

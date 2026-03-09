@@ -239,6 +239,10 @@ private final class StackPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    /// Bypass AppKit's default frame constraint so the panel can be placed
+    /// off-screen (to the right of the visible area) for the slide-in/out
+    /// animation. Without this override, `setFrame(_:display:animate:)`
+    /// would clamp the frame to the screen bounds and prevent the animation.
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
     }

@@ -577,19 +577,23 @@ extension AppModel: CloudSyncDelegate {
     }
 
     func cloudSync(_ engine: CloudSyncEngine, didReceiveChanges changes: [SyncChange]) {
-        let existingIDs = Set(cards.map(\.id))
         var updatedCards = cards
         var removedCards: [CaptureCard] = []
 
         for change in changes {
             switch change {
-            case .upsert(let remoteCard):
-                if let index = updatedCards.firstIndex(where: { $0.id == remoteCard.id }) {
+            case .upsert(let remoteCard, let screenshotAssetURL):
+                let cardWithScreenshot = importRemoteScreenshotIfNeeded(
+                    card: remoteCard,
+                    assetURL: screenshotAssetURL
+                )
+
+                if let index = updatedCards.firstIndex(where: { $0.id == cardWithScreenshot.id }) {
                     let local = updatedCards[index]
-                    let merged = mergeCard(local: local, remote: remoteCard)
+                    let merged = mergeCard(local: local, remote: cardWithScreenshot)
                     updatedCards[index] = merged
                 } else {
-                    updatedCards.append(remoteCard)
+                    updatedCards.append(cardWithScreenshot)
                 }
 
             case .delete(let id):
@@ -617,6 +621,30 @@ extension AppModel: CloudSyncDelegate {
 
         if !removedCards.isEmpty {
             cleanupManagedAttachments(removedCards: removedCards, remainingCards: sorted)
+        }
+    }
+
+    private func importRemoteScreenshotIfNeeded(card: CaptureCard, assetURL: URL?) -> CaptureCard {
+        guard let assetURL, FileManager.default.fileExists(atPath: assetURL.path) else {
+            return card
+        }
+
+        do {
+            let importedURL = try attachmentStore.importScreenshot(
+                from: assetURL,
+                ownerID: card.id
+            )
+            return CaptureCard(
+                id: card.id,
+                text: card.text,
+                createdAt: card.createdAt,
+                screenshotPath: importedURL.path,
+                lastCopiedAt: card.lastCopiedAt,
+                sortOrder: card.sortOrder
+            )
+        } catch {
+            logStorageFailure("Remote screenshot import failed", error: error)
+            return card
         }
     }
 

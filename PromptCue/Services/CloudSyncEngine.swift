@@ -3,7 +3,7 @@ import Foundation
 import PromptCueCore
 
 enum SyncChange: Sendable {
-    case upsert(CaptureCard)
+    case upsert(CaptureCard, screenshotAssetURL: URL?)
     case delete(UUID)
 }
 
@@ -235,7 +235,8 @@ final class CloudSyncEngine {
 
         for record in upserted {
             if let card = captureCard(from: record) {
-                changes.append(.upsert(card))
+                let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
+                changes.append(.upsert(card, screenshotAssetURL: assetURL))
             }
         }
 
@@ -292,6 +293,12 @@ final class CloudSyncEngine {
         record["createdAt"] = card.createdAt as NSDate
         record["lastCopiedAt"] = card.lastCopiedAt as NSDate?
         record["sortOrder"] = NSNumber(value: card.sortOrder)
+
+        if let screenshotURL = card.screenshotURL,
+           FileManager.default.fileExists(atPath: screenshotURL.path) {
+            record["screenshot"] = CKAsset(fileURL: screenshotURL)
+        }
+
         return record
     }
 

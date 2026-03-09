@@ -108,7 +108,6 @@
 		0DA754E495B637178A614D3C /* CaptureCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCardView.swift; sourceTree = "<group>"; };
 		0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFormatter.swift; sourceTree = "<group>"; };
 		0F15E70490C98C163CB52780 /* RecentScreenshotDirectoryObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotDirectoryObserver.swift; sourceTree = "<group>"; };
-		0FD223379E80D281044BFEEB /* PromptCue-sync */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-sync"; path = .; sourceTree = SOURCE_ROOT; };
 		13EA46B416CD64C91D1031C3 /* PanelMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelMetrics.swift; sourceTree = "<group>"; };
 		19509EEED1658575B46ED8F4 /* CaptureEditorRuntimeHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorRuntimeHostView.swift; sourceTree = "<group>"; };
 		19E7982703EC6D0302F17A37 /* CapturePanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelController.swift; sourceTree = "<group>"; };
@@ -148,6 +147,7 @@
 		6F756E64C316B19267AB3E0E /* CueTextEditorMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CueTextEditorMetricsTests.swift; sourceTree = "<group>"; };
 		6FA4D7EE3F2A66184B933C93 /* CaptureCardRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCardRenderingTests.swift; sourceTree = "<group>"; };
 		7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueSettingsView.swift; sourceTree = "<group>"; };
+		8971E787F9B3495F0D635DDF /* PromptCue-export */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-export"; path = .; sourceTree = SOURCE_ROOT; };
 		89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptCueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B5ACFB745ADD636ED5EC0A4 /* AttachmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentStore.swift; sourceTree = "<group>"; };
 		8D57C8B2EF3007C094E964AE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -289,7 +289,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				0FD223379E80D281044BFEEB /* PromptCue-sync */,
+				8971E787F9B3495F0D635DDF /* PromptCue-export */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

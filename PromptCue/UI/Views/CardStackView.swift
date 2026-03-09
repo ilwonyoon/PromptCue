@@ -55,6 +55,7 @@ struct CardStackView: View {
                 defaultHeader
             }
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     private var defaultHeader: some View {
@@ -80,44 +81,46 @@ struct CardStackView: View {
     }
 
     private var multiSelectHeader: some View {
-        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-            if model.selectionCount > 0 || !model.recentlyCopiedCardIDs.isEmpty {
-                let totalCount = model.selectionCount + model.recentlyCopiedCardIDs.count
-                Text("\(totalCount) selected")
-                    .font(PrimitiveTokens.Typography.bodyStrong)
-                    .foregroundStyle(SemanticTokens.Text.primary)
-            } else {
-                Text("Select cues to copy")
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-            }
+        StackNotificationCardSurface {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                if model.selectionCount > 0 || !model.recentlyCopiedCardIDs.isEmpty {
+                    let totalCount = model.selectionCount + model.recentlyCopiedCardIDs.count
+                    Text("\(totalCount) selected")
+                        .font(PrimitiveTokens.Typography.bodyStrong)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                } else {
+                    Text("Select cues to copy")
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                }
 
-            Spacer(minLength: PrimitiveTokens.Space.xs)
+                Spacer(minLength: PrimitiveTokens.Space.xs)
 
-            if model.selectionCount > 0 {
-                Button(action: onCopyMultiSelection) {
-                    PromptCueChip(
-                        fill: SemanticTokens.Surface.accentFill,
-                        border: SemanticTokens.Border.emphasis
-                    ) {
-                        Text("Copy")
-                            .font(PrimitiveTokens.Typography.chip)
-                            .foregroundStyle(SemanticTokens.Text.selection)
+                if model.selectionCount > 0 {
+                    Button(action: onCopyMultiSelection) {
+                        PromptCueChip(
+                            fill: SemanticTokens.Surface.accentFill,
+                            border: SemanticTokens.Border.emphasis
+                        ) {
+                            Text("Copy")
+                                .font(PrimitiveTokens.Typography.chip)
+                                .foregroundStyle(SemanticTokens.Text.selection)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Copy \(model.selectionCount) selected cues")
+                }
+
+                Button(action: { model.exitMultiSelectMode() }) {
+                    PromptCueChip {
+                        Image(systemName: "xmark")
+                            .font(PrimitiveTokens.Typography.chipIcon)
+                            .foregroundStyle(SemanticTokens.Text.primary)
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Copy \(model.selectionCount) selected cues")
+                .accessibilityLabel("Exit multi-select mode")
             }
-
-            Button(action: { model.exitMultiSelectMode() }) {
-                PromptCueChip {
-                    Image(systemName: "xmark")
-                        .font(PrimitiveTokens.Typography.chipIcon)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Exit multi-select mode")
         }
         .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }

@@ -30,6 +30,11 @@ struct StackNotificationCardSurface<Content: View>: View {
                         shape.fill(chromeOverlay)
                     }
                     .overlay {
+                        if isSelected {
+                            shape.fill(selectedAccentOverlay)
+                        }
+                    }
+                    .overlay {
                         if isEmphasized {
                             shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
                         }
@@ -53,11 +58,11 @@ struct StackNotificationCardSurface<Content: View>: View {
     }
 
     private var backgroundFill: Color {
-        if isSelected {
-            return SemanticTokens.Surface.accentFill
-        }
+        SemanticTokens.Surface.notificationCardFill
+    }
 
-        return SemanticTokens.Surface.notificationCardFill
+    private var selectedAccentOverlay: Color {
+        isSelected ? SemanticTokens.Surface.accentFill : .clear
     }
 
     private var chromeOverlay: Color {

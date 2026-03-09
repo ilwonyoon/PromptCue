@@ -79,6 +79,7 @@ struct CardStackView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Copy \(model.selectionCount) selected cues")
 
             Button(action: model.clearSelection) {
                 PromptCueChip {
@@ -88,6 +89,7 @@ struct CardStackView: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Clear selection")
         }
         .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
     }
@@ -100,6 +102,7 @@ struct CardStackView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .frame(maxWidth: .infinity)
                 .frame(height: PrimitiveTokens.Size.thumbnailHeight)
+                .accessibilityLabel("No cues yet")
         }
         .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
     }
@@ -163,6 +166,8 @@ struct CardStackView: View {
                 .foregroundStyle(SemanticTokens.Text.secondary)
         }
         .contentShape(Rectangle())
+        .accessibilityLabel("Copied section, \(copiedCards.count) cues")
+        .accessibilityHint("Tap to collapse")
         .onTapGesture {
             isCopiedStackExpanded = false
         }
@@ -218,6 +223,8 @@ struct CardStackView: View {
             .padding(.bottom, collapsedBackPlateBottomPadding)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Copied cues, \(copiedCards.count) items")
+        .accessibilityHint("Tap to expand")
     }
 
     private var collapsedBackPlateIndices: [Int] {

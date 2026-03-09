@@ -87,6 +87,7 @@ struct CaptureComposerView: View {
                         width: PrimitiveTokens.Size.captureAttachmentPreviewSize,
                         height: PrimitiveTokens.Size.captureAttachmentPreviewSize
                     )
+                    .accessibilityLabel("Screenshot preview")
                     .transition(.opacity)
                 }
 
@@ -128,6 +129,7 @@ struct CaptureComposerView: View {
                 if shouldShowScreenshotPlaceholder {
                     ProgressView()
                         .controlSize(.small)
+                        .accessibilityLabel("Loading screenshot")
                 }
             }
             .overlay {

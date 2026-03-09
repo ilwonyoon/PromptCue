@@ -131,10 +131,10 @@ struct CardStackView: View {
                     cardRow(for: card)
                 }
             }
-            .transition(expandedCopiedSectionTransition)
+            .id("copied-expanded")
         } else {
             collapsedCopiedStack
-                .transition(collapsedCopiedStackTransition)
+                .id("copied-collapsed")
         }
     }
 
@@ -152,21 +152,20 @@ struct CardStackView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
-                isCopiedStackExpanded = false
-            }
+            isCopiedStackExpanded = false
         }
     }
 
     private var collapsedCopiedStack: some View {
         Button {
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
-                isCopiedStackExpanded = true
-            }
+            isCopiedStackExpanded = true
         } label: {
-            ZStack(alignment: .top) {
-                stackedBackPlate(index: 2)
-                stackedBackPlate(index: 1)
+            ZStack(alignment: .topLeading) {
+                ForEach(collapsedBackPlateIndices, id: \.self) { index in
+                    stackedBackPlate(index: index)
+                        .offset(y: CGFloat(index) * PrimitiveTokens.Space.xs)
+                        .zIndex(Double(-index))
+                }
 
                 CardSurface(style: .notification) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
@@ -196,22 +195,28 @@ struct CardStackView: View {
                                 .font(PrimitiveTokens.Typography.meta)
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                         }
+
+                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .padding(.top, PrimitiveTokens.Space.sm)
+                .frame(height: collapsedCopiedCardHeight)
+                .zIndex(1)
             }
-            .padding(.bottom, PrimitiveTokens.Space.sm)
+            .padding(.bottom, collapsedBackPlateBottomPadding)
         }
         .buttonStyle(.plain)
     }
 
-    private var expandedCopiedSectionTransition: AnyTransition {
-        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
-    }
-
-    private var collapsedCopiedStackTransition: AnyTransition {
-        .opacity.combined(with: .scale(scale: 0.985, anchor: .top))
+    private var collapsedBackPlateIndices: [Int] {
+        switch copiedCards.count {
+        case ...1:
+            return []
+        case 2:
+            return [1]
+        default:
+            return [2, 1]
+        }
     }
 
     private func stackedBackPlate(index: Int) -> some View {
@@ -222,11 +227,22 @@ struct CardStackView: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(SemanticTokens.Border.notificationCard.opacity(stackedBackPlateBorderOpacity))
+                    .fill(stackedBackPlateShade(for: index))
             }
-            .frame(height: PrimitiveTokens.Size.notificationStackPlateHeight)
-            .padding(.top, CGFloat(index) * PrimitiveTokens.Space.xs)
+            .overlay {
+                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+                    .stroke(SemanticTokens.Border.notificationCard.opacity(stackedBackPlateBorderOpacity(for: index)))
+            }
+            .frame(height: collapsedCopiedCardHeight)
             .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
+    }
+
+    private var collapsedBackPlateBottomPadding: CGFloat {
+        CGFloat(collapsedBackPlateIndices.max() ?? 0) * PrimitiveTokens.Space.xs + PrimitiveTokens.Space.sm
+    }
+
+    private var collapsedCopiedCardHeight: CGFloat {
+        PrimitiveTokens.Size.notificationStackPlateHeight
     }
 
     private var stackBackdrop: some View {
@@ -307,12 +323,19 @@ struct CardStackView: View {
         return SemanticTokens.Text.secondary
     }
 
-    private var stackedBackPlateBorderOpacity: Double {
+    private func stackedBackPlateBorderOpacity(for index: Int) -> Double {
         if colorScheme == .light {
             return 0.42
         }
 
-        return 0.72
+        switch index {
+        case 1:
+            return 0.42
+        case 2:
+            return 0.32
+        default:
+            return 0.28
+        }
     }
 
     private func stackedBackPlateOpacity(for index: Int) -> Double {
@@ -320,6 +343,35 @@ struct CardStackView: View {
             return 0.36 - (Double(index - 1) * 0.08)
         }
 
-        return 0.56 - (Double(index) * 0.08)
+        switch index {
+        case 1:
+            return 0.72
+        case 2:
+            return 0.60
+        default:
+            return 0.52
+        }
+    }
+
+    private func stackedBackPlateShade(for index: Int) -> Color {
+        if colorScheme == .light {
+            switch index {
+            case 1:
+                return Color.black.opacity(0.02)
+            case 2:
+                return Color.black.opacity(0.04)
+            default:
+                return Color.black.opacity(0.05)
+            }
+        }
+
+        switch index {
+        case 1:
+            return Color.black.opacity(0.14)
+        case 2:
+            return Color.black.opacity(0.22)
+        default:
+            return Color.black.opacity(0.26)
+        }
     }
 }

@@ -15,7 +15,7 @@ public enum CardStackOrdering {
             return false
         case let (lhsCopiedAt?, rhsCopiedAt?):
             if lhsCopiedAt != rhsCopiedAt {
-                return lhsCopiedAt < rhsCopiedAt
+                return lhsCopiedAt > rhsCopiedAt
             }
 
             return compareByFreshPriority(lhs, rhs)

@@ -3,10 +3,12 @@ import SwiftUI
 
 struct LocalImageThumbnail: View {
     @Environment(\.colorScheme) private var colorScheme
+    private static let imageCache = NSCache<NSURL, NSImage>()
     let url: URL
     let width: CGFloat?
     let height: CGFloat
     @State private var image: NSImage?
+    @State private var loadedURL: URL?
 
     init(
         url: URL,
@@ -19,6 +21,8 @@ struct LocalImageThumbnail: View {
     }
 
     var body: some View {
+        let resolvedURL = url.standardizedFileURL
+
         Group {
             if let image {
                 Image(nsImage: image)
@@ -36,6 +40,7 @@ struct LocalImageThumbnail: View {
         }
         .frame(width: width, height: height)
         .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+        .id(resolvedURL.path)
         .background(
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .fill(thumbnailBackdropColor)
@@ -46,8 +51,8 @@ struct LocalImageThumbnail: View {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .stroke(thumbnailBorderColor)
         }
-        .task(id: url) {
-            await loadImage()
+        .task(id: resolvedURL.path) {
+            await loadImage(from: resolvedURL)
         }
     }
 
@@ -68,11 +73,18 @@ struct LocalImageThumbnail: View {
     }
 
     @MainActor
-    private func loadImage() async {
-        image = nil
+    private func loadImage(from resolvedURL: URL) async {
+        if loadedURL != resolvedURL {
+            loadedURL = resolvedURL
+            image = Self.imageCache.object(forKey: resolvedURL as NSURL)
+        }
+
+        if image != nil {
+            return
+        }
 
         let imageData = await Task.detached(priority: .userInitiated) { () -> Data? in
-            ScreenshotDirectoryResolver.withAccessIfNeeded(to: url) { scopedURL in
+            ScreenshotDirectoryResolver.withAccessIfNeeded(to: resolvedURL) { scopedURL in
                 try? Data(contentsOf: scopedURL)
             }
         }.value
@@ -81,6 +93,11 @@ struct LocalImageThumbnail: View {
             return
         }
 
-        image = imageData.flatMap(NSImage.init(data:))
+        if let image = imageData.flatMap(NSImage.init(data:)) {
+            Self.imageCache.setObject(image, forKey: resolvedURL as NSURL)
+            self.image = image
+        } else {
+            self.image = nil
+        }
     }
 }

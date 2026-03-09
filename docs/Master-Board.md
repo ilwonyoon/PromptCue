@@ -43,6 +43,8 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host |
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and hover expansion | Queued | very long cards need capped resting height, explicit overflow, and stable copied-stack behavior |
+| Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
+| Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1 and DS2 are implemented, DS3 is active, DS4 has started, and DS5 remains pending |
 
 ## Current File Ownership
 
@@ -78,6 +80,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 6. AI Export Tail / Prompt Suffix integration
 7. Stack card overflow and hover expansion
 8. DMG packaging, Gumroad release prep, and MAS compatibility review
+9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 
 ## Remediation Merge Order
 
@@ -129,3 +132,4 @@ Guardrail:
 
 - do not accept work that turns Backtick into a general note app
 - prefer raw dump in Capture and structured compression/export in Stack
+- do not accept design-system cleanup that collapses stack backdrop, stack card, or capture runtime ownership into one generic abstraction

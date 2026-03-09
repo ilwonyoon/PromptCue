@@ -21,7 +21,7 @@ struct CaptureComposerView: View {
                 cueEditor
             }
         }
-        .frame(width: AppUIConstants.captureSurfaceWidth, alignment: .center)
+        .frame(width: PanelMetrics.captureSurfaceWidth, alignment: .center)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, PrimitiveTokens.Space.xl)
         .padding(.top, PrimitiveTokens.Space.xl)
@@ -50,14 +50,14 @@ struct CaptureComposerView: View {
     @ViewBuilder
     private var cueEditor: some View {
         let editorVisibleHeight = max(
-            AppUIConstants.captureEditorMinimumVisibleHeight,
+            CaptureRuntimeMetrics.editorMinimumVisibleHeight,
             model.draftEditorMetrics.visibleHeight
         )
 
         CueTextEditor(
             text: $model.draftText,
             placeholder: "Type and press Enter to save",
-            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             onMetricsChange: { metrics in
                 model.updateDraftEditorMetrics(metrics)
             },

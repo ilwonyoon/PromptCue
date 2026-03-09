@@ -681,7 +681,7 @@ private struct CueEditorLivePreview: View {
         CueTextEditor(
             text: $text,
             placeholder: "Type and press Enter to save",
-            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             onMetricsChange: { nextMetrics in
                 metrics = nextMetrics
             },

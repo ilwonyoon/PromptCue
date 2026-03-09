@@ -103,8 +103,8 @@ struct PromptCueSettingsView: View {
                         .foregroundStyle(SemanticTokens.Text.primary)
                         .scrollContentBackground(.hidden)
                         .frame(
-                            minHeight: AppUIConstants.settingsExportTailEditorMinHeight,
-                            maxHeight: AppUIConstants.settingsExportTailEditorMaxHeight
+                            minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
+                            maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight
                         )
                         .padding(PrimitiveTokens.Space.sm)
                         .background(SemanticTokens.Surface.raisedFill)
@@ -191,8 +191,8 @@ struct PromptCueSettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(
-            width: AppUIConstants.settingsPanelWidth,
-            height: AppUIConstants.settingsPanelHeight
+            width: PanelMetrics.settingsPanelWidth,
+            height: PanelMetrics.settingsPanelHeight
         )
         .background(SemanticTokens.Surface.previewBackdropBottom)
         .onAppear {

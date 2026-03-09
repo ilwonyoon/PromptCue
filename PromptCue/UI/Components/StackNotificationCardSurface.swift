@@ -1,5 +1,7 @@
 import SwiftUI
 
+// Backtick stack-card pattern surface.
+// Keep stack card chrome independent from stack backdrop ownership.
 struct StackNotificationCardSurface<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let isSelected: Bool
@@ -33,12 +35,13 @@ struct StackNotificationCardSurface<Content: View>: View {
                         }
                     }
                     .overlay(alignment: .top) {
-                        shape
-                            .stroke(topHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
-                            .mask(alignment: .top) {
-                                Rectangle()
-                                    .frame(height: PrimitiveTokens.Space.sm)
-                            }
+                        TopEdgeStrokeOverlay(
+                            shape: shape,
+                            color: topHighlight,
+                            lineWidth: PrimitiveTokens.Stroke.subtle,
+                            frameHeight: PrimitiveTokens.Space.sm,
+                            maskHeight: PrimitiveTokens.Space.sm
+                        )
                     }
             }
             .overlay {
@@ -58,19 +61,11 @@ struct StackNotificationCardSurface<Content: View>: View {
     }
 
     private var chromeOverlay: Color {
-        if colorScheme == .light {
-            return Color.black.opacity(0.015)
-        }
-
-        return SemanticTokens.Surface.notificationCardBackdrop
+        StackNotificationCardChromeRecipe.chromeOverlay(colorScheme: colorScheme)
     }
 
     private var topHighlight: Color {
-        if colorScheme == .light {
-            return SemanticTokens.Border.glassHighlight.opacity(0.16)
-        }
-
-        return SemanticTokens.Border.glassHighlight.opacity(0.08)
+        StackNotificationCardChromeRecipe.topHighlight(colorScheme: colorScheme)
     }
 
     private var borderColor: Color {

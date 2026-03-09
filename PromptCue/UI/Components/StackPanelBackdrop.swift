@@ -1,11 +1,19 @@
 import SwiftUI
 
+// Backtick stack backdrop pattern.
+// This file owns atmospheric blur, density, and edge fade for the stack panel only.
 struct StackPanelBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
     let densityScale: Double
     let grayscaleBias: Double
 
-    init(densityScale: Double = 1, grayscaleBias: Double = 0.5) {
+    static let defaultDensityScale = 4.0
+    static let defaultGrayscaleBias = 2.0
+
+    init(
+        densityScale: Double = StackPanelBackdrop.defaultDensityScale,
+        grayscaleBias: Double = StackPanelBackdrop.defaultGrayscaleBias
+    ) {
         self.densityScale = densityScale
         self.grayscaleBias = grayscaleBias
     }

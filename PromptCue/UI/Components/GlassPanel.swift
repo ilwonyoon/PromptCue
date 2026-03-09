@@ -78,13 +78,13 @@ struct GlassPanel<Content: View>: View {
                         .stroke(SemanticTokens.Border.glassInner)
                 }
                 .overlay(alignment: .top) {
-                    shape
-                        .stroke(SemanticTokens.Border.glassHighlight, lineWidth: PrimitiveTokens.Stroke.subtle)
-                        .frame(height: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.lg)
-                        .mask(alignment: .top) {
-                            Rectangle()
-                                .frame(height: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.md)
-                        }
+                    TopEdgeStrokeOverlay(
+                        shape: shape,
+                        color: SemanticTokens.Border.glassHighlight,
+                        lineWidth: PrimitiveTokens.Stroke.subtle,
+                        frameHeight: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.lg,
+                        maskHeight: PrimitiveTokens.Space.xxl + PrimitiveTokens.Space.md
+                    )
                 }
         }
     }

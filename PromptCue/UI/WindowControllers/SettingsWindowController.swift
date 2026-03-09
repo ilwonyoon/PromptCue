@@ -26,8 +26,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         retentionSettingsModel.refresh()
         window.setContentSize(
             NSSize(
-                width: AppUIConstants.settingsPanelWidth,
-                height: AppUIConstants.settingsPanelHeight
+                width: PanelMetrics.settingsPanelWidth,
+                height: PanelMetrics.settingsPanelHeight
             )
         )
         window.makeKeyAndOrderFront(nil)
@@ -38,8 +38,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let frame = NSRect(
             x: 0,
             y: 0,
-            width: AppUIConstants.settingsPanelWidth,
-            height: AppUIConstants.settingsPanelHeight
+            width: PanelMetrics.settingsPanelWidth,
+            height: PanelMetrics.settingsPanelHeight
         )
 
         let window = NSWindow(
@@ -56,8 +56,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.tabbingMode = .disallowed
         window.center()
         window.minSize = NSSize(
-            width: AppUIConstants.settingsPanelWidth,
-            height: AppUIConstants.settingsPanelHeight
+            width: PanelMetrics.settingsPanelWidth,
+            height: PanelMetrics.settingsPanelHeight
         )
         window.delegate = self
         window.contentViewController = NSHostingController(

@@ -5,6 +5,8 @@ enum SearchFieldSurfaceStyle {
     case showcase
 }
 
+// Backtick capture pattern surface.
+// This is product-specific chrome, not a generic reusable search field component.
 struct SearchFieldSurface<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let style: SearchFieldSurfaceStyle
@@ -56,7 +58,7 @@ struct SearchFieldSurface<Content: View>: View {
     private var quietDarkBackground: some View {
         baseQuietBackground
             .overlay {
-                shape.fill(SemanticTokens.Surface.raisedFill.opacity(PrimitiveTokens.Opacity.faint))
+                shape.fill(CaptureShellChromeRecipe.quietRaisedFill(colorScheme: .dark))
             }
             .overlay {
                 shape.stroke(SemanticTokens.Border.notificationCard)
@@ -100,17 +102,7 @@ struct SearchFieldSurface<Content: View>: View {
     }
 
     private var quietLightSheenOverlay: some View {
-        shape.fill(
-            LinearGradient(
-                colors: [
-                    SemanticTokens.Surface.glassSheen.opacity(0.82),
-                    SemanticTokens.Surface.glassTint.opacity(0.22),
-                    SemanticTokens.Surface.glassEdge.opacity(0),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        shape.fill(CaptureShellChromeRecipe.quietLightGradient)
     }
 
     private var quietLightStrokeOverlay: some View {
@@ -120,7 +112,7 @@ struct SearchFieldSurface<Content: View>: View {
     private var quietLightInnerStrokeOverlay: some View {
         shape
             .inset(by: PrimitiveTokens.Stroke.subtle)
-            .stroke(SemanticTokens.Border.glassInner.opacity(0.82))
+            .stroke(CaptureShellChromeRecipe.quietLightInnerStroke)
             .mask(alignment: .top) {
                 Rectangle()
                     .frame(height: PrimitiveTokens.Space.xl)
@@ -128,21 +120,18 @@ struct SearchFieldSurface<Content: View>: View {
     }
 
     private var quietLightHighlightOverlay: some View {
-        shape
-            .stroke(
-                SemanticTokens.Border.glassHighlight.opacity(0.82),
-                lineWidth: PrimitiveTokens.Stroke.subtle
-            )
-            .frame(height: PrimitiveTokens.Space.lg)
-            .mask(alignment: .top) {
-                Rectangle()
-                    .frame(height: PrimitiveTokens.Space.sm)
-            }
+        TopEdgeStrokeOverlay(
+            shape: shape,
+            color: CaptureShellChromeRecipe.quietLightHighlight,
+            lineWidth: PrimitiveTokens.Stroke.subtle,
+            frameHeight: PrimitiveTokens.Space.lg,
+            maskHeight: PrimitiveTokens.Space.sm
+        )
     }
 
     private var quietLightBottomStrokeOverlay: some View {
         shape
-            .stroke(SemanticTokens.Border.notificationCard.opacity(0.28))
+            .stroke(CaptureShellChromeRecipe.quietLightBottomStroke)
             .mask(alignment: .bottom) {
                 Rectangle()
                     .frame(height: PrimitiveTokens.Space.sm)

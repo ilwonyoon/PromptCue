@@ -7,8 +7,8 @@ struct CaptureEditorMetrics: Equatable {
     var layoutWidth: CGFloat
 
     static let empty = CaptureEditorMetrics(
-        contentHeight: AppUIConstants.captureEditorMinimumVisibleHeight,
-        visibleHeight: AppUIConstants.captureEditorMinimumVisibleHeight,
+        contentHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
+        visibleHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
         isScrollable: false,
         layoutWidth: 0
     )

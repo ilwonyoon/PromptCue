@@ -127,7 +127,7 @@ final class AppCoordinator {
             defer { self.pendingStackToggleTask = nil }
 
             await self.model.waitForCaptureSubmissionToSettle(
-                timeout: AppUIConstants.captureSubmissionFlushTimeout
+                timeout: AppTiming.captureSubmissionFlushTimeout
             )
 
             guard !Task.isCancelled else {

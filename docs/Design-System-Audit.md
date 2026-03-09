@@ -16,6 +16,8 @@ Use it to answer three questions:
 
 - Design principles and visual direction:
   - `docs/Design-System.md`
+- Architecture and ownership boundaries:
+  - `docs/Design-System-Architecture-Proposal.md`
 - Primitive tokens:
   - `PromptCue/UI/DesignSystem/PrimitiveTokens.swift`
 - Semantic tokens:

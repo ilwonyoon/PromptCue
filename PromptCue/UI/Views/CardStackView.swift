@@ -7,8 +7,6 @@ struct CardStackView: View {
     let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
-    private let stackBackdropDensity = 4.0
-    private let stackBackdropGrayscale = 2.0
 
     var body: some View {
         ZStack {
@@ -33,7 +31,7 @@ struct CardStackView: View {
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
-                        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
+                        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
                     }
                     .scrollIndicators(.hidden)
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -85,7 +83,7 @@ struct CardStackView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Clear selection")
         }
-        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var emptyState: some View {
@@ -98,7 +96,7 @@ struct CardStackView: View {
                 .frame(height: PrimitiveTokens.Size.thumbnailHeight)
                 .accessibilityLabel("No cues yet")
         }
-        .frame(width: AppUIConstants.stackCardColumnWidth, alignment: .trailing)
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var activeCards: [CaptureCard] {
@@ -222,36 +220,33 @@ struct CardStackView: View {
     }
 
     private var collapsedBackPlateIndices: [Int] {
-        switch copiedCards.count {
-        case ...1:
-            return []
-        case 2:
-            return [1]
-        default:
-            return [2, 1]
-        }
+        CopiedStackRecipe.collapsedBackPlateIndices(for: copiedCards.count)
     }
 
     private func stackedBackPlate(index: Int) -> some View {
         RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
             .fill(
                 SemanticTokens.Surface.notificationStackPlateBase
-                    .opacity(stackedBackPlateOpacity(for: index))
+                    .opacity(CopiedStackRecipe.backPlateFillOpacity(index: index, colorScheme: colorScheme))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .fill(stackedBackPlateShade(for: index))
+                    .fill(CopiedStackRecipe.backPlateShade(index: index, colorScheme: colorScheme))
             }
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(SemanticTokens.Border.notificationCard.opacity(stackedBackPlateBorderOpacity(for: index)))
+                    .stroke(
+                        SemanticTokens.Border.notificationCard.opacity(
+                            CopiedStackRecipe.backPlateBorderOpacity(index: index, colorScheme: colorScheme)
+                        )
+                    )
             }
             .frame(height: collapsedCopiedCardHeight)
             .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
     }
 
     private var collapsedBackPlateBottomPadding: CGFloat {
-        CGFloat(collapsedBackPlateIndices.max() ?? 0) * PrimitiveTokens.Space.xs + PrimitiveTokens.Space.sm
+        CopiedStackRecipe.collapsedBottomPadding(for: collapsedBackPlateIndices)
     }
 
     private var collapsedCopiedCardHeight: CGFloat {
@@ -259,77 +254,14 @@ struct CardStackView: View {
     }
 
     private var stackBackdrop: some View {
-        StackPanelBackdrop(
-            densityScale: stackBackdropDensity,
-            grayscaleBias: stackBackdropGrayscale
-        )
+        StackPanelBackdrop()
     }
 
     private var copiedPreviewTextColor: Color {
-        if colorScheme == .light {
-            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        return SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft)
+        CopiedStackRecipe.previewTextColor(colorScheme: colorScheme)
     }
 
     private var copiedHeaderTextColor: Color {
-        if colorScheme == .light {
-            return SemanticTokens.Text.primary.opacity(PrimitiveTokens.Opacity.strong)
-        }
-
-        return SemanticTokens.Text.secondary
-    }
-
-    private func stackedBackPlateBorderOpacity(for index: Int) -> Double {
-        if colorScheme == .light {
-            return 0.42
-        }
-
-        switch index {
-        case 1:
-            return 0.42
-        case 2:
-            return 0.32
-        default:
-            return 0.28
-        }
-    }
-
-    private func stackedBackPlateOpacity(for index: Int) -> Double {
-        if colorScheme == .light {
-            return 0.36 - (Double(index - 1) * 0.08)
-        }
-
-        switch index {
-        case 1:
-            return 0.72
-        case 2:
-            return 0.60
-        default:
-            return 0.52
-        }
-    }
-
-    private func stackedBackPlateShade(for index: Int) -> Color {
-        if colorScheme == .light {
-            switch index {
-            case 1:
-                return Color.black.opacity(0.02)
-            case 2:
-                return Color.black.opacity(0.04)
-            default:
-                return Color.black.opacity(0.05)
-            }
-        }
-
-        switch index {
-        case 1:
-            return Color.black.opacity(0.14)
-        case 2:
-            return Color.black.opacity(0.22)
-        default:
-            return Color.black.opacity(0.26)
-        }
+        CopiedStackRecipe.headerTextColor(colorScheme: colorScheme)
     }
 }

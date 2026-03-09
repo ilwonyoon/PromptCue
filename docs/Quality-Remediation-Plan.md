@@ -176,11 +176,19 @@ Replace implicit folder scanning with explicit, user-controlled screenshot acces
 
 Make the design system real enough to constrain future work instead of merely documenting intent.
 
+Boundary note:
+
+- `docs/Design-System-Architecture-Proposal.md` is the current-main-aligned ownership map for this phase.
+- `docs/Design-System-Execution-Plan.md` is the phased execution guide for this phase.
+- R4 must not flatten runtime-owned AppKit behavior or Backtick-specific pattern surfaces into generic components just to reduce visible hardcoding.
+- In the active strategy branch, DS1 and DS2 are complete, DS3 is in progress, and DS4 has started with narrowly shared helpers only.
+
 ### Tasks
 
 | Task | Owner | Dependency | Parallelizable | Exit Criteria |
 | --- | --- | --- | --- | --- |
 | Reconcile `docs/Design-System.md` with `PrimitiveTokens.swift` | Track D | None | Yes | documented scale matches shipped scale |
+| Preserve the explicit separation between foundations, semantics, runtime bridges, reusable components, and Backtick patterns | Track D + Master | None | No | future cleanup no longer re-couples stack backdrop, stack cards, and capture runtime behavior |
 | Move stack backdrop and notification plate styling onto semantic tokens | Track D | None | Yes | production surfaces stop embedding raw visual math |
 | Remove duplicated glass shell recipes where practical | Track D | semantic cleanup | Yes | shell behavior composes from shared components |
 | Add AppKit bridge tokens for editor typography/color | Track D | None | Yes | `CueTextEditor` no longer relies on matching by convention |
@@ -263,7 +271,7 @@ The current slice status is:
 2. Phase R1 attachment ownership: integrated
 3. Phase R3 screenshot access and settings: integrated
 4. Phase R2 selection and grouped export: in progress
-5. Phase R4 design-system reconciliation: pending
+5. Phase R4 design-system reconciliation: in progress via the design-system strategy branch (`Phase DS1` and `Phase DS2` implemented, `Phase DS3` and early `Phase DS4` underway)
 6. Phase R5 app-level verification: started, but still too light
 7. Phase R6 stack sync and light-mode readability: in progress
 

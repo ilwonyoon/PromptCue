@@ -105,7 +105,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     private func makePanel() -> StackPanel {
-        let initialFrame = offscreenPanelFrame(for: NSSize(width: AppUIConstants.stackPanelWidth, height: 0))
+        let initialFrame = offscreenPanelFrame(for: NSSize(width: PanelMetrics.stackPanelWidth, height: 0))
         let panel = StackPanel(
             contentRect: initialFrame,
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView, .resizable],
@@ -128,7 +128,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        panel.minSize = NSSize(width: AppUIConstants.stackPanelWidth, height: 360)
+        panel.minSize = NSSize(width: PanelMetrics.stackPanelWidth, height: PanelMetrics.stackPanelMinimumHeight)
         panel.onCancel = { [weak self] in
             self?.close()
         }
@@ -166,7 +166,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {
         let visibleFrame = screenVisibleFrame()
-        let width = max(size?.width ?? AppUIConstants.stackPanelWidth, AppUIConstants.stackPanelWidth)
+        let width = max(size?.width ?? PanelMetrics.stackPanelWidth, PanelMetrics.stackPanelWidth)
         let height = visibleFrame.height
 
         return NSRect(
@@ -193,7 +193,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             ?? NSApp.keyWindow?.screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
             ?? NSScreen.screens.first?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: AppUIConstants.stackPanelWidth, height: 600)
+            ?? NSRect(
+                x: 0,
+                y: 0,
+                width: PanelMetrics.stackPanelWidth,
+                height: PanelMetrics.stackPanelFallbackVisibleHeight
+            )
     }
 
     private func installDismissMonitors() {

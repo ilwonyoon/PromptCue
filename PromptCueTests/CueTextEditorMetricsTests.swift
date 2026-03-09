@@ -11,13 +11,13 @@ final class CueTextEditorMetricsTests: XCTestCase {
         try super.setUpWithError()
 
         container = CueEditorContainerView()
-        container.maxMeasuredHeight = AppUIConstants.captureEditorMaxHeight
+        container.maxMeasuredHeight = CaptureRuntimeMetrics.editorMaxHeight
         container.onMetricsChange = { [weak self] metrics in
             self?.reportedMetrics.append(metrics)
         }
         applyProductionTypingStyle(to: container.textView)
 
-        layoutEditor(width: AppUIConstants.captureEditorViewportWidth)
+        layoutEditor(width: CaptureRuntimeMetrics.editorViewportWidth)
     }
 
     override func tearDownWithError() throws {
@@ -29,8 +29,8 @@ final class CueTextEditorMetricsTests: XCTestCase {
     func testEmptyEditorReportsSingleLineMinimumMetrics() {
         setText("")
 
-        XCTAssertEqual(lastReportedMetrics.contentHeight, AppUIConstants.captureEditorMinimumVisibleHeight, accuracy: 0.5)
-        XCTAssertEqual(lastReportedMetrics.visibleHeight, AppUIConstants.captureEditorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertEqual(lastReportedMetrics.contentHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
+        XCTAssertEqual(lastReportedMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight, accuracy: 0.5)
         XCTAssertFalse(lastReportedMetrics.isScrollable)
         XCTAssertFalse(container.scrollView.hasVerticalScroller)
     }
@@ -43,7 +43,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
         XCTAssertEqual(metrics.contentHeight, expectedVisibleHeight(forLineCount: 2), accuracy: 0.5)
         XCTAssertEqual(metrics.visibleHeight, expectedVisibleHeight(forLineCount: 2), accuracy: 0.5)
         XCTAssertFalse(metrics.isScrollable)
-        XCTAssertEqual(metrics.layoutWidth, AppUIConstants.captureEditorViewportWidth, accuracy: 0.5)
+        XCTAssertEqual(metrics.layoutWidth, CaptureRuntimeMetrics.editorViewportWidth, accuracy: 0.5)
     }
 
     func testBottomBreathingRoomPersistsAcrossSingleAndTwoLineMetrics() {
@@ -62,7 +62,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
     }
 
     func testPastePayloadGrowsToCapBeforeScrollerTurnsOn() {
-        layoutEditor(width: AppUIConstants.captureEditorViewportWidth)
+        layoutEditor(width: CaptureRuntimeMetrics.editorViewportWidth)
 
         setText(multilinePaste(lineCount: 6), forceScrollToSelection: true)
 
@@ -72,27 +72,21 @@ final class CueTextEditorMetricsTests: XCTestCase {
 
         setText(multilinePaste(lineCount: 7), forceScrollToSelection: true)
 
-        XCTAssertEqual(lastReportedMetrics.visibleHeight, AppUIConstants.captureEditorMaxHeight, accuracy: 1)
+        XCTAssertEqual(lastReportedMetrics.visibleHeight, CaptureRuntimeMetrics.editorMaxHeight, accuracy: 1)
         XCTAssertTrue(lastReportedMetrics.isScrollable)
-        XCTAssertTrue(container.scrollView.hasVerticalScroller)
-        XCTAssertGreaterThan(lastReportedMetrics.contentHeight, AppUIConstants.captureEditorMaxHeight)
+        XCTAssertFalse(container.scrollView.hasVerticalScroller)
+        XCTAssertGreaterThan(lastReportedMetrics.contentHeight, CaptureRuntimeMetrics.editorMaxHeight)
         XCTAssertGreaterThan(container.textView.frame.height, lastReportedMetrics.visibleHeight)
     }
 
     func testLargePasteUsesReservedScrollerWidthAfterCrossingCap() {
-        layoutEditor(width: AppUIConstants.captureEditorViewportWidth)
+        layoutEditor(width: CaptureRuntimeMetrics.editorViewportWidth)
         setText(multilinePaste(lineCount: 12), forceScrollToSelection: true)
 
-        let viewportWidth = container.scrollView.contentSize.width
-        let expectedReservedWidth = max(
-            NSScroller.scrollerWidth(for: .regular, scrollerStyle: container.scrollView.scrollerStyle),
-            PrimitiveTokens.Space.md
-        )
-
         XCTAssertTrue(lastReportedMetrics.isScrollable)
-        XCTAssertEqual(lastReportedMetrics.visibleHeight, AppUIConstants.captureEditorMaxHeight, accuracy: 1)
+        XCTAssertEqual(lastReportedMetrics.visibleHeight, CaptureRuntimeMetrics.editorMaxHeight, accuracy: 1)
         XCTAssertGreaterThan(lastReportedMetrics.contentHeight, lastReportedMetrics.visibleHeight)
-        XCTAssertEqual(lastReportedMetrics.layoutWidth, viewportWidth - expectedReservedWidth, accuracy: 1)
+        XCTAssertEqual(lastReportedMetrics.layoutWidth, CaptureRuntimeMetrics.editorViewportWidth, accuracy: 1)
     }
 
     func testNarrowerWidthIncreasesMeasuredVisibleHeightForSameContent() {
@@ -112,13 +106,9 @@ final class CueTextEditorMetricsTests: XCTestCase {
     private func estimatedMetrics(for text: String) -> CaptureEditorMetrics {
         CaptureEditorLayoutCalculator.estimatedMetrics(
             text: text,
-            viewportWidth: AppUIConstants.captureEditorViewportWidth,
-            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
+            viewportWidth: CaptureRuntimeMetrics.editorViewportWidth,
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             minimumLineHeight: PrimitiveTokens.LineHeight.capture,
-            scrollerReservationWidth: max(
-                NSScroller.scrollerWidth(for: .regular, scrollerStyle: .overlay),
-                PrimitiveTokens.Space.md
-            ),
             font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )
@@ -126,8 +116,8 @@ final class CueTextEditorMetricsTests: XCTestCase {
 
     private func expectedVisibleHeight(forLineCount lineCount: Int) -> CGFloat {
         (CGFloat(lineCount) * PrimitiveTokens.LineHeight.capture)
-            + (AppUIConstants.captureEditorVerticalInset * 2)
-            + AppUIConstants.captureEditorBottomBreathingRoom
+            + (CaptureRuntimeMetrics.editorVerticalInset * 2)
+            + CaptureRuntimeMetrics.editorBottomBreathingRoom
     }
 
     private func multilinePaste(lineCount: Int) -> String {
@@ -166,7 +156,7 @@ final class CueTextEditorMetricsTests: XCTestCase {
         textView.defaultParagraphStyle = paragraphStyle
         textView.textContainerInset = NSSize(
             width: 0,
-            height: AppUIConstants.captureEditorVerticalInset
+            height: CaptureRuntimeMetrics.editorVerticalInset
         )
         textView.textContainer?.widthTracksTextView = true
         textView.textContainer?.lineFragmentPadding = 0

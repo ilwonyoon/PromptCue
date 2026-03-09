@@ -11,7 +11,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     private var globalMouseMonitor: Any?
     private var anchoredTopY: CGFloat?
     private var anchoredOriginX: CGFloat?
-    private var preferredPanelHeight: CGFloat = AppUIConstants.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
+    private var preferredPanelHeight: CGFloat = PanelMetrics.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
 
     init(model: AppModel) {
         self.model = model
@@ -121,7 +121,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     private func initialPanelFrame() -> NSRect {
         let visibleFrame = screenVisibleFrame()
         let size = NSSize(
-            width: AppUIConstants.capturePanelWidth,
+            width: PanelMetrics.capturePanelWidth,
             height: min(preferredPanelHeight, visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
         )
 
@@ -136,7 +136,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     private func anchoredPanelFrame() -> NSRect {
         let visibleFrame = screenVisibleFrame()
         let size = NSSize(
-            width: AppUIConstants.capturePanelWidth,
+            width: PanelMetrics.capturePanelWidth,
             height: min(preferredPanelHeight, visibleFrame.height - (PrimitiveTokens.Space.xl * 2))
         )
         let fallbackFrame = initialPanelFrame()
@@ -157,7 +157,12 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         NSApp.keyWindow?.screen?.visibleFrame
             ?? NSScreen.main?.visibleFrame
             ?? NSScreen.screens.first?.visibleFrame
-            ?? NSRect(x: 0, y: 0, width: AppUIConstants.capturePanelWidth, height: 240)
+            ?? NSRect(
+                x: 0,
+                y: 0,
+                width: PanelMetrics.capturePanelWidth,
+                height: PanelMetrics.capturePanelFallbackVisibleHeight
+            )
     }
 
     private func resizePanelIfNeeded() {

@@ -183,7 +183,7 @@ final class AppModel: ObservableObject {
 
         if attachment == nil, recentScreenshotState.showsCaptureSlot {
             if let resolvedURL = await recentScreenshotCoordinator.resolveCurrentCaptureAttachment(
-                timeout: AppUIConstants.recentScreenshotSubmitResolveTimeout
+                timeout: AppTiming.recentScreenshotSubmitResolveTimeout
             ) {
                 attachment = ScreenshotAttachment(path: resolvedURL.path)
             }
@@ -267,9 +267,9 @@ final class AppModel: ObservableObject {
 
         let estimatedMetrics = CaptureEditorLayoutCalculator.estimatedMetrics(
             text: draftText,
-            viewportWidth: AppUIConstants.captureEditorViewportWidth,
-            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
-            minimumLineHeight: AppUIConstants.captureTextLineHeight,
+            viewportWidth: CaptureRuntimeMetrics.editorViewportWidth,
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
+            minimumLineHeight: CaptureRuntimeMetrics.textLineHeight,
             font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture),
             lineHeight: PrimitiveTokens.LineHeight.capture
         )

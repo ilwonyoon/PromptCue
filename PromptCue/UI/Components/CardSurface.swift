@@ -69,21 +69,19 @@ struct CardSurface<Content: View>: View {
                     }
                 }
                 .overlay(alignment: .top) {
-                    shape
-                        .stroke(
-                            SemanticTokens.Border.glassHighlight.opacity(0.18),
-                            lineWidth: PrimitiveTokens.Stroke.subtle
-                        )
-                        .mask(alignment: .top) {
-                            Rectangle()
-                                .frame(height: PrimitiveTokens.Space.sm)
-                        }
+                    TopEdgeStrokeOverlay(
+                        shape: shape,
+                        color: NotificationCardChromeRecipe.genericTopHighlight(colorScheme: colorScheme),
+                        lineWidth: PrimitiveTokens.Stroke.subtle,
+                        frameHeight: PrimitiveTokens.Space.sm,
+                        maskHeight: PrimitiveTokens.Space.sm
+                    )
                 }
         } else {
             shape
                 .fill(SemanticTokens.MaterialStyle.notificationCard)
                 .overlay {
-                    shape.fill(SemanticTokens.Surface.notificationCardBackdrop)
+                    shape.fill(NotificationCardChromeRecipe.overlayFill(colorScheme: colorScheme))
                 }
                 .overlay {
                     shape.fill(backgroundFill)

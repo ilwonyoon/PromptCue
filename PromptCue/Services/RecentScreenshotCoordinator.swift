@@ -34,8 +34,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         locator: RecentScreenshotLocating = RecentScreenshotLocator(),
         cache: TransientScreenshotCaching = TransientScreenshotCache(),
         clipboardProvider: RecentClipboardImageProviding? = nil,
-        maxAge: TimeInterval = AppUIConstants.recentScreenshotMaxAge,
-        settleGrace: TimeInterval = AppUIConstants.recentScreenshotPlaceholderGrace,
+        maxAge: TimeInterval = AppTiming.recentScreenshotMaxAge,
+        settleGrace: TimeInterval = AppTiming.recentScreenshotPlaceholderGrace,
         now: @escaping () -> Date = Date.init
     ) {
         self.observer = observer ?? RecentScreenshotDirectoryObserver()

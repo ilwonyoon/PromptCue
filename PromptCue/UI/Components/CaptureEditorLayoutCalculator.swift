@@ -9,8 +9,8 @@ enum CaptureEditorLayoutCalculator {
         font: NSFont,
         lineHeight: CGFloat
     ) -> CGFloat {
-        let verticalInsetHeight = AppUIConstants.captureEditorVerticalInset * 2
-        let bottomBreathingRoom = AppUIConstants.captureEditorBottomBreathingRoom
+        let verticalInsetHeight = CaptureRuntimeMetrics.editorVerticalInset * 2
+        let bottomBreathingRoom = CaptureRuntimeMetrics.editorBottomBreathingRoom
 
         guard !text.isEmpty else {
             return minimumLineHeight + verticalInsetHeight + bottomBreathingRoom
@@ -64,8 +64,8 @@ enum CaptureEditorLayoutCalculator {
     ) -> CaptureEditorMetrics {
         guard !text.isEmpty else {
             return CaptureEditorMetrics(
-                contentHeight: minimumLineHeight + (AppUIConstants.captureEditorVerticalInset * 2) + AppUIConstants.captureEditorBottomBreathingRoom,
-                visibleHeight: minimumLineHeight + (AppUIConstants.captureEditorVerticalInset * 2) + AppUIConstants.captureEditorBottomBreathingRoom,
+                contentHeight: minimumLineHeight + (CaptureRuntimeMetrics.editorVerticalInset * 2) + CaptureRuntimeMetrics.editorBottomBreathingRoom,
+                visibleHeight: minimumLineHeight + (CaptureRuntimeMetrics.editorVerticalInset * 2) + CaptureRuntimeMetrics.editorBottomBreathingRoom,
                 isScrollable: false,
                 layoutWidth: viewportWidth
             )

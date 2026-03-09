@@ -80,10 +80,10 @@ final class CaptureComposerLayoutTests: XCTestCase {
 
         model.updateDraftEditorMetrics(
             CaptureEditorMetrics(
-                contentHeight: AppUIConstants.captureEditorMaxHeight + PrimitiveTokens.LineHeight.capture,
-                visibleHeight: AppUIConstants.captureEditorMaxHeight,
+                contentHeight: CaptureRuntimeMetrics.editorMaxHeight + PrimitiveTokens.LineHeight.capture,
+                visibleHeight: CaptureRuntimeMetrics.editorMaxHeight,
                 isScrollable: true,
-                layoutWidth: AppUIConstants.captureEditorViewportWidth
+                layoutWidth: CaptureRuntimeMetrics.editorViewportWidth
             )
         )
         drainMainQueue()
@@ -127,8 +127,8 @@ final class CaptureComposerLayoutTests: XCTestCase {
     private func metric(forLineCount lineCount: Int) -> CaptureEditorMetrics {
         metric(
             visibleHeight: (CGFloat(lineCount) * PrimitiveTokens.LineHeight.capture)
-                + (AppUIConstants.captureEditorVerticalInset * 2)
-                + AppUIConstants.captureEditorBottomBreathingRoom
+                + (CaptureRuntimeMetrics.editorVerticalInset * 2)
+                + CaptureRuntimeMetrics.editorBottomBreathingRoom
         )
     }
 
@@ -137,7 +137,7 @@ final class CaptureComposerLayoutTests: XCTestCase {
             contentHeight: visibleHeight,
             visibleHeight: visibleHeight,
             isScrollable: false,
-            layoutWidth: AppUIConstants.captureEditorViewportWidth
+            layoutWidth: CaptureRuntimeMetrics.editorViewportWidth
         )
     }
 

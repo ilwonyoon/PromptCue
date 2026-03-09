@@ -110,7 +110,7 @@ struct CueTextEditor: NSViewRepresentable {
         textView.isContinuousSpellCheckingEnabled = false
         textView.isGrammarCheckingEnabled = false
         textView.allowsUndo = true
-        textView.textContainerInset = NSSize(width: 0, height: AppUIConstants.captureEditorVerticalInset)
+        textView.textContainerInset = NSSize(width: 0, height: CaptureRuntimeMetrics.editorVerticalInset)
         textView.isHorizontallyResizable = false
         textView.isVerticallyResizable = true
         textView.alignment = .left

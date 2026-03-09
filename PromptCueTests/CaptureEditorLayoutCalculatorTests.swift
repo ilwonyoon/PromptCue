@@ -6,8 +6,7 @@ final class CaptureEditorLayoutCalculatorTests: XCTestCase {
         let metrics = CaptureEditorLayoutCalculator.metrics(
             viewportWidth: 320,
             maxContentHeight: 176,
-            minimumLineHeight: 22,
-            scrollerReservationWidth: 16
+            minimumLineHeight: 22
         ) { _ in
             66
         }
@@ -22,8 +21,7 @@ final class CaptureEditorLayoutCalculatorTests: XCTestCase {
         let metrics = CaptureEditorLayoutCalculator.metrics(
             viewportWidth: 320,
             maxContentHeight: 176,
-            minimumLineHeight: 22,
-            scrollerReservationWidth: 16
+            minimumLineHeight: 22
         ) { _ in
             260
         }
@@ -31,50 +29,46 @@ final class CaptureEditorLayoutCalculatorTests: XCTestCase {
         XCTAssertEqual(metrics.contentHeight, 260, accuracy: 0.5)
         XCTAssertEqual(metrics.visibleHeight, 176, accuracy: 0.5)
         XCTAssertTrue(metrics.isScrollable)
-        XCTAssertEqual(metrics.layoutWidth, 304, accuracy: 0.5)
+        XCTAssertEqual(metrics.layoutWidth, 320, accuracy: 0.5)
     }
 
-    func testCalculatorRemeasuresUsingReservedWidthOnceScrollingIsNeeded() {
+    func testCalculatorDoesNotRemeasureUsingReservedWidthOnceScrollingIsNeeded() {
         var measuredWidths: [CGFloat] = []
 
         let metrics = CaptureEditorLayoutCalculator.metrics(
             viewportWidth: 320,
             maxContentHeight: 100,
-            minimumLineHeight: 22,
-            scrollerReservationWidth: 16
+            minimumLineHeight: 22
         ) { width in
             measuredWidths.append(width)
-            return width == 320 ? 140 : 180
+            return 140
         }
 
-        XCTAssertEqual(measuredWidths.count, 2)
+        XCTAssertEqual(measuredWidths.count, 1)
         XCTAssertEqual(measuredWidths[0], 320, accuracy: 0.5)
-        XCTAssertEqual(measuredWidths[1], 304, accuracy: 0.5)
-        XCTAssertEqual(metrics.contentHeight, 180, accuracy: 0.5)
+        XCTAssertEqual(metrics.contentHeight, 140, accuracy: 0.5)
         XCTAssertEqual(metrics.visibleHeight, 100, accuracy: 0.5)
-        XCTAssertEqual(metrics.layoutWidth, 304, accuracy: 0.5)
+        XCTAssertEqual(metrics.layoutWidth, 320, accuracy: 0.5)
         XCTAssertTrue(metrics.isScrollable)
     }
 
-    func testCalculatorKeepsReservedWidthForLargePasteLikeLongContent() {
+    func testCalculatorKeepsViewportWidthForLargePasteLikeLongContent() {
         var measuredWidths: [CGFloat] = []
 
         let metrics = CaptureEditorLayoutCalculator.metrics(
             viewportWidth: 320,
             maxContentHeight: 176,
-            minimumLineHeight: 22,
-            scrollerReservationWidth: 16
+            minimumLineHeight: 22
         ) { width in
             measuredWidths.append(width)
-            return width == 320 ? 540 : 612
+            return 540
         }
 
-        XCTAssertEqual(measuredWidths.count, 2)
+        XCTAssertEqual(measuredWidths.count, 1)
         XCTAssertEqual(measuredWidths[0], 320, accuracy: 0.5)
-        XCTAssertEqual(measuredWidths[1], 304, accuracy: 0.5)
-        XCTAssertEqual(metrics.contentHeight, 612, accuracy: 0.5)
+        XCTAssertEqual(metrics.contentHeight, 540, accuracy: 0.5)
         XCTAssertEqual(metrics.visibleHeight, 176, accuracy: 0.5)
         XCTAssertTrue(metrics.isScrollable)
-        XCTAssertEqual(metrics.layoutWidth, 304, accuracy: 0.5)
+        XCTAssertEqual(metrics.layoutWidth, 320, accuracy: 0.5)
     }
 }

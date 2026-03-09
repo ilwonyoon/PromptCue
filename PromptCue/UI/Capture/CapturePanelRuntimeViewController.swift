@@ -2,6 +2,8 @@ import AppKit
 import Combine
 
 @MainActor
+// Runtime-owned capture panel controller.
+// This file coordinates the live AppKit capture shell and must not be flattened into token-only styling work.
 final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDelegate {
     private let model: AppModel
     private let shellView = CapturePanelShellView()
@@ -16,7 +18,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var shellHeightConstraint: NSLayoutConstraint!
     private var screenshotHeightConstraint: NSLayoutConstraint!
     private var editorHeightConstraint: NSLayoutConstraint!
-    private var preferredPanelHeight: CGFloat = AppUIConstants.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
+    private var preferredPanelHeight: CGFloat = PanelMetrics.capturePanelOuterPadding * 2 + PrimitiveTokens.Size.searchFieldHeight
     private var cancellables = Set<AnyCancellable>()
     private var isApplyingDraftExternally = false
     private var imageLoadTask: Task<Void, Never>?
@@ -70,9 +72,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         shellHeightConstraint = shellView.heightAnchor.constraint(equalToConstant: PrimitiveTokens.Size.searchFieldHeight)
 
         NSLayoutConstraint.activate([
-            shellView.topAnchor.constraint(equalTo: view.topAnchor, constant: AppUIConstants.capturePanelOuterPadding),
-            shellView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: AppUIConstants.capturePanelOuterPadding),
-            shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -AppUIConstants.capturePanelOuterPadding),
+            shellView.topAnchor.constraint(equalTo: view.topAnchor, constant: PanelMetrics.capturePanelOuterPadding),
+            shellView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: PanelMetrics.capturePanelOuterPadding),
+            shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -PanelMetrics.capturePanelOuterPadding),
             shellHeightConstraint,
         ])
 
@@ -83,10 +85,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         shellView.addSubview(contentStack)
 
         NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: shellView.leadingAnchor, constant: AppUIConstants.captureSurfaceInnerPadding),
-            contentStack.trailingAnchor.constraint(equalTo: shellView.trailingAnchor, constant: -AppUIConstants.captureSurfaceInnerPadding),
-            contentStack.topAnchor.constraint(equalTo: shellView.topAnchor, constant: AppUIConstants.captureSurfaceTopPadding),
-            contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -AppUIConstants.captureSurfaceBottomPadding),
+            contentStack.leadingAnchor.constraint(equalTo: shellView.leadingAnchor, constant: PanelMetrics.captureSurfaceInnerPadding),
+            contentStack.trailingAnchor.constraint(equalTo: shellView.trailingAnchor, constant: -PanelMetrics.captureSurfaceInnerPadding),
+            contentStack.topAnchor.constraint(equalTo: shellView.topAnchor, constant: PanelMetrics.captureSurfaceTopPadding),
+            contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -PanelMetrics.captureSurfaceBottomPadding),
         ])
 
         screenshotContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -148,7 +150,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.configureRuntime(
             text: model.draftText,
             placeholder: "Type and press Enter to save",
-            maxContentHeight: AppUIConstants.captureEditorMaxHeight,
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
             onMetricsChange: { [weak self] metrics in
                 self?.applyEditorMetrics(metrics)
             },
@@ -160,7 +162,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             }
         )
         contentStack.addArrangedSubview(editorHost)
-        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: AppUIConstants.captureEditorMinimumVisibleHeight)
+        editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         editorHeightConstraint.isActive = true
     }
 
@@ -203,7 +205,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func applyEditorMetrics(_ metrics: CaptureEditorMetrics) {
-        editorHeightConstraint.constant = max(AppUIConstants.captureEditorMinimumVisibleHeight, metrics.visibleHeight)
+        editorHeightConstraint.constant = max(CaptureRuntimeMetrics.editorMinimumVisibleHeight, metrics.visibleHeight)
         recomputePreferredPanelHeight()
     }
 
@@ -266,14 +268,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func recomputePreferredPanelHeight() {
         let screenshotHeight = screenshotContainer.isHidden ? 0 : (PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm)
-        let editorHeight = max(editorHost.currentMetrics.visibleHeight, AppUIConstants.captureEditorMinimumVisibleHeight)
+        let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         let surfaceHeight = max(
             PrimitiveTokens.Size.searchFieldHeight,
-            editorHeight + screenshotHeight + AppUIConstants.captureSurfaceTopPadding + AppUIConstants.captureSurfaceBottomPadding
+            editorHeight + screenshotHeight + PanelMetrics.captureSurfaceTopPadding + PanelMetrics.captureSurfaceBottomPadding
         )
 
         shellHeightConstraint.constant = surfaceHeight
-        preferredPanelHeight = ceil((AppUIConstants.capturePanelOuterPadding * 2) + surfaceHeight)
+        preferredPanelHeight = ceil((PanelMetrics.capturePanelOuterPadding * 2) + surfaceHeight)
         onPreferredPanelHeightChange?(preferredPanelHeight)
     }
 

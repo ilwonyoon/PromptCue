@@ -90,7 +90,6 @@ final class AppCoordinator {
         menu.addItem(toggleStackItem)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Design System…", action: #selector(handleOpenDesignSystem), keyEquivalent: "d"))
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q"))
 
@@ -109,10 +108,6 @@ final class AppCoordinator {
 
     @objc private func handleOpenSettings() {
         showSettingsWindow()
-    }
-
-    @objc private func handleOpenDesignSystem() {
-        showDesignSystemWindow()
     }
 
     @objc private func handleQuit() {

@@ -123,7 +123,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func start(startupMode: AppStartupMode = .deferredMaintenance) {
+    func start(startupMode: AppStartupMode = .immediateMaintenance) {
         recentScreenshotCoordinator.onStateChange = { [weak self] state in
             Task { @MainActor [weak self] in
                 self?.applyRecentScreenshotState(state)
@@ -467,7 +467,7 @@ final class AppModel: ObservableObject {
 
         cards = updatedCards
         clearSelection()
-        pushCopiedCardsToCloudSync(copiedCards)
+        pushCopiedCardsToCloudSync(copiedCards, forcePerCardDispatch: true)
     }
 
     func pushCopiedCardsToCloudSync(

@@ -628,7 +628,6 @@ private final class CapturePanelShellView: NSVisualEffectView {
 
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
-        appearance = window?.effectiveAppearance ?? NSApp.effectiveAppearance
         updateAppearance()
     }
 
@@ -636,8 +635,7 @@ private final class CapturePanelShellView: NSVisualEffectView {
         super.init(frame: frameRect)
         state = .active
         blendingMode = .withinWindow
-        material = .menu
-        appearance = NSApp.effectiveAppearance
+        material = .hudWindow
         wantsLayer = true
         layer?.masksToBounds = true
         layer?.addSublayer(fillLayer)
@@ -658,13 +656,11 @@ private final class CapturePanelShellView: NSVisualEffectView {
     private func updateAppearance() {
         guard let layer else { return }
 
-        material = usesDarkAppearance ? .menu : .hudWindow
-
-        fillLayer.fillColor = captureShellFillColor.cgColor
-        borderLayer.strokeColor = captureShellStrokeColor.cgColor
+        fillLayer.fillColor = NSColor(SemanticTokens.Surface.captureShellFill).cgColor
+        borderLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellStroke).cgColor
         borderLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         borderLayer.fillColor = NSColor.clear.cgColor
-        topHighlightLayer.strokeColor = captureShellTopHighlightColor.cgColor
+        topHighlightLayer.strokeColor = NSColor(SemanticTokens.Surface.captureShellTopHighlight).cgColor
         topHighlightLayer.lineWidth = PrimitiveTokens.Stroke.subtle
         topHighlightLayer.fillColor = NSColor.clear.cgColor
         layer.cornerRadius = PrimitiveTokens.Radius.lg
@@ -700,23 +696,6 @@ private final class CapturePanelShellView: NSVisualEffectView {
         }()
 
         layer.cornerRadius = radius
-    }
-
-    private var usesDarkAppearance: Bool {
-        effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .darkAqua
-            || effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .vibrantDark
-    }
-
-    private var captureShellFillColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellFill)
-    }
-
-    private var captureShellStrokeColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellStroke)
-    }
-
-    private var captureShellTopHighlightColor: NSColor {
-        NSColor(SemanticTokens.Surface.captureShellTopHighlight)
     }
 }
 
@@ -756,16 +735,8 @@ private final class CaptureScreenshotSurfaceView: NSView {
     }
 
     private func updateAppearance() {
-        let isDark = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .darkAqua
-            || effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) == .vibrantDark
-        layer?.backgroundColor = (isDark
-            ? NSColor.white.withAlphaComponent(0.08)
-            : NSColor.white.withAlphaComponent(0.68)).cgColor
-        layer?.borderColor = (isDark
-            ? NSColor.white.withAlphaComponent(0.12)
-            : NSColor.black.withAlphaComponent(0.10)).cgColor
-        loadingOverlay.layer?.backgroundColor = (isDark
-            ? NSColor.white.withAlphaComponent(0.06)
-            : NSColor.white.withAlphaComponent(0.44)).cgColor
+        layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotFill).cgColor
+        layer?.borderColor = NSColor(SemanticTokens.Surface.captureShellScreenshotBorder).cgColor
+        loadingOverlay.layer?.backgroundColor = NSColor(SemanticTokens.Surface.captureShellScreenshotLoadingFill).cgColor
     }
 }

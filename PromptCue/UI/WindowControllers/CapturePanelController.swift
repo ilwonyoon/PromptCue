@@ -68,7 +68,6 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
     private var panel: CapturePanel?
     private var runtimeViewController: CapturePanelRuntimeViewController?
-    private var pendingCaptureSessionPreparationTask: Task<Void, Never>?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
     private var anchoredTopY: CGFloat?
@@ -81,7 +80,6 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     deinit {
-        pendingCaptureSessionPreparationTask?.cancel()
         if let localMouseMonitor {
             NSEvent.removeMonitor(localMouseMonitor)
         }
@@ -91,8 +89,7 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     func show() {
-        pendingCaptureSessionPreparationTask?.cancel()
-        model.prepareCapturePresentation()
+        model.beginCaptureSession()
         let runtimeViewController = runtimeViewController ?? makeRuntimeViewController()
         runtimeViewController.prepareForPresentation()
         preferredPanelHeight = runtimeViewController.currentPreferredPanelHeight
@@ -107,12 +104,9 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         panel.makeKeyAndOrderFront(nil)
         runtimeViewController.focusEditorIfPossible()
         installDismissMonitors()
-        scheduleCaptureSessionPreparation()
     }
 
     func close() {
-        pendingCaptureSessionPreparationTask?.cancel()
-        pendingCaptureSessionPreparationTask = nil
         runtimeViewController?.persistDraftIfNeeded()
         model.endCaptureSession()
         panel?.orderOut(nil)
@@ -247,26 +241,6 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
 
         applyFrameIfNeeded(anchoredPanelFrame(), to: panel, display: true, animate: false)
-    }
-
-    private func scheduleCaptureSessionPreparation() {
-        pendingCaptureSessionPreparationTask = Task { @MainActor [weak self] in
-            await Task.yield()
-
-            guard let self else {
-                return
-            }
-
-            defer {
-                self.pendingCaptureSessionPreparationTask = nil
-            }
-
-            guard self.isVisible else {
-                return
-            }
-
-            self.model.beginCaptureSession()
-        }
     }
 
     private func primePanelLayout(_ panel: CapturePanel) {

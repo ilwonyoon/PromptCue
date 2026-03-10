@@ -158,6 +158,7 @@
 		5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueApp.swift; sourceTree = "<group>"; };
 		5CF4040B34025F10E6AB2C52 /* StorageServicesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageServicesTests.swift; sourceTree = "<group>"; };
 		5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewImagePerformanceTests.swift; sourceTree = "<group>"; };
+		5F2520EF74FC059672BB7E5D /* promptcue-pr15-port */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "promptcue-pr15-port"; path = .; sourceTree = SOURCE_ROOT; };
 		6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsModel.swift; sourceTree = "<group>"; };
 		65959EE4923F0AA0EDE928EA /* AppTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTiming.swift; sourceTree = "<group>"; };
 		699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptExportTailSettingsModel.swift; sourceTree = "<group>"; };

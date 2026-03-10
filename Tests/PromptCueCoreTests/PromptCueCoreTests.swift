@@ -3,6 +3,8 @@ import Testing
 @testable import PromptCueCore
 
 struct PromptCueCoreTests {
+    private let referenceDate = Date(timeIntervalSince1970: 1_000)
+
     @Test
     func emptyDraftHasNoContent() {
         let draft = CaptureDraft()
@@ -105,9 +107,11 @@ struct PromptCueCoreTests {
         let id = UUID()
         let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
         let lastCopiedAt = Date(timeIntervalSince1970: 1_700_001_000)
+        let suggestedTarget = makeSuggestedTarget()
         let original = CaptureCard(
             id: id,
             text: "round-trip test",
+            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: "/tmp/screenshot.png",
             lastCopiedAt: lastCopiedAt,
@@ -122,6 +126,7 @@ struct PromptCueCoreTests {
         #expect(decoded == original)
         #expect(decoded.id == id)
         #expect(decoded.text == "round-trip test")
+        #expect(decoded.suggestedTarget == suggestedTarget)
         #expect(decoded.createdAt == createdAt)
         #expect(decoded.screenshotPath == "/tmp/screenshot.png")
         #expect(decoded.lastCopiedAt == lastCopiedAt)
@@ -141,6 +146,7 @@ struct PromptCueCoreTests {
         let decoded = try decoder.decode(CaptureCard.self, from: data)
 
         #expect(decoded == original)
+        #expect(decoded.suggestedTarget == nil)
         #expect(decoded.screenshotPath == nil)
         #expect(decoded.lastCopiedAt == nil)
         #expect(decoded.sortOrder == original.createdAt.timeIntervalSinceReferenceDate)
@@ -163,7 +169,55 @@ struct PromptCueCoreTests {
 
         #expect(decoded.id == id)
         #expect(decoded.text == "legacy card")
+        #expect(decoded.suggestedTarget == nil)
         #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelFallsBackToWindowTitleWhenRepoAndCwdAreMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue.swift",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue.swift")
+    }
+
+    @Test
+    func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
+        let terminalTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            capturedAt: referenceDate
+        )
+        let ideTarget = makeSuggestedTarget()
+
+        #expect(terminalTarget.sourceKind == .terminal)
+        #expect(ideTarget.sourceKind == .ide)
+    }
+
+    @Test
+    func suggestedTargetChooserSecondaryLabelFallsBackToSessionIdentifierWhenWindowTitleMatchesWorkspaceLabel() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue",
+            sessionIdentifier: "tab-2",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserSecondaryLabel == "Cursor · tab-2")
+    }
+
+    @Test
+    func suggestedTargetShortBranchLabelUsesLeafAndTruncatesToEighteenCharacters() {
+        let target = makeSuggestedTarget(branch: "feature/12345678901234567890")
+
+        #expect(target.shortBranchLabel == "12345678901234567…")
     }
 
     @Test
@@ -266,5 +320,27 @@ struct PromptCueCoreTests {
 
         #expect(payload.components(separatedBy: "\n\n").count == 2)
         #expect(payload.hasSuffix("Sent from Prompt Cue"))
+    }
+
+    private func makeSuggestedTarget(
+        appName: String = "Cursor",
+        windowTitle: String? = "PromptCue",
+        sessionIdentifier: String? = "tab-1",
+        currentWorkingDirectory: String? = "/Users/ilwon/dev/PromptCue/App",
+        repositoryRoot: String? = "/Users/ilwon/dev/PromptCue",
+        repositoryName: String? = "PromptCue",
+        branch: String? = "feature/initial-work"
+    ) -> CaptureSuggestedTarget {
+        CaptureSuggestedTarget(
+            appName: appName,
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            windowTitle: windowTitle,
+            sessionIdentifier: sessionIdentifier,
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            repositoryName: repositoryName,
+            branch: branch,
+            capturedAt: referenceDate
+        )
     }
 }

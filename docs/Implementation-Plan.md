@@ -91,6 +91,19 @@ Progress on this slice:
 - the final merge-safe screenshot risk is closed: `beginCaptureSession()` restores the recent-screenshot slot immediately from the synchronous signal probe, and `submitCapture()` now waits for async readable promotion without rearming repeated scans on every poll
 - `safe-main` was rerun after the hidden stack-panel prewarm landed and remains green, with live trace reruns at `21.35 ms`, `18.74 ms`, and `22.22 ms`
 
+Working-with-apps port rule:
+
+- current `main` capture and stack visuals are the baseline
+- older PRs are ported as behavior slices, not merged as architectural truth
+- stage the feature in this order:
+  1. hidden metadata and persistence contract
+  2. current-runtime-compatible chooser state and keyboard contract
+  3. current-style capture accessory and stack reassignment UI
+- reject any port step that reintroduces:
+  - older capture controller ownership
+  - full-table persistence writes
+  - visual deviations from the approved capture/stack baseline
+
 ## Active Remediation Lane
 
 The current highest-priority work is tracked in:

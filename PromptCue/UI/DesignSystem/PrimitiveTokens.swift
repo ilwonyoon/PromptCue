@@ -48,7 +48,7 @@ enum PrimitiveTokens {
         static let emptyStateTextWidth: CGFloat = 220
         static let panelPadding: CGFloat = 18
         static let cardPadding: CGFloat = 14
-        static let notificationCardPadding: CGFloat = 16
+        static let notificationCardPadding: CGFloat = 20
         static let emptyStatePadding: CGFloat = 24
         static let cardStackSpacing: CGFloat = 12
         static let panelSectionSpacing: CGFloat = 14

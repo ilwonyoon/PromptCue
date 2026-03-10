@@ -146,7 +146,7 @@
 		538FD2D12C938EEE09CB144D /* PromptCueShadowModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueShadowModifiers.swift; sourceTree = "<group>"; };
 		5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotFolderAccess.swift; sourceTree = "<group>"; };
 		555610D30704EB582FD86953 /* CopiedStackRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopiedStackRecipe.swift; sourceTree = "<group>"; };
-		566E0B1FF45F506F68A928AD /* PromptCue-main-safe */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-main-safe"; path = .; sourceTree = SOURCE_ROOT; };
+		F287F749BFB619B9796E0FE2 /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureComposerView.swift; sourceTree = "<group>"; };
 		5A701332249F0A64002B3F01 /* DesignSystemPreviewTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemPreviewTokens.swift; sourceTree = "<group>"; };
 		5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueApp.swift; sourceTree = "<group>"; };
@@ -308,7 +308,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				566E0B1FF45F506F68A928AD /* PromptCue-main-safe */,
+				F287F749BFB619B9796E0FE2 /* PromptCue */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

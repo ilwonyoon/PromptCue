@@ -172,6 +172,24 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             contentStack.bottomAnchor.constraint(equalTo: shellView.bottomAnchor, constant: -PanelMetrics.captureSurfaceBottomPadding),
         ])
 
+        editorHost.translatesAutoresizingMaskIntoConstraints = false
+        editorHost.textView.delegate = self
+        editorHost.configureRuntime(
+            text: model.draftText,
+            placeholder: "Type and press Enter to save",
+            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
+            onMetricsChange: { [weak self] metrics in
+                self?.applyEditorMetrics(metrics)
+            },
+            onSubmit: { [weak self] in
+                self?.handleSubmit()
+            },
+            onCancel: { [weak self] in
+                self?.onCancelRequest?()
+            }
+        )
+        contentStack.addArrangedSubview(editorHost)
+
         screenshotContainer.translatesAutoresizingMaskIntoConstraints = false
         screenshotContainer.isHidden = true
         contentStack.addArrangedSubview(screenshotContainer)
@@ -225,24 +243,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             removeScreenshotButton.topAnchor.constraint(equalTo: screenshotContainer.topAnchor, constant: PrimitiveTokens.Space.xs),
             removeScreenshotButton.trailingAnchor.constraint(equalTo: screenshotContainer.trailingAnchor, constant: -PrimitiveTokens.Space.xs),
         ])
-
-        editorHost.translatesAutoresizingMaskIntoConstraints = false
-        editorHost.textView.delegate = self
-        editorHost.configureRuntime(
-            text: model.draftText,
-            placeholder: "Type and press Enter to save",
-            maxContentHeight: CaptureRuntimeMetrics.editorMaxHeight,
-            onMetricsChange: { [weak self] metrics in
-                self?.applyEditorMetrics(metrics)
-            },
-            onSubmit: { [weak self] in
-                self?.handleSubmit()
-            },
-            onCancel: { [weak self] in
-                self?.onCancelRequest?()
-            }
-        )
-        contentStack.addArrangedSubview(editorHost)
         editorHeightConstraint = editorHost.heightAnchor.constraint(equalToConstant: CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         editorHeightConstraint.isActive = true
     }

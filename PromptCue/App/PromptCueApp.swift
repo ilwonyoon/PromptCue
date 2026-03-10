@@ -6,7 +6,14 @@ struct PromptCueApp: App {
 
     var body: some Scene {
         Settings {
-            PromptCueSettingsView()
+            PromptCueSettingsView(
+                selectedTab: .general,
+                screenshotSettingsModel: ScreenshotSettingsModel(),
+                exportTailSettingsModel: PromptExportTailSettingsModel(),
+                retentionSettingsModel: CardRetentionSettingsModel(),
+                cloudSyncSettingsModel: CloudSyncSettingsModel(),
+                appearanceSettingsModel: AppearanceSettingsModel()
+            )
         }
     }
 }

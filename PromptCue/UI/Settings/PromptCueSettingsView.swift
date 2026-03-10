@@ -3,228 +3,41 @@ import SwiftUI
 
 @MainActor
 struct PromptCueSettingsView: View {
+    let selectedTab: SettingsTab
     @ObservedObject private var screenshotSettingsModel: ScreenshotSettingsModel
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
+    @ObservedObject private var appearanceSettingsModel: AppearanceSettingsModel
 
     private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
 
     init(
+        selectedTab: SettingsTab,
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
-        cloudSyncSettingsModel: CloudSyncSettingsModel
+        cloudSyncSettingsModel: CloudSyncSettingsModel,
+        appearanceSettingsModel: AppearanceSettingsModel
     ) {
+        self.selectedTab = selectedTab
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
-    }
-
-    init() {
-        self.screenshotSettingsModel = ScreenshotSettingsModel()
-        self.exportTailSettingsModel = PromptExportTailSettingsModel()
-        self.retentionSettingsModel = CardRetentionSettingsModel()
-        self.cloudSyncSettingsModel = CloudSyncSettingsModel()
+        self.appearanceSettingsModel = appearanceSettingsModel
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xl) {
-                settingsSection(
-                    title: "Shortcuts",
-                    footer: "These shortcuts work globally."
-                ) {
-                    settingsGrid {
-                        row("Quick Capture") {
-                            KeyboardShortcuts.Recorder(for: .quickCapture)
-                        }
-
-                        row("Show Stack") {
-                            KeyboardShortcuts.Recorder(for: .toggleStackPanel)
-                        }
-                    }
-                }
-
-                sectionDivider
-
-                settingsSection(
-                    title: "Retention",
-                    footer: "Cards stay until you delete them unless auto-expire is enabled."
-                ) {
-                    settingsGrid {
-                        row("Card Lifetime", verticalAlignment: .top) {
-                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                                Toggle(
-                                    "Auto-expire stack cards after 8 hours",
-                                    isOn: binding(
-                                        get: { retentionSettingsModel.isAutoExpireEnabled },
-                                        set: retentionSettingsModel.updateAutoExpireEnabled
-                                    )
-                                )
-                                .toggleStyle(.checkbox)
-
-                                rowNote("Off by default. Turn this on to restore the original 8-hour cleanup behavior.")
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-
-                sectionDivider
-
-                settingsSection(
-                    title: "AI Export Tail",
-                    footer: "Saved cards stay unchanged. The tail is added only when you copy or export."
-                ) {
-                    settingsGrid {
-                        row("Behavior", verticalAlignment: .top) {
-                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                                Toggle(
-                                    "Append AI export tail",
-                                    isOn: binding(
-                                        get: { exportTailSettingsModel.isEnabled },
-                                        set: exportTailSettingsModel.updateEnabled
-                                    )
-                                )
-                                .toggleStyle(.checkbox)
-
-                                rowNote("Append your reusable instruction block to copied text without modifying saved cards.")
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-
-                    detailPane(label: "Tail Text") {
-                        TextEditor(
-                            text: binding(
-                                get: { exportTailSettingsModel.suffixText },
-                                set: exportTailSettingsModel.updateSuffixText
-                            )
-                        )
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                        .scrollContentBackground(.hidden)
-                        .frame(
-                            minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
-                            maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight
-                        )
-                        .padding(PrimitiveTokens.Space.sm)
-                        .background(SemanticTokens.Surface.raisedFill)
-                        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
-                        }
-                    }
-
-                    detailPane(label: "Preview") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                            HStack {
-                                Spacer()
-
-                                Button("Reset to Default") {
-                                    exportTailSettingsModel.resetToDefault()
-                                }
-                                .controlSize(.small)
-                            }
-
-                            Text(exportTailSettingsModel.previewText)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(PrimitiveTokens.Space.sm)
-                                .background(SemanticTokens.Surface.cardFill)
-                                .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                                        .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
-                                }
-                        }
-                    }
-                }
-
-                sectionDivider
-
-                settingsSection(
-                    title: "Screenshots",
-                    footer: "Auto-attach only checks the screenshot folder you explicitly approve."
-                ) {
-                    settingsGrid {
-                        row("Status") {
-                            Text(screenshotStatusTitle)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-
-                    detailPane(label: "Folder") {
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                            Text(screenshotStatusDetail)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            HStack(spacing: PrimitiveTokens.Space.xs) {
-                                primaryScreenshotButton
-
-                                if case .connected = screenshotSettingsModel.accessState {
-                                    Button("Reveal in Finder") {
-                                        screenshotSettingsModel.revealFolderInFinder()
-                                    }
-
-                                    Button("Disconnect") {
-                                        screenshotSettingsModel.clearFolder()
-                                    }
-                                }
-
-                                if case .needsReconnect = screenshotSettingsModel.accessState {
-                                    Button("Clear") {
-                                        screenshotSettingsModel.clearFolder()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                sectionDivider
-
-                settingsSection(
-                    title: "iCloud Sync",
-                    footer: "Sync cards across your Macs via iCloud. Screenshots stay local."
-                ) {
-                    settingsGrid {
-                        row("Sync", verticalAlignment: .top) {
-                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                                Toggle(
-                                    "Enable iCloud sync",
-                                    isOn: binding(
-                                        get: { cloudSyncSettingsModel.isSyncEnabled },
-                                        set: cloudSyncSettingsModel.updateSyncEnabled
-                                    )
-                                )
-                                .toggleStyle(.checkbox)
-
-                                rowNote("Cards sync automatically between Macs signed into the same Apple ID.")
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        row("Status") {
-                            Text(cloudSyncSettingsModel.syncStatusText)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(
-                                    cloudSyncSettingsModel.syncError != nil
-                                        ? SemanticTokens.Text.secondary
-                                        : SemanticTokens.Text.primary
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
+                switch selectedTab {
+                case .general:
+                    generalContent
+                case .capture:
+                    captureContent
+                case .stack:
+                    stackContent
                 }
             }
             .padding(PrimitiveTokens.Space.xl)
@@ -240,8 +53,215 @@ struct PromptCueSettingsView: View {
             exportTailSettingsModel.refresh()
             retentionSettingsModel.refresh()
             cloudSyncSettingsModel.refresh()
+            appearanceSettingsModel.refresh()
         }
     }
+
+    // MARK: - General Tab
+
+    @ViewBuilder
+    private var generalContent: some View {
+        settingsSection(title: "Appearance") {
+            settingsGrid {
+                row("Theme") {
+                    Picker("", selection: binding(
+                        get: { appearanceSettingsModel.mode },
+                        set: { appearanceSettingsModel.updateMode($0) }
+                    )) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
+                }
+            }
+        }
+
+        sectionDivider
+
+        settingsSection(title: "Shortcuts") {
+            settingsGrid {
+                row("Quick Capture") {
+                    KeyboardShortcuts.Recorder(for: .quickCapture)
+                }
+
+                row("Show Stack") {
+                    KeyboardShortcuts.Recorder(for: .toggleStackPanel)
+                }
+            }
+        }
+
+        sectionDivider
+
+        settingsSection(title: "iCloud Sync") {
+            settingsGrid {
+                row("Sync") {
+                    Toggle(
+                        "Enable iCloud sync",
+                        isOn: binding(
+                            get: { cloudSyncSettingsModel.isSyncEnabled },
+                            set: cloudSyncSettingsModel.updateSyncEnabled
+                        )
+                    )
+                    .toggleStyle(.checkbox)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                row("Status") {
+                    Text(cloudSyncSettingsModel.syncStatusText)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(
+                            cloudSyncSettingsModel.syncError != nil
+                                ? SemanticTokens.Text.secondary
+                                : SemanticTokens.Text.primary
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            rowNote("Screenshots stay local.")
+        }
+    }
+
+    // MARK: - Capture Tab
+
+    @ViewBuilder
+    private var captureContent: some View {
+        settingsSection(title: "Screenshots") {
+            settingsGrid {
+                row("Status") {
+                    Text(screenshotStatusTitle)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            detailPane(label: "Folder") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    Text(screenshotStatusDetail)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                        primaryScreenshotButton
+
+                        if case .connected = screenshotSettingsModel.accessState {
+                            Button("Reveal in Finder") {
+                                screenshotSettingsModel.revealFolderInFinder()
+                            }
+
+                            Button("Disconnect") {
+                                screenshotSettingsModel.clearFolder()
+                            }
+                        }
+
+                        if case .needsReconnect = screenshotSettingsModel.accessState {
+                            Button("Clear") {
+                                screenshotSettingsModel.clearFolder()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Stack Tab
+
+    @ViewBuilder
+    private var stackContent: some View {
+        settingsSection(title: "Retention") {
+            settingsGrid {
+                row("Card Lifetime") {
+                    Toggle(
+                        "Auto-expire after 8 hours",
+                        isOn: binding(
+                            get: { retentionSettingsModel.isAutoExpireEnabled },
+                            set: retentionSettingsModel.updateAutoExpireEnabled
+                        )
+                    )
+                    .toggleStyle(.checkbox)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+
+        sectionDivider
+
+        settingsSection(title: "AI Export Tail") {
+            settingsGrid {
+                row("Behavior") {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        Toggle(
+                            "Append AI export tail",
+                            isOn: binding(
+                                get: { exportTailSettingsModel.isEnabled },
+                                set: exportTailSettingsModel.updateEnabled
+                            )
+                        )
+                        .toggleStyle(.checkbox)
+
+                        rowNote("Added to clipboard output only.")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            detailPane(label: "Tail Text") {
+                TextEditor(
+                    text: binding(
+                        get: { exportTailSettingsModel.suffixText },
+                        set: exportTailSettingsModel.updateSuffixText
+                    )
+                )
+                .font(PrimitiveTokens.Typography.body)
+                .foregroundStyle(SemanticTokens.Text.primary)
+                .scrollContentBackground(.hidden)
+                .frame(
+                    minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
+                    maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight
+                )
+                .padding(PrimitiveTokens.Space.sm)
+                .background(SemanticTokens.Surface.raisedFill)
+                .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
+                        .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+                }
+            }
+
+            detailPane(label: "Preview") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    HStack {
+                        Spacer()
+
+                        Button("Reset to Default") {
+                            exportTailSettingsModel.resetToDefault()
+                        }
+                        .controlSize(.small)
+                    }
+
+                    Text(exportTailSettingsModel.previewText)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(PrimitiveTokens.Space.sm)
+                        .background(SemanticTokens.Surface.cardFill)
+                        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
+                                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+                        }
+                }
+            }
+        }
+    }
+
+    // MARK: - Screenshot Helpers
 
     private var screenshotStatusTitle: String {
         switch screenshotSettingsModel.accessState {
@@ -257,15 +277,11 @@ struct PromptCueSettingsView: View {
     private var screenshotStatusDetail: String {
         switch screenshotSettingsModel.accessState {
         case .notConfigured:
-            if let suggestedSystemPath = screenshotSettingsModel.suggestedSystemPath {
-                return "System screenshots often save to \(suggestedSystemPath). Choose that folder to enable auto-attach."
-            }
-
-            return "Choose the folder Backtick should watch for recent screenshots."
+            return "Choose your screenshot folder."
         case let .connected(_, displayPath):
             return displayPath
-        case let .needsReconnect(lastKnownDisplayPath):
-            return "Backtick remembers \(lastKnownDisplayPath), but access needs to be approved again."
+        case .needsReconnect:
+            return "Access expired. Reconnect to continue."
         }
     }
 
@@ -287,6 +303,8 @@ struct PromptCueSettingsView: View {
         }
     }
 
+    // MARK: - Layout Helpers
+
     private var sectionDivider: some View {
         Divider()
             .overlay(SemanticTokens.Border.subtle)
@@ -294,21 +312,12 @@ struct PromptCueSettingsView: View {
 
     private func settingsSection<Content: View>(
         title: String,
-        footer: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                Text(title)
-                    .font(PrimitiveTokens.Typography.bodyStrong)
-                    .foregroundStyle(SemanticTokens.Text.primary)
-
-                if let footer, footer.isEmpty == false {
-                    Text(footer)
-                        .font(PrimitiveTokens.Typography.meta)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                }
-            }
+            Text(title)
+                .font(PrimitiveTokens.Typography.bodyStrong)
+                .foregroundStyle(SemanticTokens.Text.primary)
 
             content()
         }

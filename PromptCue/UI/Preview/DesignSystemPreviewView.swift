@@ -430,8 +430,15 @@ struct DesignSystemPreviewView: View {
                 }
 
                 previewCard(title: "PromptCueSettingsView") {
-                    PromptCueSettingsView()
-                        .frame(height: DesignSystemPreviewTokens.previewSettingsHeight)
+                    PromptCueSettingsView(
+                        selectedTab: .general,
+                        screenshotSettingsModel: ScreenshotSettingsModel(),
+                        exportTailSettingsModel: PromptExportTailSettingsModel(),
+                        retentionSettingsModel: CardRetentionSettingsModel(),
+                        cloudSyncSettingsModel: CloudSyncSettingsModel(),
+                        appearanceSettingsModel: AppearanceSettingsModel()
+                    )
+                    .frame(height: DesignSystemPreviewTokens.previewSettingsHeight)
                 }
             }
         }

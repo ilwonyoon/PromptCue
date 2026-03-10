@@ -41,6 +41,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
+        panel.armFirstFrameCallback {
+            PerformanceTrace.completeStackOpenTraceIfNeeded()
+        }
         panel.alphaValue = 1
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
@@ -86,6 +89,16 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         close()
+    }
+
+    func windowDidExpose(_ notification: Notification) {
+        guard let panel,
+              notification.object as AnyObject? === panel
+        else {
+            return
+        }
+
+        PerformanceTrace.completeStackOpenTraceIfNeeded()
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
@@ -257,6 +270,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
 private final class StackPanel: NSPanel {
     var onCancel: (() -> Void)?
+    private var firstFrameCallback: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -289,5 +303,23 @@ private final class StackPanel: NSPanel {
 
     override func cancelOperation(_ sender: Any?) {
         onCancel?()
+    }
+
+    override func displayIfNeeded() {
+        super.displayIfNeeded()
+        fireFirstFrameCallbackIfNeeded()
+    }
+
+    func armFirstFrameCallback(_ callback: @escaping () -> Void) {
+        firstFrameCallback = callback
+    }
+
+    private func fireFirstFrameCallbackIfNeeded() {
+        guard let firstFrameCallback else {
+            return
+        }
+
+        self.firstFrameCallback = nil
+        firstFrameCallback()
     }
 }

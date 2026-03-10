@@ -25,6 +25,7 @@
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
 - A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.
 - `Phase DS1`, `Phase DS2`, and `Phase DS3` are now implemented in the design-system strategy branch, and `Phase DS4` has started where reuse is already proven.
+- a dedicated performance remediation lane now exists in `docs/Performance-Remediation-Plan.md`
 
 ## Phase Summary
 
@@ -47,26 +48,21 @@
 
 The immediate implementation slice is:
 
-- `Phase R6: stack sync and light-mode readability`
+- `safe-main merge candidate: preserve current main functionality and UI style while merging performance core + instrumentation`
 - `Phase R7: capture input system hardening`
 - queued next: `Phase R8: AI Export Tail / Prompt Suffix`
-- queued after that: `Phase R9: stack card overflow and hover expansion`
+- queued after that: `Phase R9: stack card overflow and click expansion`
 - in parallel planning/visual lane: `Phase DP0 -> DP4` from `docs/Design-Polish-Execution-Plan.md`
 
-This slice exists because the app currently has a user-visible mismatch between:
-
-- a successful capture submission
-- the stack panel's first rendered state
-- the visibility of new cards in light mode
+This slice exists because the performance lane is complete, but the merge target is now constrained by preserving current `main` behavior and current UI style while still landing the large service/state/runtime wins.
 
 That means current work is prioritized in this order:
 
-1. lock capture submission immediately when `Enter` is pressed so hotkeys cannot outrun the save path
-2. keep `AppModel` as the source of truth for stack presentation during normal interaction
-3. rework light-mode stack veil and card separation
-4. rebuild the capture input around an AppKit-owned sizing model
-5. add `AI Export Tail / Prompt Suffix` as an export-time-only setting and formatter slice
-6. then return to grouped export validation and broader release verification
+1. keep the merge-safe scope on `feat/performance-main-safe` green with `scripts/verify_main_merge_safety.sh --profile safe-main`
+2. finish `Phase R7` without reintroducing layout churn or capture latency regressions
+3. add `AI Export Tail / Prompt Suffix` as an export-time-only setting and formatter slice
+4. then land `Phase R9` overflow/click expansion intentionally, not piggybacked on performance work
+5. then return to grouped export validation and broader release verification
 
 All work in this slice should preserve the product model:
 
@@ -82,6 +78,16 @@ Progress on this slice:
 - automated capture QA now runs through `scripts/qa_capture_input.sh` and has produced screenshot + metrics artifacts
 - current diagnosis confirms the next R7 step must move height ownership back into the AppKit editor host; further padding-only tweaks are not sufficient
 - `Phase R7B` is now the active implementation lane: replace the live SwiftUI capture composition with an AppKit-owned host and keep geometry out of `AppModel`
+- `Phase P1` is accepted with quantified overflow-cache wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P2` is accepted with quantified incremental-write wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P3A-P3B` is accepted with quantified capture-open decoupling wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P3C-P3D` is accepted with quantified preview-cache and resize-churn wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P4A` is accepted with quantified copied-card sync batching wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P4B` is accepted with quantified remote sync apply dispatch and queued-completion wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P4C` is accepted with quantified startup-deferral wins recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P5` is accepted with quantified stack visual render wins and a live `Cmd + 2 -> first frame` trace recorded in `docs/Performance-Remediation-Plan.md`
+- the performance remediation lane is now complete
+- `feat/performance-main-safe` now exists as a clean candidate branch in `../PromptCue-main-safe` and passes `scripts/verify_main_merge_safety.sh --profile safe-main`
 
 ## Active Remediation Lane
 
@@ -138,7 +144,7 @@ Planned integration order:
 
 After `Phase R8`, the next planned slice is:
 
-- `Phase R9: stack card overflow and hover expansion`
+- `Phase R9: stack card overflow and click expansion`
 
 This slice exists because very long cue content currently turns Stack into a layout outlier instead of a stable execution queue.
 
@@ -150,11 +156,15 @@ Backtick rule for this slice:
 Planned scope:
 
 1. define one default max resting card height for active and copied-stack cards
-   - initial target: text-only cards expose roughly `3-4` lines at rest
+   - current target: resting preview cap should be more generous and may extend to `2x` the capture max height when needed
 2. define one overflow affordance that communicates remaining hidden text
-3. add hover or focus expansion that reveals more text without destabilizing surrounding layout
-   - initial target: reveal roughly `6-8` lines before any deeper interaction
+   - explicit affordance: `+N lines`
+   - hover highlights affordance only
+3. add click-to-expand behavior that reveals more text without destabilizing surrounding layout
+   - clicking `+N lines` should reveal the full card text
+   - cards may not introduce an inner text scroller
 4. keep copied-stack collapsed summaries visually stable even when the first card is very long
+   - collapsed copied summaries do not expand inline
 5. add QA fixtures for short, medium, very long, and screenshot-plus-text cards
 
 Planned integration order:

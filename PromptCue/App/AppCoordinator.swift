@@ -48,6 +48,13 @@ final class AppCoordinator {
             }
         }
 
+        if PerformanceTrace.shouldTraceStackToggleOnStart {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: PerformanceTrace.stackToggleDelayNanoseconds)
+                self?.toggleStackPanel()
+            }
+        }
+
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_CAPTURE_ON_START"] == "1" {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 250_000_000)
@@ -121,6 +128,7 @@ final class AppCoordinator {
             self.pendingStackToggleTask = nil
             return
         }
+        let shouldMeasureStackOpen = !stackPanelController.isPresentedOrTransitioning
 
         pendingStackToggleTask = Task { @MainActor [weak self] in
             guard let self else {
@@ -140,6 +148,9 @@ final class AppCoordinator {
             if self.stackPanelController.isPresentedOrTransitioning {
                 self.stackPanelController.close()
             } else {
+                if shouldMeasureStackOpen {
+                    PerformanceTrace.beginStackOpenTrace()
+                }
                 self.stackPanelController.show()
             }
         }

@@ -5,6 +5,8 @@ set -euo pipefail
 APP_PATH=""
 OUT_DIR=""
 TIME_LIMIT="8s"
+ATTACH_RETRY_LIMIT=3
+ATTACH_RETRY_DELAY_SECONDS=1
 
 print_usage() {
   cat <<'EOF'
@@ -103,37 +105,59 @@ STDOUT_LOG="${OUT_DIR}/stdout.log"
 TOC_PATH="${OUT_DIR}/trace-toc.xml"
 
 echo "Recording live stack-open trace..."
-PROMPTCUE_TRACE_STACK_TOGGLE_ON_START=1 \
-PROMPTCUE_TRACE_STACK_TOGGLE_DELAY_MS=1500 \
-PROMPTCUE_TRACE_AUTO_QUIT_AFTER_STACK=1 \
-PROMPTCUE_TRACE_STDOUT_METRIC=1 \
-  "${APP_BINARY}" >"${STDOUT_LOG}" 2>&1 &
-APP_PID=$!
+APP_PID=""
 
 cleanup_app() {
-  if kill -0 "${APP_PID}" >/dev/null 2>&1; then
+  if [[ -n "${APP_PID}" ]] && kill -0 "${APP_PID}" >/dev/null 2>&1; then
     kill "${APP_PID}" >/dev/null 2>&1 || true
   fi
 }
 
+launch_target_app() {
+  : >"${STDOUT_LOG}"
+  PROMPTCUE_TRACE_STACK_TOGGLE_ON_START=1 \
+  PROMPTCUE_TRACE_STACK_TOGGLE_DELAY_MS=1500 \
+  PROMPTCUE_TRACE_AUTO_QUIT_AFTER_STACK=1 \
+  PROMPTCUE_TRACE_STDOUT_METRIC=1 \
+    "${APP_BINARY}" >"${STDOUT_LOG}" 2>&1 &
+  APP_PID=$!
+}
+
 trap cleanup_app EXIT
 
-sleep 0.5
+XCTRACE_STATUS=0
+ATTEMPT=1
+while true; do
+  launch_target_app
+  sleep 0.5
 
-set +e
-xcrun xctrace record \
-  --template 'Logging' \
-  --instrument os_signpost \
-  --instrument 'Points of Interest' \
-  --time-limit "${TIME_LIMIT}" \
-  --output "${TRACE_PATH}" \
-  --attach "${APP_PID}"
-XCTRACE_STATUS=$?
-set -e
+  set +e
+  xcrun xctrace record \
+    --template 'Logging' \
+    --instrument os_signpost \
+    --instrument 'Points of Interest' \
+    --time-limit "${TIME_LIMIT}" \
+    --output "${TRACE_PATH}" \
+    --attach "${APP_PID}"
+  XCTRACE_STATUS=$?
+  set -e
 
-if [[ ${XCTRACE_STATUS} -ne 0 && ${XCTRACE_STATUS} -ne 54 ]]; then
+  if [[ ${XCTRACE_STATUS} -eq 0 || ${XCTRACE_STATUS} -eq 54 ]]; then
+    break
+  fi
+
+  cleanup_app
+  wait "${APP_PID}" || true
+
+  if [[ ${XCTRACE_STATUS} -eq 21 && ${ATTEMPT} -lt ${ATTACH_RETRY_LIMIT} ]]; then
+    echo "record_stack_open_trace: attach attempt ${ATTEMPT} failed; retrying..." >&2
+    ATTEMPT=$((ATTEMPT + 1))
+    sleep "${ATTACH_RETRY_DELAY_SECONDS}"
+    continue
+  fi
+
   fail "xctrace record failed with status ${XCTRACE_STATUS}"
-fi
+done
 
 for _ in 1 2 3 4 5; do
   if ! kill -0 "${APP_PID}" >/dev/null 2>&1; then

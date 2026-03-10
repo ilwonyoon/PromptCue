@@ -36,6 +36,10 @@ final class AppCoordinator {
         )
         configureStatusItem()
         screenshotSettingsModel.presentOnboardingIfNeeded()
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            self?.stackPanelController.prepareForFirstPresentation()
+        }
 
         if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_DESIGN_SYSTEM"] == "1" {
             showDesignSystemWindow()

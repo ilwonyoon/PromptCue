@@ -89,7 +89,7 @@ Progress on this slice:
 - the performance remediation lane is now complete
 - `feat/performance-main-safe` now exists as a clean candidate branch in `../PromptCue-main-safe` and passes `scripts/verify_main_merge_safety.sh --profile safe-main`
 - the final merge-safe screenshot risk is closed: `beginCaptureSession()` restores the recent-screenshot slot immediately from the synchronous signal probe, and `submitCapture()` now waits for async readable promotion without rearming repeated scans on every poll
-- `safe-main` was rerun after that fix and remains green, with `PROMPTCUE_STACK_OPEN_FIRST_FRAME_MS=63.30`
+- `safe-main` was rerun after the hidden stack-panel prewarm landed and remains green, with live trace reruns at `21.35 ms`, `18.74 ms`, and `22.22 ms`
 
 ## Active Remediation Lane
 

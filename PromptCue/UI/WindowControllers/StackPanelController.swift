@@ -39,6 +39,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
+        primePanelLayout(panel)
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
         panel.armFirstFrameCallback {
@@ -55,6 +56,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().setFrame(targetFrame, display: true)
         }
+    }
+
+    func prepareForFirstPresentation() {
+        guard !isVisible, !isAnimatingClose else {
+            return
+        }
+
+        let panel = panel ?? makePanel()
+        primePanelLayout(panel)
     }
 
     func close() {
@@ -175,6 +185,16 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         close()
+    }
+
+    private func primePanelLayout(_ panel: StackPanel) {
+        guard let contentView = panel.contentView else {
+            return
+        }
+
+        contentView.needsLayout = true
+        contentView.layoutSubtreeIfNeeded()
+        contentView.displayIfNeeded()
     }
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {

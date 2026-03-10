@@ -265,8 +265,8 @@ Final integration gate before fast-forwarding back into `main`:
 
 Latest safe-main rerun:
 
-- 2026-03-10: passed after restoring recent-screenshot open/immediate-submit semantics on the landing candidate
-- latest live trace after that fix: `PROMPTCUE_STACK_OPEN_FIRST_FRAME_MS=63.30`
+- 2026-03-10: passed after the hidden stack-panel prewarm landed on the landing candidate
+- latest live trace reruns after that fix: `21.35 ms`, `18.74 ms`, `22.22 ms`
 
 ## Immediate Next Moves
 

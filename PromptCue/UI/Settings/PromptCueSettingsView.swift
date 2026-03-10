@@ -280,8 +280,8 @@ struct PromptCueSettingsView: View {
             return "Choose your screenshot folder."
         case let .connected(_, displayPath):
             return displayPath
-        case .needsReconnect:
-            return "Access expired. Reconnect to continue."
+        case let .needsReconnect(lastKnownDisplayPath):
+            return "Access expired (\(lastKnownDisplayPath)). Reconnect to continue."
         }
     }
 

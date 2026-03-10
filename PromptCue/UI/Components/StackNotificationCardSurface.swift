@@ -20,8 +20,7 @@ struct StackNotificationCardSurface<Content: View>: View {
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-
-        content
+        let cardBody = content
             .padding(PrimitiveTokens.Size.notificationCardPadding)
             .background {
                 shape
@@ -35,13 +34,15 @@ struct StackNotificationCardSurface<Content: View>: View {
                         }
                     }
                     .overlay(alignment: .top) {
-                        TopEdgeStrokeOverlay(
-                            shape: shape,
-                            color: topHighlight,
-                            lineWidth: PrimitiveTokens.Stroke.subtle,
-                            frameHeight: PrimitiveTokens.Space.sm,
-                            maskHeight: PrimitiveTokens.Space.sm
-                        )
+                        if showsElevatedChrome {
+                            TopEdgeStrokeOverlay(
+                                shape: shape,
+                                color: topHighlight,
+                                lineWidth: PrimitiveTokens.Stroke.subtle,
+                                frameHeight: PrimitiveTokens.Space.sm,
+                                maskHeight: PrimitiveTokens.Space.sm
+                            )
+                        }
                     }
             }
             .overlay {
@@ -49,7 +50,12 @@ struct StackNotificationCardSurface<Content: View>: View {
                     .stroke(borderColor, lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle)
             }
             .clipShape(shape)
-            .promptCueNotificationCardShadow()
+
+        if showsElevatedChrome {
+            cardBody.promptCueNotificationCardShadow()
+        } else {
+            cardBody
+        }
     }
 
     private var backgroundFill: Color {
@@ -85,5 +91,9 @@ struct StackNotificationCardSurface<Content: View>: View {
         @unknown default:
             return SemanticTokens.Border.notificationCard.opacity(0.82)
         }
+    }
+
+    private var showsElevatedChrome: Bool {
+        isSelected || isEmphasized
     }
 }

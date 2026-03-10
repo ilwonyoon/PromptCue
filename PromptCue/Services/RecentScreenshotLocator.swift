@@ -27,6 +27,18 @@ struct RecentScreenshotCandidate: Equatable, Sendable {
 
 protocol RecentScreenshotLocating {
     func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult
+}
+
+extension RecentScreenshotLocating {
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        let scanResult = locateRecentScreenshot(now: now, maxAge: maxAge)
+        return RecentScreenshotScanResult(
+            signalCandidate: scanResult.signalCandidate,
+            readableCandidate: nil,
+            recentTemporaryContainerDate: scanResult.recentTemporaryContainerDate
+        )
+    }
 }
 
 struct RecentScreenshotLocator: RecentScreenshotLocating {
@@ -51,6 +63,18 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
     }
 
     func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        locateRecentScreenshot(now: now, maxAge: maxAge, includeReadableCandidates: true)
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        locateRecentScreenshot(now: now, maxAge: maxAge, includeReadableCandidates: false)
+    }
+
+    private func locateRecentScreenshot(
+        now: Date,
+        maxAge: TimeInterval,
+        includeReadableCandidates: Bool
+    ) -> RecentScreenshotScanResult {
         let minimumDate = now.addingTimeInterval(-maxAge)
         var signalCandidates: [ScreenshotMatch] = []
         var readableCandidates: [ScreenshotMatch] = []
@@ -65,16 +89,20 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
                 signalCandidates.append(signalMatch)
             }
 
-            if let readableMatch = newestScreenshot(
+            if includeReadableCandidates,
+               let readableMatch = newestScreenshot(
                 in: authorizedDirectoryURL,
                 minimumDate: minimumDate,
                 requireReadableContents: true
-            ) {
+               ) {
                 readableCandidates.append(readableMatch)
             }
         }
 
-        let temporaryScan = newestTemporaryScreenshotMatches(minimumDate: minimumDate)
+        let temporaryScan = newestTemporaryScreenshotMatches(
+            minimumDate: minimumDate,
+            includeReadableCandidates: includeReadableCandidates
+        )
         recentTemporaryContainerDate = temporaryScan.recentContainerDate
 
         if let signalMatch = temporaryScan.signalMatch {
@@ -143,7 +171,8 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
     }
 
     private func newestTemporaryScreenshotMatches(
-        minimumDate: Date
+        minimumDate: Date,
+        includeReadableCandidates: Bool
     ) -> TemporaryScreenshotScanResult {
         let temporaryItemsURL = temporaryItemsDirectoryProvider().standardizedFileURL
 
@@ -192,15 +221,17 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
                             )
                         }
                     )
-                    readableCandidates.append(
-                        contentsOf: nestedContents.compactMap {
-                            screenshotMatch(
-                                for: $0,
-                                minimumDate: minimumDate,
-                                requireReadableContents: true
-                            )
-                        }
-                    )
+                    if includeReadableCandidates {
+                        readableCandidates.append(
+                            contentsOf: nestedContents.compactMap {
+                                screenshotMatch(
+                                    for: $0,
+                                    minimumDate: minimumDate,
+                                    requireReadableContents: true
+                                )
+                            }
+                        )
+                    }
                 }
 
                 continue
@@ -214,11 +245,12 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
                 signalCandidates.append(signalMatch)
             }
 
-            if let readableMatch = screenshotMatch(
+            if includeReadableCandidates,
+               let readableMatch = screenshotMatch(
                 for: itemURL,
                 minimumDate: minimumDate,
                 requireReadableContents: true
-            ) {
+               ) {
                 readableCandidates.append(readableMatch)
             }
         }

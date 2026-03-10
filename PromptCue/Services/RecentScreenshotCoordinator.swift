@@ -33,6 +33,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var previewGeneration: UInt64 = 0
     private var scanInFlight = false
     private var pendingScanReferenceDate: Date?
+    private var pendingPreviewCacheRequest: PendingPreviewCacheRequest?
 
     init(
         observer: RecentScreenshotObserving? = nil,
@@ -88,6 +89,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         expirationTimer = nil
         scanInFlight = false
         pendingScanReferenceDate = nil
+        pendingPreviewCacheRequest = nil
         scanGeneration &+= 1
         previewGeneration &+= 1
 
@@ -99,7 +101,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
     func prepareForCaptureSession() {
         clipboardProvider.refreshNow()
-        refreshNow()
+        refreshState(allowSynchronousSignalProbe: true)
         scheduleSettlePolling()
     }
 
@@ -120,11 +122,14 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return nil
         }
 
+        refreshState()
+        if case .previewReady(_, let cacheURL, _) = state {
+            return cacheURL
+        }
+
         let deadline = now().addingTimeInterval(timeout)
 
         while now() < deadline {
-            refreshState()
-
             if case .previewReady(_, let cacheURL, _) = state {
                 return cacheURL
             }
@@ -161,6 +166,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         rememberIgnoredSourceKey(currentSession.sourceKey)
         clearCurrentSessionCache()
         self.currentSession = nil
+        pendingPreviewCacheRequest = nil
         invalidateTimers()
         state = .consumed(sessionID: currentSession.id)
     }
@@ -175,6 +181,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         clearCurrentSessionCache()
         currentSession = nil
+        pendingPreviewCacheRequest = nil
         invalidateTimers()
         refreshState()
     }
@@ -188,7 +195,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         scheduleSettlePolling()
     }
 
-    private func refreshState() {
+    private func refreshState(allowSynchronousSignalProbe: Bool = false) {
         let referenceDate = now()
         purgeIgnoredSourceKeys(referenceDate: referenceDate)
 
@@ -208,8 +215,40 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return
         }
 
+        if allowSynchronousSignalProbe {
+            applySynchronousSignalProbe(referenceDate: referenceDate)
+        }
+
         publishCurrentSessionState(referenceDate: referenceDate)
         scheduleAsyncRefresh(referenceDate: referenceDate)
+    }
+
+    private func applySynchronousSignalProbe(referenceDate: Date) {
+        guard currentSession?.cacheURL == nil else {
+            return
+        }
+
+        let signalResult = locator.locateRecentScreenshotSignal(
+            now: referenceDate,
+            maxAge: maxAge
+        )
+        let signalCandidate = filteredCandidate(
+            signalResult.signalCandidate,
+            referenceDate: referenceDate
+        )
+
+        if signalCandidate == nil,
+           let recentTemporaryContainerDate = signalResult.recentTemporaryContainerDate {
+            ensurePendingDetection(referenceDate: recentTemporaryContainerDate)
+            return
+        }
+
+        guard let signalCandidate else {
+            return
+        }
+
+        let session = ensureSession(for: signalCandidate, referenceDate: referenceDate)
+        state = .detected(sessionID: session.id, detectedAt: session.detectedAt)
     }
 
     private func ensureClipboardSession(
@@ -311,6 +350,9 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         nextSession.cacheURL = nil
         currentSession = nextSession
         state = .detected(sessionID: nextSession.id, detectedAt: nextSession.detectedAt)
+        if pendingPreviewCacheRequest?.matches(sessionID: nextSession.id, identityKey: candidate.identityKey) == true {
+            return
+        }
         schedulePreviewCaching(for: candidate, session: nextSession)
     }
 
@@ -602,6 +644,11 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     ) {
         previewGeneration &+= 1
         let generation = previewGeneration
+        pendingPreviewCacheRequest = PendingPreviewCacheRequest(
+            sessionID: session.id,
+            identityKey: candidate.identityKey,
+            generation: generation
+        )
         let worker = backgroundWorker
         let sessionID = session.id
 
@@ -626,6 +673,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         sessionID: UUID,
         generation: UInt64
     ) {
+        if pendingPreviewCacheRequest?.generation == generation {
+            pendingPreviewCacheRequest = nil
+        }
+
         guard isStarted, generation == previewGeneration else {
             if let cacheURL {
                 try? cache.removeCachedFile(at: cacheURL)
@@ -665,6 +716,16 @@ private struct RecentScreenshotSession {
     let detectedAt: Date
     var expiresAt: Date
     var cacheURL: URL?
+}
+
+private struct PendingPreviewCacheRequest {
+    let sessionID: UUID
+    let identityKey: String
+    let generation: UInt64
+
+    func matches(sessionID: UUID, identityKey: String) -> Bool {
+        self.sessionID == sessionID && self.identityKey == identityKey
+    }
 }
 
 private actor RecentScreenshotBackgroundWorker {

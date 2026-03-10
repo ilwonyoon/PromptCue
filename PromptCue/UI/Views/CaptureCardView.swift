@@ -5,13 +5,16 @@ struct CaptureCardView: View {
     let card: CaptureCard
     let isSelected: Bool
     let selectionMode: Bool
+    let isExpanded: Bool
     let onCopy: () -> Void
     let onToggleSelection: () -> Void
+    let onToggleExpansion: () -> Void
     let onDelete: () -> Void
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
+    @State private var isOverflowAffordanceHovered = false
 
     private var actionStyle: CaptureCardActionStyle {
         CaptureCardActionStyle.resolve(
@@ -27,6 +30,12 @@ struct CaptureCardView: View {
     }
 
     var body: some View {
+        let overflowMetrics = StackCardOverflowPolicy.metrics(
+            for: card.text,
+            cacheIdentity: card.id,
+            availableWidth: textContentWidth
+        )
+
         StackNotificationCardSurface(
             isSelected: isSelected,
             isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback
@@ -46,10 +55,19 @@ struct CaptureCardView: View {
                         .foregroundStyle(actionStyle.bodyColor)
                         .multilineTextAlignment(.leading)
                         .lineSpacing(PrimitiveTokens.Space.xxxs)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
+                        .clipped()
+
+                    if overflowMetrics.overflowsAtRest {
+                        overflowAffordance(metrics: overflowMetrics)
+                            .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
+                    }
                 }
                 .padding(.trailing, actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .animation(.easeOut(duration: PrimitiveTokens.Motion.standard), value: isExpanded)
 
                 VStack(spacing: PrimitiveTokens.Space.xs) {
                     iconButton(
@@ -111,6 +129,46 @@ struct CaptureCardView: View {
 
     private var actionColumnReservedWidth: CGFloat {
         actionColumnWidth + PrimitiveTokens.Space.sm
+    }
+
+    private var textContentWidth: CGFloat {
+        StackCardOverflowPolicy.cardTextWidth
+    }
+
+    private func visibleTextHeight(for metrics: StackCardOverflowPolicy.Metrics) -> CGFloat {
+        if isExpanded {
+            return metrics.expandedVisibleTextHeight
+        }
+
+        return metrics.restingVisibleTextHeight
+    }
+
+    @ViewBuilder
+    private func overflowAffordance(metrics: StackCardOverflowPolicy.Metrics) -> some View {
+        let label = isExpanded
+            ? StackCardOverflowPolicy.collapseLabel()
+            : StackCardOverflowPolicy.overflowLabel(hiddenLineCount: metrics.hiddenRestingLineCount)
+
+        Button(action: onToggleExpansion) {
+            Text(label)
+                .font(PrimitiveTokens.Typography.meta)
+                .foregroundStyle(
+                    isOverflowAffordanceHovered
+                        ? SemanticTokens.Text.primary
+                        : SemanticTokens.Text.secondary
+                )
+                .underline(isOverflowAffordanceHovered, color: SemanticTokens.Text.secondary.opacity(PrimitiveTokens.Opacity.soft))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onHover { hovered in
+            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+                isOverflowAffordanceHovered = hovered
+            }
+        }
+        .accessibilityLabel(label)
+        .accessibilityHint(isExpanded ? "Collapse this cue" : "Show more of this cue")
     }
 
     private func performPrimaryAction() {

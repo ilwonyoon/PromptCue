@@ -4,8 +4,15 @@ import SwiftUI
 // Owns density, grayscale, mask, and tint math so StackPanelBackdrop remains a
 // pure composition surface.
 enum StackPanelBackdropRecipe {
-    static let defaultDensityScale = 4.0
-    static let defaultGrayscaleBias = 2.0
+    static let defaultDensityScale = 1.8
+    static let defaultGrayscaleBias = 0.0
+
+    private static var cardColumnLeadingRatio: Double {
+        let panelWidth = Double(PanelMetrics.stackPanelWidth)
+        let leadingInset = Double(PrimitiveTokens.Space.sm)
+        let cardLeadingEdge = panelWidth - leadingInset - Double(PanelMetrics.stackCardColumnWidth)
+        return min(0.4, max(0.1, cardLeadingEdge / panelWidth))
+    }
 
     static func normalizedDensity(_ densityScale: Double) -> Double {
         min(4, max(0.1, densityScale))
@@ -17,61 +24,86 @@ enum StackPanelBackdropRecipe {
 
     static func primaryLightDensityOpacity(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(1, 0.36 + (density * 0.34))
+        return min(0.78, 0.22 + (density * 0.16))
     }
 
     static func secondaryLightDensityOpacity(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(0.78, max(0, (density - 1) * 0.62))
+        return min(0.34, max(0, (density - 1) * 0.18))
+    }
+
+    static func mergedLightDensityOpacity(_ densityScale: Double) -> Double {
+        min(0.86, primaryLightDensityOpacity(densityScale) + (secondaryLightDensityOpacity(densityScale) * 0.58))
     }
 
     static func primaryDarkDensityOpacity(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(1, 0.42 + (density * 0.40))
+        return min(0.56, 0.08 + (density * 0.14))
     }
 
     static func secondaryDarkDensityOpacity(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(0.88, max(0, (density - 1) * 0.70))
+        return min(0.24, max(0, (density - 1) * 0.12))
+    }
+
+    static func mergedDarkDensityOpacity(_ densityScale: Double) -> Double {
+        min(0.62, primaryDarkDensityOpacity(densityScale) + (secondaryDarkDensityOpacity(densityScale) * 0.62))
     }
 
     static func atmosphereScale(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(1.8, max(0.4, 0.55 + (density * 0.45)))
+        return min(1.1, max(0.25, 0.35 + (density * 0.22)))
     }
 
     static func maskScale(_ densityScale: Double) -> Double {
         let density = normalizedDensity(densityScale)
-        return min(1, max(0.12, 0.18 + (density * 0.32)))
+        return min(0.85, max(0.18, 0.18 + (density * 0.20)))
     }
 
     static func lightLeadingTint(_ grayscaleBias: Double) -> Color {
-        Color(white: min(1, 0.90 + (grayscaleClamped(grayscaleBias) * 0.10)))
+        PanelBackdropFamily.lightLeadingTint(grayscaleBias)
     }
 
     static func lightMidTint(_ grayscaleBias: Double) -> Color {
-        Color(white: min(1, 0.84 + (grayscaleClamped(grayscaleBias) * 0.14)))
+        PanelBackdropFamily.lightMidTint(grayscaleBias)
     }
 
     static func lightTrailingTint(_ grayscaleBias: Double) -> Color {
-        Color(white: min(1, 0.74 + (grayscaleClamped(grayscaleBias) * 0.22)))
+        PanelBackdropFamily.lightTrailingTint(grayscaleBias)
     }
 
     static var lightTopTint: Color {
-        Color(white: 0.98)
+        PanelBackdropFamily.lightTopTint
     }
 
     static func lightBottomTint(_ grayscaleBias: Double) -> Color {
-        Color(white: min(1, 0.42 + (grayscaleClamped(grayscaleBias) * 0.29)))
+        PanelBackdropFamily.lightBottomTint(grayscaleBias)
     }
 
     static func lightDensityMask(maskScale: Double) -> LinearGradient {
-        LinearGradient(
+        let cardLead = cardColumnLeadingRatio
+        return LinearGradient(
             stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.04 * maskScale), location: 0.18),
-                .init(color: .white.opacity(0.22 * maskScale), location: 0.42),
-                .init(color: .white.opacity(0.62 * maskScale), location: 0.74),
+                .init(color: .clear, location: max(0.04, cardLead - 0.10)),
+                .init(color: .white.opacity(0.16 * maskScale), location: max(0.08, cardLead - 0.04)),
+                .init(color: .white.opacity(0.72 * maskScale), location: max(0.14, cardLead + 0.08)),
+                .init(color: .white, location: max(0.22, cardLead + 0.18)),
+                .init(color: .white, location: 1),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    static func lightAtmosphereMask(maskScale: Double) -> LinearGradient {
+        let cardLead = cardColumnLeadingRatio
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .white.opacity(0.12 * maskScale), location: max(0.05, cardLead - 0.06)),
+                .init(color: .white.opacity(0.58 * maskScale), location: max(0.11, cardLead + 0.06)),
+                .init(color: .white.opacity(0.92 * maskScale), location: max(0.18, cardLead + 0.16)),
                 .init(color: .white, location: 1),
             ],
             startPoint: .leading,
@@ -80,11 +112,13 @@ enum StackPanelBackdropRecipe {
     }
 
     static func darkDensityMask(maskScale: Double) -> LinearGradient {
-        LinearGradient(
+        let cardLead = cardColumnLeadingRatio
+        return LinearGradient(
             stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.12 * maskScale), location: 0.22),
-                .init(color: .white.opacity(0.58 * maskScale), location: 0.56),
+                .init(color: .white.opacity(0.20 * maskScale), location: max(0.04, cardLead * 0.30)),
+                .init(color: .white.opacity(0.78 * maskScale), location: max(0.10, cardLead * 0.62)),
+                .init(color: .white.opacity(0.94 * maskScale), location: max(0.15, cardLead - 0.01)),
                 .init(color: .white, location: 1),
             ],
             startPoint: .leading,
@@ -93,13 +127,14 @@ enum StackPanelBackdropRecipe {
     }
 
     static func edgeFadeMask(maskScale: Double) -> LinearGradient {
-        LinearGradient(
+        let cardLead = cardColumnLeadingRatio
+        return LinearGradient(
             stops: [
                 .init(color: .clear, location: 0),
-                .init(color: .white.opacity(0.06 * maskScale), location: 0.16),
-                .init(color: .white.opacity(0.28 * maskScale), location: 0.38),
-                .init(color: .white.opacity(0.70 * maskScale), location: 0.66),
-                .init(color: .white, location: 0.82),
+                .init(color: .white.opacity(0.10 * maskScale), location: max(0.025, cardLead * 0.18)),
+                .init(color: .white.opacity(0.40 * maskScale), location: max(0.06, cardLead * 0.42)),
+                .init(color: .white.opacity(0.82 * maskScale), location: max(0.11, cardLead - 0.02)),
+                .init(color: .white, location: max(0.15, cardLead + 0.02)),
                 .init(color: .white, location: 1),
             ],
             startPoint: .leading,
@@ -107,4 +142,3 @@ enum StackPanelBackdropRecipe {
         )
     }
 }
-

@@ -7,27 +7,30 @@ struct CardStackView: View {
     let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
+    @State private var expandedCardIDs = Set<CaptureCard.ID>()
 
     var body: some View {
+        let sections = partitionedCards(from: model.cards)
+
         ZStack {
             stackBackdrop
 
             VStack(alignment: .leading, spacing: PrimitiveTokens.Size.panelSectionSpacing) {
                 header
 
-                if model.cards.isEmpty {
+                if sections.isEmpty {
                     emptyState
                 } else {
                     ScrollView {
                         LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if !activeCards.isEmpty {
-                                ForEach(activeCards) { card in
+                            if !sections.active.isEmpty {
+                                ForEach(sections.active) { card in
                                     cardRow(for: card)
                                 }
                             }
 
-                            if !copiedCards.isEmpty {
-                                copiedSection
+                            if !sections.copied.isEmpty {
+                                copiedSection(copiedCards: sections.copied)
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -99,14 +102,6 @@ struct CardStackView: View {
         .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
-    private var activeCards: [CaptureCard] {
-        model.cards.filter { !$0.isCopied }
-    }
-
-    private var copiedCards: [CaptureCard] {
-        model.cards.filter(\.isCopied)
-    }
-
     private var selectionMode: Bool {
         model.selectionCount > 0
     }
@@ -116,11 +111,15 @@ struct CardStackView: View {
             card: card,
             isSelected: model.selectedCardIDs.contains(card.id),
             selectionMode: selectionMode,
+            isExpanded: expandedCardIDs.contains(card.id),
             onCopy: {
                 onCopyCard(card)
             },
             onToggleSelection: {
                 model.toggleSelection(for: card)
+            },
+            onToggleExpansion: {
+                toggleExpansion(for: card)
             },
             onDelete: {
                 onDeleteCard(card)
@@ -129,10 +128,10 @@ struct CardStackView: View {
     }
 
     @ViewBuilder
-    private var copiedSection: some View {
+    private func copiedSection(copiedCards: [CaptureCard]) -> some View {
         if isCopiedStackExpanded {
             VStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                copiedSectionHeader
+                copiedSectionHeader(copiedCards: copiedCards)
 
                 ForEach(copiedCards) { card in
                     cardRow(for: card)
@@ -140,12 +139,12 @@ struct CardStackView: View {
             }
             .id("copied-expanded")
         } else {
-            collapsedCopiedStack
+            collapsedCopiedStack(copiedCards: copiedCards)
                 .id("copied-collapsed")
         }
     }
 
-    private var copiedSectionHeader: some View {
+    private func copiedSectionHeader(copiedCards: [CaptureCard]) -> some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
             Text("Copied")
                 .font(PrimitiveTokens.Typography.metaStrong)
@@ -165,12 +164,12 @@ struct CardStackView: View {
         }
     }
 
-    private var collapsedCopiedStack: some View {
+    private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
         Button {
             isCopiedStackExpanded = true
         } label: {
             ZStack(alignment: .topLeading) {
-                ForEach(collapsedBackPlateIndices, id: \.self) { index in
+                ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
                     stackedBackPlate(index: index)
                         .offset(y: CGFloat(index) * PrimitiveTokens.Space.xs)
                         .zIndex(Double(-index))
@@ -194,13 +193,13 @@ struct CardStackView: View {
                             Text(card.text)
                                 .font(PrimitiveTokens.Typography.body)
                                 .foregroundStyle(copiedPreviewTextColor)
-                                .lineLimit(2)
+                                .lineLimit(StackCardOverflowPolicy.collapsedCopiedLineLimit)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
-                        if copiedCards.count > 1 {
-                            Text("+\(copiedCards.count - 1) more")
+                        if let footer = collapsedCopiedFooterText(copiedCards: copiedCards) {
+                            Text(footer)
                                 .font(PrimitiveTokens.Typography.meta)
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                         }
@@ -212,14 +211,14 @@ struct CardStackView: View {
                 .frame(height: collapsedCopiedCardHeight)
                 .zIndex(1)
             }
-            .padding(.bottom, collapsedBackPlateBottomPadding)
+            .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Copied cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
     }
 
-    private var collapsedBackPlateIndices: [Int] {
+    private func collapsedBackPlateIndices(for copiedCards: [CaptureCard]) -> [Int] {
         CopiedStackRecipe.collapsedBackPlateIndices(for: copiedCards.count)
     }
 
@@ -245,8 +244,8 @@ struct CardStackView: View {
             .padding(.horizontal, CGFloat(index) * PrimitiveTokens.Space.xs)
     }
 
-    private var collapsedBackPlateBottomPadding: CGFloat {
-        CopiedStackRecipe.collapsedBottomPadding(for: collapsedBackPlateIndices)
+    private func collapsedBackPlateBottomPadding(copiedCards: [CaptureCard]) -> CGFloat {
+        CopiedStackRecipe.collapsedBottomPadding(for: collapsedBackPlateIndices(for: copiedCards))
     }
 
     private var collapsedCopiedCardHeight: CGFloat {
@@ -263,5 +262,80 @@ struct CardStackView: View {
 
     private var copiedHeaderTextColor: Color {
         CopiedStackRecipe.headerTextColor(colorScheme: colorScheme)
+    }
+
+    private func copiedSummaryMetrics(copiedCards: [CaptureCard]) -> StackCardOverflowPolicy.Metrics? {
+        guard let firstCopiedCard = copiedCards.first else {
+            return nil
+        }
+
+        return StackCardOverflowPolicy.metrics(
+            for: firstCopiedCard.text,
+            cacheIdentity: firstCopiedCard.id,
+            availableWidth: collapsedCopiedSummaryTextWidth
+        )
+    }
+
+    private func collapsedCopiedFooterText(copiedCards: [CaptureCard]) -> String? {
+        var segments: [String] = []
+
+        if let copiedSummaryMetrics = copiedSummaryMetrics(copiedCards: copiedCards),
+           copiedSummaryMetrics.hiddenCollapsedCopiedLineCount > 0 {
+            segments.append(
+                StackCardOverflowPolicy.overflowLabel(
+                    hiddenLineCount: copiedSummaryMetrics.hiddenCollapsedCopiedLineCount
+                )
+            )
+        }
+
+        if copiedCards.count > 1 {
+            segments.append("+\(copiedCards.count - 1) more")
+        }
+
+        guard !segments.isEmpty else {
+            return nil
+        }
+
+        return segments.joined(separator: " · ")
+    }
+
+    private var collapsedCopiedSummaryTextWidth: CGFloat {
+        StackCardOverflowPolicy.collapsedCopiedSummaryTextWidth
+    }
+
+    private func toggleExpansion(for card: CaptureCard) {
+        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
+            if expandedCardIDs.contains(card.id) {
+                expandedCardIDs.remove(card.id)
+            } else {
+                expandedCardIDs.insert(card.id)
+            }
+        }
+    }
+
+    private func partitionedCards(from cards: [CaptureCard]) -> CardSections {
+        var active: [CaptureCard] = []
+        var copied: [CaptureCard] = []
+        active.reserveCapacity(cards.count)
+        copied.reserveCapacity(cards.count / 2)
+
+        for card in cards {
+            if card.isCopied {
+                copied.append(card)
+            } else {
+                active.append(card)
+            }
+        }
+
+        return CardSections(active: active, copied: copied)
+    }
+}
+
+private struct CardSections {
+    let active: [CaptureCard]
+    let copied: [CaptureCard]
+
+    var isEmpty: Bool {
+        active.isEmpty && copied.isEmpty
     }
 }

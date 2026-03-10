@@ -14,16 +14,16 @@ enum SemanticTokens {
             dark: NSColor.white.withAlphaComponent(0.16)
         )
         static let captureShellFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.86),
-            dark: NSColor(calibratedWhite: 0.30, alpha: 0.94)
+            light: PanelBackdropFamily.captureShellFillLight,
+            dark: PanelBackdropFamily.captureShellFillDark
         )
         static let captureShellStroke = adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.10),
-            dark: NSColor.white.withAlphaComponent(0.16)
+            light: PanelBackdropFamily.captureShellStrokeLight,
+            dark: PanelBackdropFamily.captureShellStrokeDark
         )
         static let captureShellTopHighlight = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.72),
-            dark: NSColor.white.withAlphaComponent(0.10)
+            light: PanelBackdropFamily.captureShellTopHighlightLight,
+            dark: PanelBackdropFamily.captureShellTopHighlightDark
         )
         static let captureShellScreenshotFill = adaptiveColor(
             light: NSColor.white.withAlphaComponent(0.68),
@@ -40,19 +40,19 @@ enum SemanticTokens {
         static let cardFill = Color(nsColor: .controlBackgroundColor).opacity(PrimitiveTokens.Opacity.surface)
         static let notificationCardFill = adaptiveColor(
             light: NSColor.windowBackgroundColor.withAlphaComponent(0.97),
-            dark: NSColor.windowBackgroundColor.withAlphaComponent(0.86)
+            dark: NSColor(calibratedWhite: 0.14, alpha: 0.94)
         )
         static let notificationCardBackdrop = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.02),
-            dark: NSColor.windowBackgroundColor.withAlphaComponent(0.26)
+            dark: NSColor.white.withAlphaComponent(0.006)
         )
         static let notificationCardHoverFill = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.045),
-            dark: NSColor.white.withAlphaComponent(0.09)
+            dark: NSColor.white.withAlphaComponent(0.022)
         )
         static let notificationStackPlateBase = adaptiveColor(
             light: NSColor.windowBackgroundColor.withAlphaComponent(0.70),
-            dark: NSColor.windowBackgroundColor.withAlphaComponent(1.0)
+            dark: NSColor(calibratedWhite: 0.10, alpha: 0.96)
         )
         static let stackPanelBackdropTint = adaptiveColor(
             light: NSColor.underPageBackgroundColor.withAlphaComponent(0.92),
@@ -100,11 +100,11 @@ enum SemanticTokens {
         )
         static let notificationCard = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.12),
-            dark: NSColor.white.withAlphaComponent(0.16)
+            dark: NSColor.white.withAlphaComponent(0.06)
         )
         static let notificationCardHover = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.16),
-            dark: NSColor.white.withAlphaComponent(0.24)
+            dark: NSColor.white.withAlphaComponent(0.09)
         )
         static let emphasis = Accent.selection.opacity(PrimitiveTokens.Opacity.subtle)
         static let glassHighlight = adaptiveColor(

@@ -9,9 +9,9 @@ enum StackNotificationCardChromeRecipe {
         case .light:
             return Color.white.opacity(0.10)
         case .dark:
-            return Color.white.opacity(0.055)
+            return Color.white.opacity(0.015)
         @unknown default:
-            return Color.white.opacity(0.055)
+            return Color.white.opacity(0.015)
         }
     }
 
@@ -20,9 +20,9 @@ enum StackNotificationCardChromeRecipe {
         case .light:
             return SemanticTokens.Border.glassHighlight.opacity(0.24)
         case .dark:
-            return SemanticTokens.Border.glassHighlight.opacity(0.14)
+            return SemanticTokens.Border.glassHighlight.opacity(0.05)
         @unknown default:
-            return SemanticTokens.Border.glassHighlight.opacity(0.14)
+            return SemanticTokens.Border.glassHighlight.opacity(0.05)
         }
     }
 }

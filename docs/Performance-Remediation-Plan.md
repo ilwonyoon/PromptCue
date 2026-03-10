@@ -204,7 +204,7 @@ Trim visual rendering cost after invalidation and I/O hotspots are controlled.
 
 The active slice is:
 
-- none; `P1-P5` are quantitatively verified, including queued remote-apply completion and the live `Cmd + 2 -> first frame` stack-open trace, and the performance remediation lane is complete
+- none; `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live `Cmd + 2 -> first frame` stack-open trace are active in the merge-safe landing candidate, and the performance remediation lane is complete for that scope. `P5` remains documented here as the quantified visual-retune experiment from the integration branch, but the merge-safe candidate does not ship the historical benchmark file itself.
 
 Current status:
 

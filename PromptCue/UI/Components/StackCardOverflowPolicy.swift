@@ -1,0 +1,194 @@
+import AppKit
+import CoreGraphics
+
+// Backtick stack-card overflow policy.
+// Owns long-card measurement and interaction thresholds so stack-card views can
+// stay lightweight and capture/runtime sizing can remain untouched.
+enum StackCardOverflowPolicy {
+    struct Metrics: Equatable {
+        let totalLineCount: Int
+        let fullTextHeight: CGFloat
+        let restingVisibleTextHeight: CGFloat
+        let expandedVisibleTextHeight: CGFloat
+        let hiddenCollapsedCopiedLineCount: Int
+        let hiddenRestingLineCount: Int
+        let hiddenExpandedLineCount: Int
+
+        var overflowsAtRest: Bool {
+            hiddenRestingLineCount > 0
+        }
+
+        var overflowsExpanded: Bool {
+            hiddenExpandedLineCount > 0
+        }
+
+        var isLong: Bool {
+            overflowsAtRest
+        }
+    }
+
+    static let collapsedCopiedSummaryLineLimit = 2
+    static let collapsedCopiedLineLimit = collapsedCopiedSummaryLineLimit
+    static let restingMaxVisibleHeight = CaptureRuntimeMetrics.editorMaxHeight * 2
+    static let expandedMaxVisibleHeight = CGFloat.greatestFiniteMagnitude
+    static let restingOverflowToleranceLines = 1
+    static let textBottomBreathingRoom: CGFloat = PrimitiveTokens.Space.xs
+    static let affordanceTopSpacing: CGFloat = PrimitiveTokens.Space.xs
+    static let actionColumnReservedWidth = PrimitiveTokens.Space.xl + PrimitiveTokens.Space.sm
+    static let cardTextWidth =
+        PanelMetrics.stackCardColumnWidth
+        - (PrimitiveTokens.Size.notificationCardPadding * 2)
+        - actionColumnReservedWidth
+    static let collapsedCopiedSummaryTextWidth =
+        PanelMetrics.stackCardColumnWidth
+        - (PrimitiveTokens.Size.notificationCardPadding * 2)
+
+    private static let bodyFont = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.body)
+    private static let bodyLineSpacing = PrimitiveTokens.Space.xxxs
+    private static let bodyBaseLineHeight = ceil(NSLayoutManager().defaultLineHeight(for: bodyFont))
+    private static let bodyLineAdvance = bodyBaseLineHeight + bodyLineSpacing
+    private static let paragraphStyle: NSParagraphStyle = {
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byWordWrapping
+        style.alignment = .left
+        style.lineSpacing = bodyLineSpacing
+        return style
+    }()
+    private static let metricsCache: NSCache<NSString, MetricsBox> = {
+        let cache = NSCache<NSString, MetricsBox>()
+        cache.countLimit = 512
+        return cache
+    }()
+
+    static func metrics(
+        for text: String,
+        availableWidth: CGFloat = cardTextWidth
+    ) -> Metrics {
+        let normalizedWidth = max(availableWidth, 1)
+        let cacheKey = metricsCacheKey(text: text, width: normalizedWidth)
+        if let cached = metricsCache.object(forKey: cacheKey) {
+            return cached.metrics
+        }
+
+        let metrics = uncachedMetrics(for: text, availableWidth: normalizedWidth)
+        metricsCache.setObject(MetricsBox(metrics), forKey: cacheKey, cost: text.utf16.count)
+        return metrics
+    }
+
+    static func metrics(
+        for text: String,
+        cacheIdentity: UUID,
+        availableWidth: CGFloat = cardTextWidth
+    ) -> Metrics {
+        let normalizedWidth = max(availableWidth, 1)
+        let cacheKey = identityCacheKey(cacheIdentity: cacheIdentity, width: normalizedWidth)
+        if let cached = metricsCache.object(forKey: cacheKey) {
+            return cached.metrics
+        }
+
+        let metrics = uncachedMetrics(for: text, availableWidth: normalizedWidth)
+        metricsCache.setObject(MetricsBox(metrics), forKey: cacheKey, cost: text.utf16.count)
+        return metrics
+    }
+
+    static func uncachedMetrics(
+        for text: String,
+        availableWidth: CGFloat = cardTextWidth
+    ) -> Metrics {
+        let normalizedWidth = max(availableWidth, 1)
+        let measuredHeight = measureTextHeight(text: text, width: normalizedWidth)
+        let totalLineCount = max(1, Int(ceil((measuredHeight + bodyLineSpacing) / bodyLineAdvance)))
+
+        let restingVisibleTextHeight = min(measuredHeight, restingMaxVisibleHeight)
+        let rawHiddenRestingLineCount = max(0, totalLineCount - maxVisibleLineCount(in: restingVisibleTextHeight))
+        let hiddenRestingLineCount: Int
+        let resolvedRestingVisibleTextHeight: CGFloat
+        if rawHiddenRestingLineCount <= restingOverflowToleranceLines {
+            hiddenRestingLineCount = 0
+            resolvedRestingVisibleTextHeight = measuredHeight
+        } else {
+            hiddenRestingLineCount = rawHiddenRestingLineCount
+            resolvedRestingVisibleTextHeight = restingVisibleTextHeight
+        }
+
+        let collapsedCopiedVisibleLineCount = min(totalLineCount, collapsedCopiedSummaryLineLimit)
+
+        let expandedVisibleTextHeight = min(measuredHeight, expandedMaxVisibleHeight)
+        let expandedVisibleLineCount: Int
+        if expandedMaxVisibleHeight == .greatestFiniteMagnitude {
+            expandedVisibleLineCount = totalLineCount
+        } else {
+            expandedVisibleLineCount = min(totalLineCount, maxVisibleLineCount(in: expandedVisibleTextHeight))
+        }
+
+        return Metrics(
+            totalLineCount: totalLineCount,
+            fullTextHeight: measuredHeight,
+            restingVisibleTextHeight: resolvedRestingVisibleTextHeight + textBottomBreathingRoom,
+            expandedVisibleTextHeight: expandedVisibleTextHeight + textBottomBreathingRoom,
+            hiddenCollapsedCopiedLineCount: max(0, totalLineCount - collapsedCopiedVisibleLineCount),
+            hiddenRestingLineCount: hiddenRestingLineCount,
+            hiddenExpandedLineCount: max(0, totalLineCount - expandedVisibleLineCount)
+        )
+    }
+
+    static func resetCacheForTesting() {
+        metricsCache.removeAllObjects()
+    }
+
+    static func overflowLabel(hiddenLineCount: Int) -> String {
+        "+\(hiddenLineCount) lines"
+    }
+
+    static func collapseLabel() -> String {
+        "Show less"
+    }
+
+    private static func maxVisibleLineCount(in height: CGFloat) -> Int {
+        max(1, Int(floor((height + bodyLineSpacing) / bodyLineAdvance)))
+    }
+
+    private static func measureTextHeight(text: String, width: CGFloat) -> CGFloat {
+        let attributedString = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: bodyFont,
+                .paragraphStyle: paragraphStyle,
+            ]
+        )
+
+        let boundingRect = attributedString.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+
+        return max(bodyBaseLineHeight, ceil(boundingRect.height))
+    }
+
+    private static func metricsCacheKey(text: String, width: CGFloat) -> NSString {
+        let normalizedWidth = Int((width * 10).rounded())
+        return NSString(string: "\(normalizedWidth):\(text.utf16.count):\(stableTextHash(text))")
+    }
+
+    private static func identityCacheKey(cacheIdentity: UUID, width: CGFloat) -> NSString {
+        let normalizedWidth = Int((width * 10).rounded())
+        return NSString(string: "\(normalizedWidth):\(cacheIdentity.uuidString)")
+    }
+
+    private static func stableTextHash(_ text: String) -> UInt64 {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return hash
+    }
+}
+
+private final class MetricsBox: NSObject {
+    let metrics: StackCardOverflowPolicy.Metrics
+
+    init(_ metrics: StackCardOverflowPolicy.Metrics) {
+        self.metrics = metrics
+    }
+}

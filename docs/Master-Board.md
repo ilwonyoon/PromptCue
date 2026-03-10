@@ -38,7 +38,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Core UI | In progress | Capture and stack views now render real MVP UI |
 | Quality audit | Completed | Findings captured and prioritized for remediation |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
-| Performance remediation lane | Completed | `P1-P5` are quantitatively verified, including queued remote-apply completion and the live stack-open trace harness for `Cmd + 2 -> first frame`; the benchmark ledger lives in `docs/Performance-Remediation-Plan.md` |
+| Performance remediation lane | Completed | `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live stack-open trace harness are active in the merge-safe landing candidate; the historical `P5` compositor benchmark remains documented in `docs/Performance-Remediation-Plan.md` |
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
@@ -137,12 +137,12 @@ Branch strategy:
 
 Safe-main profile:
 
-- if the goal is to preserve current `main` interaction behavior and UI style first, prepare a clean worktree from `main` and copy only the performance core + instrumentation files into it
+- if the goal is to land the current approved interaction behavior, visuals, and overflow behavior first, prepare a clean worktree from `main` and copy only the merge-approved files into it
 - preferred entrypoint:
   `scripts/sync_safe_main_merge_worktree.sh --verify`
-- this profile intentionally defers:
-  - `R9`-adjacent overflow expansion files: `PromptCue/UI/Views/CaptureCardView.swift`, `PromptCue/UI/Views/CardStackView.swift`, `PromptCue/UI/Components/StackCardOverflowPolicy.swift`, `PromptCueTests/CaptureCardRenderingTests.swift`, `PromptCueTests/StackCardOverflowPerformanceTests.swift`, `PromptCueTests/StackCardOverflowPolicyTests.swift`
-  - stack visual retune files: `PromptCue/UI/Components/StackNotificationCardChromeRecipe.swift`, `PromptCue/UI/Components/StackNotificationCardSurface.swift`, `PromptCue/UI/Components/StackPanelBackdrop.swift`, `PromptCue/UI/Components/StackPanelBackdropRecipe.swift`, `PromptCue/UI/DesignSystem/PrimitiveTokens.swift`, `PromptCue/UI/DesignSystem/SemanticTokens.swift`, `PromptCue/UI/DesignSystem/PanelBackdropFamily.swift`, `PromptCue/UI/Preview/DesignSystemPreviewView.swift`, `PromptCueTests/StackPanelVisualPerformanceTests.swift`
+- this profile now carries the long-note overflow path, including `PromptCue/UI/Views/CaptureCardView.swift`, `PromptCue/UI/Views/CardStackView.swift`, `PromptCue/UI/Components/StackCardOverflowPolicy.swift`, and the related rendering/policy tests
+- this profile now carries the approved capture/stack visual tune and the long-note overflow path
+- this profile intentionally still defers only the historical `P5` stack visual benchmark file and command wiring
 - use `scripts/verify_main_merge_safety.sh --profile safe-main` inside that worktree so the verification suite matches the merge-safe scope instead of expecting the deferred visual benchmark files
 
 Recommended commit groups:
@@ -180,7 +180,7 @@ Recommended commit groups:
    `PromptCueTests/RecentScreenshotCoordinatorPerformanceTests.swift`
    `docs/Performance-Remediation-Plan.md`
    Scope note:
-   safe-main keeps this commit group free of `R9` overflow/click-expand behavior. `PromptCue/UI/Views/CaptureCardView.swift`, `PromptCue/UI/Views/CardStackView.swift`, `PromptCue/UI/Components/StackCardOverflowPolicy.swift`, `PromptCueTests/CaptureCardRenderingTests.swift`, `PromptCueTests/StackCardOverflowPerformanceTests.swift`, and `PromptCueTests/StackCardOverflowPolicyTests.swift` stay deferred until `R9` is intentionally merged.
+   safe-main now includes the approved long-note overflow and click-to-expand behavior, along with the related rendering and policy tests. Keep the historical benchmark file out of the merge candidate.
    Verification:
    `xcodegen generate`
    `swift test`
@@ -203,7 +203,7 @@ Recommended commit groups:
    `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
    `scripts/record_stack_open_trace.sh --app <Prompt Cue.app>`
 
-3. `Stack compositor cleanup and design-system-backed backdrop tuning`
+3. `Approved capture/stack visual tune`
    Files:
    `PromptCue/UI/Components/StackNotificationCardChromeRecipe.swift`
    `PromptCue/UI/Components/StackNotificationCardSurface.swift`
@@ -213,12 +213,10 @@ Recommended commit groups:
    `PromptCue/UI/DesignSystem/SemanticTokens.swift`
    `PromptCue/UI/DesignSystem/PanelBackdropFamily.swift`
    `PromptCue/UI/Preview/DesignSystemPreviewView.swift`
-   `PromptCueTests/StackPanelVisualPerformanceTests.swift`
    `docs/Design-Polish-Execution-Plan.md`
    Verification:
    `xcodegen generate`
    `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/StackPanelVisualPerformanceTests/testStackVisualRenderBenchmark`
    `scripts/record_stack_open_trace.sh --app <Prompt Cue.app>`
 
 4. `Planning docs only`
@@ -252,7 +250,7 @@ Functional-first merge gate:
 Final integration gate before fast-forwarding back into `main`:
 
 - preferred entrypoint: `scripts/verify_main_merge_safety.sh [--app <Prompt Cue.app>]`
-- safe-main entrypoint when preserving current UI style: `scripts/verify_main_merge_safety.sh --profile safe-main [--app <Prompt Cue.app>]`
+- safe-main entrypoint for the currently approved UI and interaction set: `scripts/verify_main_merge_safety.sh --profile safe-main [--app <Prompt Cue.app>]`
 - `xcodegen generate`
 - `swift test`
 - the functional-first merge gate command above
@@ -261,9 +259,14 @@ Final integration gate before fast-forwarding back into `main`:
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/CloudSyncApplyPerformanceTests/testRemoteApplyBenchmark`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/CloudSyncApplyPerformanceTests/testRemoteApplyDispatchBenchmark`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/CloudSyncApplyPerformanceTests/testQueuedRemoteApplyCompletionBenchmark`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/StackPanelVisualPerformanceTests/testStackVisualRenderBenchmark`
+- optional historical perf reference only: `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO OTHER_SWIFT_FLAGS='$(inherited) -DPROMPTCUE_RUN_PERF_BENCHMARKS' test -only-testing:PromptCueTests/StackPanelVisualPerformanceTests/testStackVisualRenderBenchmark`
 - `scripts/record_stack_open_trace.sh --app <Prompt Cue.app>`
 - `git diff --check`
+
+Latest safe-main rerun:
+
+- 2026-03-10: passed after restoring recent-screenshot open/immediate-submit semantics on the landing candidate
+- latest live trace after that fix: `PROMPTCUE_STACK_OPEN_FIRST_FRAME_MS=63.30`
 
 ## Immediate Next Moves
 

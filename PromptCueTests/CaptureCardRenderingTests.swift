@@ -38,8 +38,10 @@ final class CaptureCardRenderingTests: XCTestCase {
             card: card,
             isSelected: false,
             selectionMode: false,
+            isExpanded: false,
             onCopy: {},
             onToggleSelection: {},
+            onToggleExpansion: {},
             onDelete: {}
         )
         .environment(\.colorScheme, .light)
@@ -62,6 +64,56 @@ final class CaptureCardRenderingTests: XCTestCase {
         let outputURL = URL(fileURLWithPath: "/tmp/PromptCueCaptureCardSnapshot.png")
         try renderPNG(of: hostingView, to: outputURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
+    func testLongCardExpandedStateGrowsRelativeToRestingState() throws {
+        let text = Array(
+            repeating: "Backtick keeps Stack scannable while still letting long cues reveal more context on demand.",
+            count: 18
+        )
+        .joined(separator: " ")
+
+        let card = CaptureCard(
+            text: text,
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: nil,
+            sortOrder: 101
+        )
+
+        let collapsedView = NSHostingView(
+            rootView: CaptureCardView(
+                card: card,
+                isSelected: false,
+                selectionMode: false,
+                isExpanded: false,
+                onCopy: {},
+                onToggleSelection: {},
+                onToggleExpansion: {},
+                onDelete: {}
+            )
+            .environment(\.colorScheme, .light)
+        )
+        collapsedView.frame = NSRect(x: 0, y: 0, width: 360, height: 800)
+        collapsedView.layoutSubtreeIfNeeded()
+
+        let expandedView = NSHostingView(
+            rootView: CaptureCardView(
+                card: card,
+                isSelected: false,
+                selectionMode: false,
+                isExpanded: true,
+                onCopy: {},
+                onToggleSelection: {},
+                onToggleExpansion: {},
+                onDelete: {}
+            )
+            .environment(\.colorScheme, .light)
+        )
+        expandedView.frame = NSRect(x: 0, y: 0, width: 360, height: 1200)
+        expandedView.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(expandedView.fittingSize.height, collapsedView.fittingSize.height)
     }
 
     private func renderPNG(of view: NSView, to url: URL) throws {

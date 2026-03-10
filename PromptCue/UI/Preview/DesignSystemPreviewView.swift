@@ -420,8 +420,10 @@ struct DesignSystemPreviewView: View {
                         card: sampleCard,
                         isSelected: false,
                         selectionMode: false,
+                        isExpanded: false,
                         onCopy: {},
                         onToggleSelection: {},
+                        onToggleExpansion: {},
                         onDelete: {}
                     )
                     .frame(width: DesignSystemPreviewTokens.previewCardWidth, alignment: .leading)

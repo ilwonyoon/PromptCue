@@ -32,46 +32,38 @@ struct StackPanelBackdrop: View {
                 VisualEffectBackdrop(
                     material: .underWindowBackground,
                     blendingMode: .behindWindow,
-                    appearanceName: .vibrantLight
+                    appearanceName: nil
                 )
 
                 VisualEffectBackdrop(
                     material: .underWindowBackground,
                     blendingMode: .withinWindow,
-                    appearanceName: .vibrantLight
+                    appearanceName: nil
                 )
-                .opacity(StackPanelBackdropRecipe.primaryLightDensityOpacity(densityScale))
+                .opacity(StackPanelBackdropRecipe.mergedLightDensityOpacity(densityScale))
                 .mask(StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
 
-                if StackPanelBackdropRecipe.secondaryLightDensityOpacity(densityScale) > 0 {
-                    VisualEffectBackdrop(
-                        material: .underWindowBackground,
-                        blendingMode: .withinWindow,
-                        appearanceName: .vibrantLight
-                    )
-                    .opacity(StackPanelBackdropRecipe.secondaryLightDensityOpacity(densityScale))
-                    .mask(StackPanelBackdropRecipe.lightDensityMask(maskScale: maskScale))
-                }
-
                 LinearGradient(
                     colors: [
-                        StackPanelBackdropRecipe.lightTopTint.opacity(0.01 * atmosphereScale),
-                        Color.clear,
-                        StackPanelBackdropRecipe.lightBottomTint(grayscaleBias).opacity(0.02 * atmosphereScale),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                LinearGradient(
-                    colors: [
-                        StackPanelBackdropRecipe.lightLeadingTint(grayscaleBias).opacity(0.01 * atmosphereScale),
-                        StackPanelBackdropRecipe.lightMidTint(grayscaleBias).opacity(0.03 * atmosphereScale),
-                        StackPanelBackdropRecipe.lightTrailingTint(grayscaleBias).opacity(0.08 * atmosphereScale),
+                        Color.white.opacity(0.010 * atmosphereScale),
+                        Color.white.opacity(0.006 * atmosphereScale),
+                        Color.white.opacity(0.018 * atmosphereScale),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
+                .mask(StackPanelBackdropRecipe.lightAtmosphereMask(maskScale: maskScale))
+
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.014 * atmosphereScale),
+                        Color.clear,
+                        Color.black.opacity(0.008 * atmosphereScale),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .mask(StackPanelBackdropRecipe.lightAtmosphereMask(maskScale: maskScale))
             }
         } else {
             ZStack {
@@ -86,24 +78,14 @@ struct StackPanelBackdrop: View {
                     blendingMode: .withinWindow,
                     appearanceName: .vibrantDark
                 )
-                .opacity(StackPanelBackdropRecipe.primaryDarkDensityOpacity(densityScale))
+                .opacity(StackPanelBackdropRecipe.mergedDarkDensityOpacity(densityScale))
                 .mask(StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale))
-
-                if StackPanelBackdropRecipe.secondaryDarkDensityOpacity(densityScale) > 0 {
-                    VisualEffectBackdrop(
-                        material: .hudWindow,
-                        blendingMode: .withinWindow,
-                        appearanceName: .vibrantDark
-                    )
-                    .opacity(StackPanelBackdropRecipe.secondaryDarkDensityOpacity(densityScale))
-                    .mask(StackPanelBackdropRecipe.darkDensityMask(maskScale: maskScale))
-                }
 
                 LinearGradient(
                     colors: [
-                        Color.black.opacity(0.01 * atmosphereScale),
-                        Color.black.opacity(0.04 * atmosphereScale),
-                        Color.black.opacity(0.10 * atmosphereScale),
+                        Color.black.opacity(0.004 * atmosphereScale),
+                        Color.black.opacity(0.012 * atmosphereScale),
+                        Color.black.opacity(0.032 * atmosphereScale),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
@@ -111,9 +93,9 @@ struct StackPanelBackdrop: View {
 
                 LinearGradient(
                     colors: [
-                        Color.white.opacity(0.04 * atmosphereScale),
+                        Color.white.opacity(0.012 * atmosphereScale),
                         Color.clear,
-                        Color.black.opacity(0.09 * atmosphereScale),
+                        Color.black.opacity(0.03 * atmosphereScale),
                     ],
                     startPoint: .top,
                     endPoint: .bottom

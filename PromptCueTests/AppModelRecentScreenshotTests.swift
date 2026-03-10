@@ -1,4 +1,5 @@
 import Foundation
+import PromptCueCore
 import XCTest
 @testable import Prompt_Cue
 
@@ -156,6 +157,69 @@ final class AppModelRecentScreenshotTests: XCTestCase {
         XCTAssertEqual(model.cards.count, 1)
     }
 
+    func testBeginCaptureSessionShowsSlotImmediatelyAndSubmitWaitsForAsyncReadablePromotion() async throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let attachmentDirectoryURL = tempDirectoryURL.appendingPathComponent("Attachments")
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let transientCacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-10 at 01.08.30.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let candidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: Date(),
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
+        )
+        let signalResult = RecentScreenshotScanResult(
+            signalCandidate: candidate,
+            readableCandidate: nil,
+            recentTemporaryContainerDate: nil
+        )
+        let fullResult = RecentScreenshotScanResult(
+            signalCandidate: candidate,
+            readableCandidate: candidate,
+            recentTemporaryContainerDate: nil
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: AppModelTestRecentScreenshotObserver(),
+            locator: AppModelDelayedSignalProbeLocator(
+                fullScanDelay: 0.2,
+                signalResult: signalResult,
+                fullResult: fullResult
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: transientCacheURL),
+            clipboardProvider: AppModelNilClipboardProvider(),
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+        let cardStore = CardStore(databaseURL: databaseURL)
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentDirectoryURL)
+        let model = AppModel(
+            cardStore: cardStore,
+            attachmentStore: attachmentStore,
+            recentScreenshotCoordinator: coordinator
+        )
+
+        model.start()
+        model.beginCaptureSession()
+
+        XCTAssertTrue(model.showsRecentScreenshotSlot)
+        XCTAssertTrue(model.showsRecentScreenshotPlaceholder)
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertEqual(model.cards.first?.text, "Screenshot attached")
+        XCTAssertTrue(model.cards.first?.screenshotURL?.path.hasPrefix(attachmentDirectoryURL.path) == true)
+    }
+
 }
 
 @MainActor
@@ -196,4 +260,37 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
         consumeCurrentCallCount += 1
     }
     func dismissCurrent() {}
+}
+
+@MainActor
+private final class AppModelTestRecentScreenshotObserver: RecentScreenshotObserving {
+    var onChange: ((RecentScreenshotObservationEvent) -> Void)?
+
+    func start() {}
+    func stop() {}
+}
+
+@MainActor
+private final class AppModelNilClipboardProvider: RecentClipboardImageProviding {
+    func start() {}
+    func stop() {}
+    func refreshNow() {}
+    func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? { nil }
+    func consumeCurrent() {}
+    func dismissCurrent() {}
+}
+
+private struct AppModelDelayedSignalProbeLocator: RecentScreenshotLocating {
+    let fullScanDelay: TimeInterval
+    let signalResult: RecentScreenshotScanResult
+    let fullResult: RecentScreenshotScanResult
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        Thread.sleep(forTimeInterval: fullScanDelay)
+        return fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        signalResult
+    }
 }

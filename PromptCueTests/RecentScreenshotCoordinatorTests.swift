@@ -1,4 +1,5 @@
 import Foundation
+import PromptCueCore
 import XCTest
 @testable import Prompt_Cue
 
@@ -320,6 +321,60 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         }
     }
 
+    func testPrepareForCaptureSessionShowsDetectedImmediatelyBeforeAsyncReadablePromotion() async throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-10 at 01.08.00.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let candidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: Date(),
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
+        )
+        let signalResult = RecentScreenshotScanResult(
+            signalCandidate: candidate,
+            readableCandidate: nil,
+            recentTemporaryContainerDate: nil
+        )
+        let fullResult = RecentScreenshotScanResult(
+            signalCandidate: candidate,
+            readableCandidate: candidate,
+            recentTemporaryContainerDate: nil
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: DelayedSignalProbeLocator(
+                fullScanDelay: 0.2,
+                signalResult: signalResult,
+                fullResult: fullResult
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        guard case .detected = coordinator.state else {
+            return XCTFail("Expected immediate detected state from synchronous capture probe")
+        }
+
+        let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.8)
+
+        XCTAssertNotNil(resolvedURL)
+        XCTAssertTrue(resolvedURL?.path.hasPrefix(cacheURL.path) == true)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(resolvedURL)), screenshotData)
+    }
+
     func testDismissSuppressesSameScreenshotUntilItAgesOut() throws {
         let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
         let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
@@ -583,4 +638,19 @@ private final class NilClipboardImageProvider: RecentClipboardImageProviding {
     func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+}
+
+private struct DelayedSignalProbeLocator: RecentScreenshotLocating {
+    let fullScanDelay: TimeInterval
+    let signalResult: RecentScreenshotScanResult
+    let fullResult: RecentScreenshotScanResult
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        Thread.sleep(forTimeInterval: fullScanDelay)
+        return fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        signalResult
+    }
 }

@@ -48,7 +48,7 @@
 
 The immediate implementation slice is:
 
-- `safe-main merge candidate: preserve current main functionality and UI style while merging performance core + instrumentation`
+- `safe-main merge candidate: preserve the currently approved functionality while merging performance core, approved capture/stack visuals, and long-note overflow behavior`
 - `Phase R7: capture input system hardening`
 - queued next: `Phase R8: AI Export Tail / Prompt Suffix`
 - queued after that: `Phase R9: stack card overflow and click expansion`
@@ -85,9 +85,11 @@ Progress on this slice:
 - `Phase P4A` is accepted with quantified copied-card sync batching wins recorded in `docs/Performance-Remediation-Plan.md`
 - `Phase P4B` is accepted with quantified remote sync apply dispatch and queued-completion wins recorded in `docs/Performance-Remediation-Plan.md`
 - `Phase P4C` is accepted with quantified startup-deferral wins recorded in `docs/Performance-Remediation-Plan.md`
-- `Phase P5` is accepted with quantified stack visual render wins and a live `Cmd + 2 -> first frame` trace recorded in `docs/Performance-Remediation-Plan.md`
+- `Phase P5` remains recorded in `docs/Performance-Remediation-Plan.md` as the quantified visual-retune experiment, but the merge-safe landing candidate now carries the approved capture/stack visuals directly and does not gate on the historical stack visual benchmark file
 - the performance remediation lane is now complete
 - `feat/performance-main-safe` now exists as a clean candidate branch in `../PromptCue-main-safe` and passes `scripts/verify_main_merge_safety.sh --profile safe-main`
+- the final merge-safe screenshot risk is closed: `beginCaptureSession()` restores the recent-screenshot slot immediately from the synchronous signal probe, and `submitCapture()` now waits for async readable promotion without rearming repeated scans on every poll
+- `safe-main` was rerun after that fix and remains green, with `PROMPTCUE_STACK_OPEN_FIRST_FRAME_MS=63.30`
 
 ## Active Remediation Lane
 

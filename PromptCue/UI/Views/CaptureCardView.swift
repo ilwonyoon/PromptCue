@@ -42,28 +42,32 @@ struct CaptureCardView: View {
             isCopied: card.isCopied
         ) {
             ZStack(alignment: .topTrailing) {
-                VStack(alignment: .leading, spacing: contentSpacing) {
+                HStack(alignment: .top, spacing: compactThumbnailSpacing) {
                     if let screenshotURL = card.screenshotURL {
                         LocalImageThumbnail(
                             url: screenshotURL,
-                            height: PrimitiveTokens.Size.notificationThumbnailHeight
+                            width: PrimitiveTokens.Size.notificationThumbnailSize,
+                            height: PrimitiveTokens.Size.notificationThumbnailSize
                         )
+                        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    Text(card.text)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(actionStyle.bodyColor)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(PrimitiveTokens.Space.xxxs)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
-                        .clipped()
+                    VStack(alignment: .leading, spacing: contentSpacing) {
+                        Text(card.text)
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(actionStyle.bodyColor)
+                            .multilineTextAlignment(.leading)
+                            .lineSpacing(PrimitiveTokens.Space.xxxs)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
+                            .clipped()
 
-                    if overflowMetrics.overflowsAtRest {
-                        overflowAffordance(metrics: overflowMetrics)
-                            .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
+                        if overflowMetrics.overflowsAtRest {
+                            overflowAffordance(metrics: overflowMetrics)
+                                .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
+                        }
                     }
                 }
                 .padding(.trailing, actionColumnReservedWidth)
@@ -123,12 +127,12 @@ struct CaptureCardView: View {
         }
     }
 
-    private var contentSpacing: CGFloat {
-        if card.screenshotURL != nil {
-            return PrimitiveTokens.Space.sm
-        }
+    private var compactThumbnailSpacing: CGFloat {
+        PrimitiveTokens.Space.sm
+    }
 
-        return PrimitiveTokens.Space.xxs
+    private var contentSpacing: CGFloat {
+        PrimitiveTokens.Space.xxs
     }
 
     private var actionColumnWidth: CGFloat {

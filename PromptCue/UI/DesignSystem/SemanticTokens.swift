@@ -42,10 +42,6 @@ enum SemanticTokens {
             light: NSColor.windowBackgroundColor.withAlphaComponent(0.97),
             dark: NSColor(calibratedWhite: 0.14, alpha: 0.94)
         )
-        static let notificationCardCopiedFill = adaptiveColor(
-            light: NSColor.windowBackgroundColor.withAlphaComponent(0.82),
-            dark: NSColor(calibratedWhite: 0.11, alpha: 0.86)
-        )
         static let notificationCardBackdrop = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.02),
             dark: NSColor.white.withAlphaComponent(0.006)
@@ -117,10 +113,6 @@ enum SemanticTokens {
         static let notificationCard = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.12),
             dark: NSColor.white.withAlphaComponent(0.06)
-        )
-        static let notificationCardCopied = adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.06),
-            dark: NSColor.white.withAlphaComponent(0.03)
         )
         static let notificationCardHover = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.16),

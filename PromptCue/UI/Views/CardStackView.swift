@@ -8,6 +8,7 @@ struct CardStackView: View {
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
+    @State private var isCopiedStackHovered = false
 
     var body: some View {
         let sections = partitionedCards(from: model.cards)
@@ -31,6 +32,7 @@ struct CardStackView: View {
 
                             if !sections.copied.isEmpty {
                                 copiedSection(copiedCards: sections.copied)
+                                    .padding(.top, PrimitiveTokens.Space.sm)
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -175,7 +177,7 @@ struct CardStackView: View {
                         .zIndex(Double(-index))
                 }
 
-                StackNotificationCardSurface {
+                StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
                             Text("Copied")
@@ -212,8 +214,18 @@ struct CardStackView: View {
                 .zIndex(1)
             }
             .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
+            .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
+            .animation(.easeOut(duration: PrimitiveTokens.Motion.quick), value: isCopiedStackHovered)
         }
         .buttonStyle(.plain)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                isCopiedStackHovered = true
+            case .ended:
+                isCopiedStackHovered = false
+            }
+        }
         .accessibilityLabel("Copied cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
     }

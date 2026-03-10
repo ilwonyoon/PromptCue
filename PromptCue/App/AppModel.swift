@@ -494,9 +494,7 @@ final class AppModel: ObservableObject {
         }
 
         cards = filtered
-        selectedCardIDs = selectedCardIDs.filter { id in
-            filtered.contains(where: { $0.id == id })
-        }
+        selectedCardIDs.formIntersection(Set(filtered.map(\.id)))
         cleanupManagedAttachments(removedCards: expiredCards, remainingCards: filtered)
         cloudSyncEngine?.pushBatch(cards: [], deletions: expiredCards.map(\.id))
     }

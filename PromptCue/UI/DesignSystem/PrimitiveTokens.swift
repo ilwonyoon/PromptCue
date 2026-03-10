@@ -42,7 +42,6 @@ enum PrimitiveTokens {
         static let captureAttachmentPreviewWidth: CGFloat = 92
         static let captureAttachmentPreviewSize: CGFloat = 72
         static let thumbnailHeight: CGFloat = 112
-        static let notificationThumbnailSize: CGFloat = 48
         static let notificationThumbnailHeight: CGFloat = 96
         static let notificationStackPlateHeight: CGFloat = 96
         static let emptyStateHeight: CGFloat = 240
@@ -71,7 +70,7 @@ enum PrimitiveTokens {
         static let faint: Double = 0.12
         static let subtle: Double = 0.32
         static let soft: Double = 0.65
-        static let copiedCard: Double = 0.72
+        static let copiedCard: Double = 0.55
         static let medium: Double = 0.75
         static let strong: Double = 0.85
         static let shell: Double = 0.84

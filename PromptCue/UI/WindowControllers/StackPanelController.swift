@@ -45,16 +45,25 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.armFirstFrameCallback {
             PerformanceTrace.completeStackOpenTraceIfNeeded()
         }
-        panel.alphaValue = 1
+
+        // Start fully transparent so backdrop materials and SwiftUI content
+        // can settle for one frame before becoming visible — prevents flash.
+        panel.alphaValue = 0
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         isVisible = true
         installDismissMonitors()
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = PrimitiveTokens.Motion.standard
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().setFrame(targetFrame, display: true)
+        // Allow one run-loop cycle for NSVisualEffectView materials to
+        // composite, then fade in alongside the slide animation.
+        DispatchQueue.main.async { [weak panel] in
+            guard let panel else { return }
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = PrimitiveTokens.Motion.standard
+                context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().alphaValue = 1
+                panel.animator().setFrame(targetFrame, display: true)
+            }
         }
     }
 

@@ -1,9 +1,12 @@
 import AppKit
+import PromptCueCore
 import SwiftUI
 
 struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
+    let availableSuggestedTargets: [CaptureSuggestedTarget]
+    let automaticSuggestedTarget: CaptureSuggestedTarget?
     let isSelected: Bool
     let isRecentlyCopied: Bool
     let selectionMode: Bool
@@ -13,6 +16,8 @@ struct CaptureCardView: View {
     let onCmdClick: () -> Void
     let onToggleExpansion: () -> Void
     let onDelete: () -> Void
+    let onRefreshSuggestedTargets: () -> Void
+    let onAssignSuggestedTarget: (CaptureSuggestedTarget) -> Void
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
@@ -35,6 +40,8 @@ struct CaptureCardView: View {
 
     init(
         card: CaptureCard,
+        availableSuggestedTargets: [CaptureSuggestedTarget] = [],
+        automaticSuggestedTarget: CaptureSuggestedTarget? = nil,
         isSelected: Bool,
         isRecentlyCopied: Bool = false,
         selectionMode: Bool,
@@ -43,9 +50,13 @@ struct CaptureCardView: View {
         onToggleSelection: @escaping () -> Void,
         onCmdClick: @escaping () -> Void = {},
         onToggleExpansion: @escaping () -> Void,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onRefreshSuggestedTargets: @escaping () -> Void = {},
+        onAssignSuggestedTarget: @escaping (CaptureSuggestedTarget) -> Void = { _ in }
     ) {
         self.card = card
+        self.availableSuggestedTargets = availableSuggestedTargets
+        self.automaticSuggestedTarget = automaticSuggestedTarget
         self.isSelected = isSelected
         self.isRecentlyCopied = isRecentlyCopied
         self.selectionMode = selectionMode
@@ -55,6 +66,8 @@ struct CaptureCardView: View {
         self.onCmdClick = onCmdClick
         self.onToggleExpansion = onToggleExpansion
         self.onDelete = onDelete
+        self.onRefreshSuggestedTargets = onRefreshSuggestedTargets
+        self.onAssignSuggestedTarget = onAssignSuggestedTarget
     }
 
     var body: some View {
@@ -92,6 +105,15 @@ struct CaptureCardView: View {
                         overflowAffordance(metrics: overflowMetrics)
                             .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                     }
+
+                    CaptureCardSuggestedTargetAccessoryView(
+                        currentTarget: card.suggestedTarget,
+                        availableTargets: availableSuggestedTargets,
+                        automaticTarget: automaticSuggestedTarget,
+                        onRefreshTargets: onRefreshSuggestedTargets,
+                        onAssignTarget: onAssignSuggestedTarget
+                    )
+                    .padding(.top, PrimitiveTokens.Space.xxxs)
                 }
                 .padding(.trailing, actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)

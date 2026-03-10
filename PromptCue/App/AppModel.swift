@@ -459,6 +459,30 @@ final class AppModel: ObservableObject {
         selectedCardIDs.removeAll()
     }
 
+    func assignSuggestedTarget(_ target: CaptureSuggestedTarget, to card: CaptureCard) {
+        let updatedCard = card.updatingSuggestedTarget(target)
+        let updatedCards = sortedCards(
+            cards.map { existingCard in
+                guard existingCard.id == card.id else {
+                    return existingCard
+                }
+
+                return updatedCard
+            }
+        )
+
+        do {
+            try cardStore.upsert(updatedCard)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Suggested target update failed", error: error)
+            return
+        }
+
+        cards = updatedCards
+        cloudSyncEngine?.pushLocalChange(card: updatedCard)
+    }
+
     @discardableResult
     func copy(card: CaptureCard) -> String {
         let payload = ClipboardFormatter.string(for: [card])

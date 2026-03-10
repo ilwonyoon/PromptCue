@@ -167,6 +167,8 @@ struct CardStackView: View {
         return stackColumnContent {
             CaptureCardView(
                 card: card,
+                availableSuggestedTargets: model.availableSuggestedTargets,
+                automaticSuggestedTarget: model.automaticSuggestedTarget,
                 isSelected: model.isMultiSelectMode
                     ? isStagedCopied
                     : model.selectedCardIDs.contains(card.id),
@@ -200,6 +202,12 @@ struct CardStackView: View {
                 },
                 onDelete: {
                     onDeleteCard(card)
+                },
+                onRefreshSuggestedTargets: {
+                    model.refreshAvailableSuggestedTargets()
+                },
+                onAssignSuggestedTarget: { target in
+                    model.assignSuggestedTarget(target, to: card)
                 }
             )
             .frame(maxWidth: .infinity, alignment: .leading)

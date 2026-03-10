@@ -169,6 +169,33 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
     }
 
+    func testAssignSuggestedTargetUpdatesCardAndPersistsIt() throws {
+        let provider = TestSuggestedTargetProvider(latestTarget: nil, availableTargets: [])
+        let model = makeModel(provider: provider)
+        let cardStore = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
+        let card = CaptureCard(
+            id: UUID(),
+            text: "Ship reassignment",
+            createdAt: Date(),
+            sortOrder: 1
+        )
+        try cardStore.save([card])
+
+        model.reloadCards()
+        let target = makeTarget(
+            appName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            repo: "PromptCue",
+            branch: "main"
+        )
+
+        model.assignSuggestedTarget(target, to: card)
+
+        XCTAssertEqual(model.cards.first?.suggestedTarget, target)
+        let reloaded = try cardStore.load()
+        XCTAssertEqual(reloaded.first?.suggestedTarget, target)
+    }
+
     private func makeModel(provider: TestSuggestedTargetProvider) -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")),

@@ -230,6 +230,32 @@ Post-`MCP5` rollout:
   - initial validation is a Backtick-owned local self-test of the launch command and tool surface
   - Claude gets a separate automation lane for `--permission-mode dontAsk`
   - product error handling should separate `tool permission denied` from launch/connect failures
+- connector UX refinement keeps that surface terse and action-first
+  - the default screen should show server readiness, client setup state, and the next action without opening long snippets
+  - action priority is fixed:
+    - install the client if the CLI is missing
+    - add Backtick to config if setup is missing
+    - run the local test after setup
+    - show fix-oriented troubleshooting when validation fails
+  - refined states should read like product status, not transport internals:
+    - `CLI not found`
+    - `Needs setup`
+    - `Set up`
+    - `Not verified`
+    - `Local server OK`
+    - `Needs attention`
+  - generic `Advanced` should be replaced by:
+    - `Manual Setup`
+    - `Troubleshooting`
+    - `Automation`
+  - raw config, CLI paths, and automation examples belong behind those action-specific disclosures
+  - reference patterns:
+    - Cursor `Tools & MCP` settings structure
+      - https://cursor.com/docs/mcp
+    - Claude Code MCP docs
+      - https://docs.anthropic.com/en/docs/claude-code/mcp
+    - Codex docs
+      - https://developers.openai.com/codex
 - `MCP8` packages a helper binary so connector setup works in release builds outside source checkouts
 - these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 

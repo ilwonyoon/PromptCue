@@ -22,6 +22,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             at: repositoryRootURL.appendingPathComponent("PromptCue.xcodeproj", isDirectory: true),
             withIntermediateDirectories: true
         )
+
+        try installClientExecutable(named: "claude")
+        try installClientExecutable(named: "codex")
     }
 
     override func tearDownWithError() throws {
@@ -162,7 +165,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
-    func testModelPromotesConfiguredClientToConnectedAfterServerTestPasses() async throws {
+    func testModelShowsSetupAndLocalServerVerificationAfterServerTestPasses() async throws {
         let executableURL = repositoryRootURL
             .appendingPathComponent(".build/debug", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -200,26 +203,61 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
         let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
 
-        XCTAssertEqual(model.clientStateTitle(for: claude), "Configured")
+        XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Not verified")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
 
         await model.performServerTest()
 
         XCTAssertEqual(model.connectionState, .passed(expectedReport))
-        XCTAssertEqual(model.clientStateTitle(for: claude), "Connected")
-        XCTAssertTrue(model.clientStateDetail(for: claude).contains("--allowedTools"))
+        XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Local server OK")
+        XCTAssertTrue(model.clientSummary(for: claude).contains("allowed tool list"))
+        XCTAssertNil(model.primaryAction(for: claude))
     }
 
     @MainActor
-    func testModelSurfacesConnectionFailureDetail() async {
+    func testModelSurfacesConnectionFailureDetail() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": []
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
             connectionTester: TestConnectionTester(state: .failed(.launchFailed("boom")))
         )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
 
         await model.performServerTest()
 
         XCTAssertEqual(model.connectionState, .failed(.launchFailed("boom")))
         XCTAssertEqual(model.serverTestDetail, "boom")
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Needs attention")
+        XCTAssertEqual(model.clientFailureDetail(for: claude), "boom")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
     }
 
     @MainActor
@@ -237,11 +275,72 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(example?.contains("mcp__backtick__mark_notes_executed") == true)
     }
 
+    @MainActor
+    func testModelPrefersCopyAddCommandWhenClientNeedsSetup() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientSetupTitle(for: claude), "Needs setup")
+        XCTAssertEqual(model.clientScopeTitle(for: claude), nil)
+        XCTAssertEqual(model.primaryAction(for: claude), .copyAddCommand)
+    }
+
+    @MainActor
+    func testModelShowsCLIUnavailableWhenClientBinaryIsMissing() throws {
+        let freshHomeDirectoryURL = tempDirectoryURL.appendingPathComponent("FreshHome", isDirectory: true)
+        try FileManager.default.createDirectory(at: freshHomeDirectoryURL, withIntermediateDirectories: true)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: MCPConnectorInspector(
+                environment: [:],
+                homeDirectoryURL: freshHomeDirectoryURL,
+                repositoryRootURL: repositoryRootURL
+            ),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientSetupTitle(for: claude), "CLI not found")
+        XCTAssertEqual(model.primaryAction(for: claude), .openDocumentation)
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Install"))
+    }
+
     private func makeInspector() -> MCPConnectorInspector {
         MCPConnectorInspector(
             environment: [:],
             homeDirectoryURL: homeDirectoryURL,
             repositoryRootURL: repositoryRootURL
+        )
+    }
+
+    private func installClientExecutable(named executableName: String) throws {
+        let executableURL = homeDirectoryURL
+            .appendingPathComponent(".local/bin", isDirectory: true)
+            .appendingPathComponent(executableName)
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
         )
     }
 }

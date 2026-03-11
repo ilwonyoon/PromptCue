@@ -12,6 +12,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var mcpConnectorSettingsModel: MCPConnectorSettingsModel
 
     private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
+    private let advancedLabelColumnWidth: CGFloat = 92
 
     init(
         selectedTab: SettingsTab,
@@ -300,88 +301,62 @@ struct PromptCueSettingsView: View {
 
     @ViewBuilder
     private var connectorsContent: some View {
-        settingsSection(
-            title: "Backtick MCP",
-            footer: "Connect Stack storage to external coding agents without guessing the command or config format."
-        ) {
-            settingsGrid {
-                row("Server") {
-                    Text(mcpConnectorSettingsModel.serverStatusTitle)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+        settingsSection(title: "Backtick MCP") {
+            connectorCard {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
+                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                        connectorChip(
+                            mcpConnectorSettingsModel.serverStatusTitle,
+                            tone: mcpConnectorSettingsModel.isServerAvailable ? .accent : .warning
+                        )
 
-                row("Repository") {
-                    Text(mcpConnectorSettingsModel.repositoryRootPath)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-
-            detailPane(label: "What It Does") {
-                Text("Backtick MCP gives external coding agents direct read/write access to your Stack. Clients can list notes, inspect note detail, create notes, update notes, and mark notes executed without leaving Backtick as the source of truth.")
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            detailPane(label: "Setup Flow") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    ForEach(mcpConnectorSettingsModel.setupSteps) { step in
-                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
-                            Text(step.title)
-                                .font(PrimitiveTokens.Typography.body.weight(.semibold))
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                            Text(step.detail)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        if mcpConnectorSettingsModel.isServerAvailable {
+                            connectorChip(
+                                mcpConnectorSettingsModel.serverVerificationTitle,
+                                tone: serverVerificationTone
+                            )
                         }
                     }
-                }
-            }
 
-            detailPane(label: "Launch Command") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    Text(mcpConnectorSettingsModel.serverStatusDetail)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Button("Copy Command") {
-                        mcpConnectorSettingsModel.copyServerCommand()
-                    }
-                    .controlSize(.small)
-                }
-            }
-
-            detailPane(label: "Server Test") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    Text(mcpConnectorSettingsModel.connectionState.title)
-                        .font(PrimitiveTokens.Typography.body.weight(.semibold))
-                        .foregroundStyle(SemanticTokens.Text.primary)
-
-                    Text(mcpConnectorSettingsModel.serverTestDetail)
+                    Text(mcpConnectorSettingsModel.serverSummary)
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: PrimitiveTokens.Space.xs) {
-                        Button("Run Server Test") {
-                            mcpConnectorSettingsModel.runServerTest()
-                        }
-                        .controlSize(.small)
-                        .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
+                        if mcpConnectorSettingsModel.isServerAvailable {
+                            Button(
+                                mcpConnectorSettingsModel.connectionState.isRunning
+                                    ? "Testing…"
+                                    : "Run Test"
+                            ) {
+                                mcpConnectorSettingsModel.runServerTest()
+                            }
+                            .controlSize(.small)
+                            .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
 
-                        if mcpConnectorSettingsModel.connectionState.isRunning {
-                            ProgressView()
-                                .controlSize(.small)
+                            Button("Copy Launch Command") {
+                                mcpConnectorSettingsModel.copyServerCommand()
+                            }
+                            .controlSize(.small)
                         }
+                    }
+
+                    if serverTroubleshootingVisible {
+                        DisclosureGroup("Troubleshooting") {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                                advancedDetailPane(label: "Launch Command") {
+                                    advancedValueBlock(mcpConnectorSettingsModel.serverStatusDetail)
+                                }
+
+                                advancedDetailPane(label: "Latest Test") {
+                                    advancedMessageBlock(mcpConnectorSettingsModel.serverTestDetail)
+                                }
+                            }
+                            .padding(.top, PrimitiveTokens.Space.xs)
+                        }
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
                     }
                 }
             }
@@ -399,114 +374,188 @@ struct PromptCueSettingsView: View {
 
     @ViewBuilder
     private func connectorSection(_ client: MCPConnectorClientStatus) -> some View {
-        settingsSection(
-            title: client.client.title,
-            footer: connectorFooter(for: client.client)
-        ) {
-            settingsGrid {
-                row("CLI") {
-                    Text(client.cliStatusText)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(
-                            client.cliPath == nil ? SemanticTokens.Text.secondary : SemanticTokens.Text.primary
+        settingsSection(title: client.client.title) {
+            connectorCard {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
+                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                        connectorChip(
+                            mcpConnectorSettingsModel.clientSetupTitle(for: client),
+                            tone: clientSetupTone(for: client)
                         )
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
-                row("Status") {
-                    Text(mcpConnectorSettingsModel.clientStateTitle(for: client))
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
+                        if let scopeTitle = mcpConnectorSettingsModel.clientScopeTitle(for: client) {
+                            connectorChip(scopeTitle, tone: .neutral)
+                        }
 
-            detailPane(label: "Validation") {
-                Text(mcpConnectorSettingsModel.clientStateDetail(for: client))
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+                        if let verificationTitle = mcpConnectorSettingsModel.clientVerificationTitle(for: client) {
+                            connectorChip(
+                                verificationTitle,
+                                tone: clientVerificationTone(for: client)
+                            )
+                        }
+                    }
 
-            if let projectConfig = client.projectConfig {
-                detailPane(label: "Project Config") {
-                    connectorConfigDetail(
-                        client: client.client,
-                        config: projectConfig,
-                        revealAction: { mcpConnectorSettingsModel.revealProjectConfig(for: client.client) }
-                    )
-                }
-            }
-
-            detailPane(label: "Home Config") {
-                connectorConfigDetail(
-                    client: client.client,
-                    config: client.homeConfig,
-                    revealAction: { mcpConnectorSettingsModel.revealHomeConfig(for: client.client) }
-                )
-            }
-
-            detailPane(label: "Quick Add") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    Text(client.addCommand ?? "Backtick MCP launch command is not available yet.")
+                    Text(mcpConnectorSettingsModel.clientSummary(for: client))
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.secondary)
-                        .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: PrimitiveTokens.Space.xs) {
-                        Button("Copy Add Command") {
-                            mcpConnectorSettingsModel.copyAddCommand(for: client.client)
+                        if let primaryAction = mcpConnectorSettingsModel.primaryAction(for: client) {
+                            Button(primaryAction.title) {
+                                mcpConnectorSettingsModel.performPrimaryAction(primaryAction, for: client)
+                            }
+                            .controlSize(.small)
+                            .disabled(
+                                primaryAction == .runServerTest
+                                    && mcpConnectorSettingsModel.connectionState.isRunning
+                            )
                         }
-                        .controlSize(.small)
 
-                        Button("Copy Config Snippet") {
-                            mcpConnectorSettingsModel.copyConfigSnippet(for: client.client)
+                        if client.hasDetectedCLI {
+                            Button("Open Config") {
+                                mcpConnectorSettingsModel.revealPreferredConfig(for: client.client)
+                            }
+                            .controlSize(.small)
+                        } else {
+                            Button("Open Docs") {
+                                mcpConnectorSettingsModel.openDocumentation(for: client.client)
+                            }
+                            .controlSize(.small)
                         }
-                        .controlSize(.small)
 
-                        Button("Open Docs") {
-                            mcpConnectorSettingsModel.openDocumentation(for: client.client)
+                        if mcpConnectorSettingsModel.connectionState.isRunning,
+                           mcpConnectorSettingsModel.primaryAction(for: client) == .runServerTest {
+                            ProgressView()
+                                .controlSize(.small)
                         }
-                        .controlSize(.small)
                     }
-                }
-            }
 
-            detailPane(label: "Config Snippet") {
-                Text(client.configSnippet ?? "Launch command unavailable.")
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(PrimitiveTokens.Space.sm)
-                    .background(SemanticTokens.Surface.cardFill)
-                    .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                            .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
-                    }
-            }
+                    if manualSetupVisible(for: client) {
+                        DisclosureGroup("Manual Setup") {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                                if let projectConfig = client.projectConfig {
+                                    advancedDetailPane(label: "Project Config") {
+                                        connectorConfigDetail(
+                                            config: projectConfig,
+                                            revealAction: { mcpConnectorSettingsModel.revealProjectConfig(for: client.client) }
+                                        )
+                                    }
+                                }
 
-            if let automationExample = mcpConnectorSettingsModel.automationExample(for: client.client) {
-                detailPane(label: "Automation") {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                        Text("Claude Code non-interactive runs with `--permission-mode dontAsk` still need Backtick MCP tools listed in `--allowedTools`.")
-                            .font(PrimitiveTokens.Typography.body)
-                            .foregroundStyle(SemanticTokens.Text.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                                advancedDetailPane(label: "Home Config") {
+                                    connectorConfigDetail(
+                                        config: client.homeConfig,
+                                        revealAction: { mcpConnectorSettingsModel.revealHomeConfig(for: client.client) }
+                                    )
+                                }
 
-                        Text(automationExample)
-                            .font(PrimitiveTokens.Typography.body)
-                            .foregroundStyle(SemanticTokens.Text.secondary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                                if let addCommand = client.addCommand {
+                                    advancedDetailPane(label: "Add Command") {
+                                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                            advancedValueBlock(addCommand)
 
-                        Button("Copy Automation Example") {
-                            mcpConnectorSettingsModel.copyAutomationExample(for: client.client)
+                                            HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                Button("Copy Add Command") {
+                                                    mcpConnectorSettingsModel.copyAddCommand(for: client.client)
+                                                }
+                                                .controlSize(.small)
+
+                                                Button("Open Docs") {
+                                                    mcpConnectorSettingsModel.openDocumentation(for: client.client)
+                                                }
+                                                .controlSize(.small)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if let configSnippet = client.configSnippet {
+                                    advancedDetailPane(label: "Config Snippet") {
+                                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                            advancedValueBlock(configSnippet)
+
+                                            Button("Copy Config Snippet") {
+                                                mcpConnectorSettingsModel.copyConfigSnippet(for: client.client)
+                                            }
+                                            .controlSize(.small)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, PrimitiveTokens.Space.xs)
                         }
-                        .controlSize(.small)
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                    }
+
+                    if troubleshootingVisible(for: client) {
+                        DisclosureGroup("Troubleshooting") {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                                advancedDetailPane(label: "CLI") {
+                                    advancedValueBlock(
+                                        client.cliStatusText,
+                                        emphasized: client.cliPath != nil
+                                    )
+                                }
+
+                                if let failureDetail = mcpConnectorSettingsModel.clientFailureDetail(for: client) {
+                                    advancedDetailPane(label: "Last Failure") {
+                                        advancedMessageBlock(failureDetail)
+                                    }
+                                }
+
+                                if client.hasOtherConfigFiles, !client.hasConfiguredScope {
+                                    advancedDetailPane(label: "Config State") {
+                                        advancedMessageBlock(
+                                            "Another config already exists here, but Backtick has not been added yet."
+                                        )
+                                    }
+                                }
+
+                                HStack(spacing: PrimitiveTokens.Space.xs) {
+                                    Button("Open Docs") {
+                                        mcpConnectorSettingsModel.openDocumentation(for: client.client)
+                                    }
+                                    .controlSize(.small)
+
+                                    if client.hasDetectedCLI {
+                                        Button("Open Config") {
+                                            mcpConnectorSettingsModel.revealPreferredConfig(for: client.client)
+                                        }
+                                        .controlSize(.small)
+                                    }
+                                }
+                            }
+                            .padding(.top, PrimitiveTokens.Space.xs)
+                        }
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                    }
+
+                    if automationVisible(for: client),
+                       let automationExample = mcpConnectorSettingsModel.automationExample(for: client.client) {
+                        DisclosureGroup("Automation") {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
+                                advancedMessageBlock(
+                                    "Claude runs with `--permission-mode dontAsk` still need Backtick tools listed in `--allowedTools`."
+                                )
+
+                                advancedDetailPane(label: "Example") {
+                                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                        advancedValueBlock(automationExample)
+
+                                        Button("Copy Automation Example") {
+                                            mcpConnectorSettingsModel.copyAutomationExample(for: client.client)
+                                        }
+                                        .controlSize(.small)
+                                    }
+                                }
+                            }
+                            .padding(.top, PrimitiveTokens.Space.xs)
+                        }
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
                     }
                 }
             }
@@ -515,40 +564,132 @@ struct PromptCueSettingsView: View {
 
     @ViewBuilder
     private func connectorConfigDetail(
-        client: MCPConnectorClient,
         config: MCPConnectorConfigLocationStatus,
         revealAction: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-            Text("\(config.presence.title) · \(config.path)")
-                .font(PrimitiveTokens.Typography.body)
-                .foregroundStyle(SemanticTokens.Text.secondary)
-                .textSelection(.enabled)
+            Text(config.presence.title)
+                .font(PrimitiveTokens.Typography.metaStrong)
+                .foregroundStyle(
+                    config.presence == .configured
+                        ? SemanticTokens.Text.primary
+                        : SemanticTokens.Text.secondary
+                )
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            advancedValueBlock(config.path)
 
             HStack(spacing: PrimitiveTokens.Space.xs) {
                 Button("Reveal") {
                     revealAction()
                 }
                 .controlSize(.small)
-
-                if config.presence != .configured {
-                    Button("Copy Config Snippet") {
-                        mcpConnectorSettingsModel.copyConfigSnippet(for: client)
-                    }
-                    .controlSize(.small)
-                }
             }
         }
     }
 
-    private func connectorFooter(for client: MCPConnectorClient) -> String {
-        switch client {
-        case .claudeCode:
-            return "Claude Code supports project `.mcp.json` files and home-level `~/.claude.json` entries."
-        case .codex:
-            return "Codex reads MCP servers from `.codex/config.toml`, either in the repo or your home directory."
+    private func connectorCard<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
+            content()
         }
+        .padding(PrimitiveTokens.Space.md)
+        .background(SemanticTokens.Surface.cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
+                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+        }
+    }
+
+    private func connectorChip(_ title: String, tone: ConnectorChipTone) -> some View {
+        PromptCueChip(fill: tone.fill, border: tone.border) {
+            Text(title)
+                .font(PrimitiveTokens.Typography.metaStrong)
+                .foregroundStyle(tone.foreground)
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+
+    private var serverVerificationTone: ConnectorChipTone {
+        switch mcpConnectorSettingsModel.connectionState {
+        case .idle:
+            return .neutral
+        case .running:
+            return .accent
+        case .passed:
+            return .success
+        case .failed:
+            return .danger
+        }
+    }
+
+    private func clientSetupTone(for client: MCPConnectorClientStatus) -> ConnectorChipTone {
+        if !client.hasDetectedCLI {
+            return .warning
+        }
+
+        if client.hasConfiguredScope {
+            return .success
+        }
+
+        return .warning
+    }
+
+    private func clientVerificationTone(for client: MCPConnectorClientStatus) -> ConnectorChipTone {
+        guard client.hasConfiguredScope else {
+            return .neutral
+        }
+
+        switch mcpConnectorSettingsModel.connectionState {
+        case .idle:
+            return .neutral
+        case .running:
+            return .accent
+        case .passed:
+            return .success
+        case .failed:
+            return .danger
+        }
+    }
+
+    private var serverTroubleshootingVisible: Bool {
+        if !mcpConnectorSettingsModel.isServerAvailable {
+            return true
+        }
+
+        if case .failed = mcpConnectorSettingsModel.connectionState {
+            return true
+        }
+
+        return false
+    }
+
+    private func manualSetupVisible(for client: MCPConnectorClientStatus) -> Bool {
+        guard client.hasDetectedCLI else {
+            return false
+        }
+
+        return client.projectConfig != nil || client.addCommand != nil || client.configSnippet != nil
+    }
+
+    private func troubleshootingVisible(for client: MCPConnectorClientStatus) -> Bool {
+        if !client.hasDetectedCLI {
+            return true
+        }
+
+        if client.hasOtherConfigFiles, !client.hasConfiguredScope {
+            return true
+        }
+
+        return mcpConnectorSettingsModel.clientFailureDetail(for: client) != nil
+    }
+
+    private func automationVisible(for client: MCPConnectorClientStatus) -> Bool {
+        client.client == .claudeCode
+            && client.hasConfiguredScope
+            && mcpConnectorSettingsModel.automationExample(for: client.client) != nil
     }
 
     private var screenshotStatusTitle: String {
@@ -671,6 +812,79 @@ struct PromptCueSettingsView: View {
         }
     }
 
+    private func advancedDetailPane<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Grid(
+            alignment: .leading,
+            horizontalSpacing: PrimitiveTokens.Space.sm,
+            verticalSpacing: PrimitiveTokens.Space.xxs
+        ) {
+            GridRow(alignment: .top) {
+                Text(label)
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .frame(width: advancedLabelColumnWidth, alignment: .leading)
+
+                content()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func advancedValueBlock(
+        _ text: String,
+        emphasized: Bool = false
+    ) -> some View {
+        Text(verbatim: displayConnectorText(text))
+            .font(emphasized ? PrimitiveTokens.Typography.codeStrong : PrimitiveTokens.Typography.code)
+            .foregroundStyle(emphasized ? SemanticTokens.Text.primary : SemanticTokens.Text.secondary)
+            .textSelection(.enabled)
+            .lineSpacing(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, PrimitiveTokens.Space.xs)
+            .padding(.vertical, PrimitiveTokens.Space.xs)
+            .background(SemanticTokens.Surface.raisedFill)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: PrimitiveTokens.Radius.sm,
+                    style: .continuous
+                )
+            )
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: PrimitiveTokens.Radius.sm,
+                    style: .continuous
+                )
+                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func advancedMessageBlock(_ text: String) -> some View {
+        Text(text)
+            .font(PrimitiveTokens.Typography.meta)
+            .foregroundStyle(SemanticTokens.Text.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func displayConnectorText(_ text: String) -> String {
+        var displayText = text
+        let homePath = NSHomeDirectory()
+        if !homePath.isEmpty {
+            displayText = displayText.replacingOccurrences(of: homePath, with: "~")
+        }
+
+        if let repositoryRootPath = mcpConnectorSettingsModel.inspection.repositoryRootPath {
+            let repositoryDisplayPath = "…/\(URL(fileURLWithPath: repositoryRootPath).lastPathComponent)"
+            displayText = displayText.replacingOccurrences(of: repositoryRootPath, with: repositoryDisplayPath)
+        }
+
+        return displayText
+    }
+
     private func rowNote(_ text: String) -> some View {
         Text(text)
             .font(PrimitiveTokens.Typography.meta)
@@ -683,5 +897,58 @@ struct PromptCueSettingsView: View {
         set: @escaping (Value) -> Void
     ) -> Binding<Value> {
         Binding(get: get, set: set)
+    }
+}
+
+private enum ConnectorChipTone {
+    case neutral
+    case accent
+    case success
+    case warning
+    case danger
+
+    var fill: Color {
+        switch self {
+        case .neutral:
+            return SemanticTokens.Surface.raisedFill
+        case .accent:
+            return SemanticTokens.Accent.primary.opacity(0.12)
+        case .success:
+            return Color(nsColor: .systemGreen).opacity(0.14)
+        case .warning:
+            return Color(nsColor: .systemOrange).opacity(0.14)
+        case .danger:
+            return Color(nsColor: .systemRed).opacity(0.14)
+        }
+    }
+
+    var border: Color {
+        switch self {
+        case .neutral:
+            return SemanticTokens.Border.subtle
+        case .accent:
+            return SemanticTokens.Accent.primary.opacity(0.28)
+        case .success:
+            return Color(nsColor: .systemGreen).opacity(0.34)
+        case .warning:
+            return Color(nsColor: .systemOrange).opacity(0.34)
+        case .danger:
+            return Color(nsColor: .systemRed).opacity(0.34)
+        }
+    }
+
+    var foreground: Color {
+        switch self {
+        case .neutral:
+            return SemanticTokens.Text.primary
+        case .accent:
+            return SemanticTokens.Accent.primary
+        case .success:
+            return Color(nsColor: .systemGreen)
+        case .warning:
+            return Color(nsColor: .systemOrange)
+        case .danger:
+            return Color(nsColor: .systemRed)
+        }
     }
 }

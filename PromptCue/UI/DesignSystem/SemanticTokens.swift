@@ -86,15 +86,15 @@ enum SemanticTokens {
         static let previewOrbSecondary = Accent.selection.opacity(0.12)
         static let captureChooserRowFill = adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.028),
-            dark: NSColor.black.withAlphaComponent(0.028)
+            dark: NSColor.white.withAlphaComponent(0.024)
         )
         static let captureChooserRowHoverFill = adaptiveColor(
-            light: NSColor.white,
-            dark: NSColor.white
+            light: NSColor.white.withAlphaComponent(0.72),
+            dark: NSColor.white.withAlphaComponent(0.08)
         )
         static let captureChooserRowSelectedFill = adaptiveColor(
-            light: NSColor.white,
-            dark: NSColor.white
+            light: NSColor.white.withAlphaComponent(0.80),
+            dark: NSColor.white.withAlphaComponent(0.14)
         )
     }
 

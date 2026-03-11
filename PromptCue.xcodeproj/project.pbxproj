@@ -13,6 +13,7 @@
 		0E5795F3A40B6410EA4E1BF2 /* CardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A461FEECE4CB884E435CC0 /* CardStore.swift */; };
 		13195ED782BB3CC9B9698822 /* SearchFieldSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */; };
 		15B0CE14628AAE363F0CF6CE /* CapturePreviewImagePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */; };
+		178E3EFDF0744F6149741F0A /* AppModelWorkItemCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 282B7C0BD35652C64C7FB866 /* AppModelWorkItemCreationTests.swift */; };
 		191E6F78B35FD081762EB1E4 /* RecentScreenshotLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D372ADD4A30AC64621AF5E05 /* RecentScreenshotLocator.swift */; };
 		1A221597310D99FE05170A56 /* CaptureRuntimeMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD841B199B35A1509E1A787E /* CaptureRuntimeMetrics.swift */; };
 		1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E7982703EC6D0302F17A37 /* CapturePanelController.swift */; };
@@ -149,6 +150,7 @@
 		23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotContracts.swift; sourceTree = "<group>"; };
 		25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrimitiveTokens.swift; sourceTree = "<group>"; };
 		26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelBackdropRecipe.swift; sourceTree = "<group>"; };
+		282B7C0BD35652C64C7FB866 /* AppModelWorkItemCreationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelWorkItemCreationTests.swift; sourceTree = "<group>"; };
 		2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientScreenshotCache.swift; sourceTree = "<group>"; };
 		3578175AAD479D3659D72CE5 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
@@ -418,6 +420,7 @@
 				6847C4F07F9A4481224AD862 /* AppEnvironmentTests.swift */,
 				503A6CF43E7AA68788A9AF1B /* AppModelRecentScreenshotTests.swift */,
 				E7B0115539065F60928002F4 /* AppModelSuggestedTargetTests.swift */,
+				282B7C0BD35652C64C7FB866 /* AppModelWorkItemCreationTests.swift */,
 				18D1A25B39DB01DF38666D0C /* AppStartupPerformanceTests.swift */,
 				6FA4D7EE3F2A66184B933C93 /* CaptureCardRenderingTests.swift */,
 				092E3A82E4F9554B2984BDDF /* CaptureComposerLayoutTests.swift */,
@@ -599,6 +602,7 @@
 				A6719F175822EA41E30EADA5 /* AppEnvironmentTests.swift in Sources */,
 				6509E8E1FF3E65C497A25DE3 /* AppModelRecentScreenshotTests.swift in Sources */,
 				C3C212100494C2818A213573 /* AppModelSuggestedTargetTests.swift in Sources */,
+				178E3EFDF0744F6149741F0A /* AppModelWorkItemCreationTests.swift in Sources */,
 				59DC8DEF36CC0740D5CADB25 /* AppStartupPerformanceTests.swift in Sources */,
 				A3A423D204F44EC77421EA0F /* CaptureCardRenderingTests.swift in Sources */,
 				59486FE7DB7F6A7DF4932032 /* CaptureComposerLayoutTests.swift in Sources */,

@@ -4,8 +4,10 @@ import SwiftUI
 struct CardStackView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
+    let isExecutionMapEnabled: Bool
     let onCopyCard: (CaptureCard) -> Void
     let onCopySelection: () -> Void
+    let onCreateWorkItemSelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
@@ -129,6 +131,21 @@ struct CardStackView: View {
                 .foregroundStyle(SemanticTokens.Text.primary)
 
             Spacer(minLength: PrimitiveTokens.Space.xs)
+
+            if isExecutionMapEnabled {
+                Button(action: onCreateWorkItemSelection) {
+                    PromptCueChip(
+                        fill: SemanticTokens.Surface.raisedFill,
+                        border: SemanticTokens.Border.subtle
+                    ) {
+                        Text("Create Item")
+                            .font(PrimitiveTokens.Typography.chip)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Create work item from \(model.selectionCount) selected cues")
+            }
 
             Button(action: onCopySelection) {
                 PromptCueChip(

@@ -52,7 +52,7 @@ struct ExecutionMapView: View {
                     .font(PrimitiveTokens.Typography.bodyStrong)
                     .foregroundStyle(SemanticTokens.Text.primary)
 
-                Text("MCP2 only renders existing execution cards. Creation and handoff land in later slices.")
+                Text("Create items from selected Stack cues. Execution handoff lands in a later slice.")
                     .font(PrimitiveTokens.Typography.body)
                     .foregroundStyle(SemanticTokens.Text.secondary)
                     .fixedSize(horizontal: false, vertical: true)

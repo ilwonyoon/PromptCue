@@ -79,6 +79,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isSubmittingCapture = false
 
     private let cardStore: CardStore
+    private let workItemStore: WorkItemStore?
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
     private let suggestedTargetProvider: any SuggestedTargetProviding
@@ -94,12 +95,14 @@ final class AppModel: ObservableObject {
 
     init(
         cardStore: CardStore,
+        workItemStore: WorkItemStore? = nil,
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil
     ) {
         self.cardStore = cardStore
+        self.workItemStore = workItemStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
         self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
@@ -116,6 +119,7 @@ final class AppModel: ObservableObject {
         let syncEnabled = !isTestEnvironment && CloudSyncPreferences.load()
         self.init(
             cardStore: CardStore(),
+            workItemStore: WorkItemStore(),
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
             suggestedTargetProvider: RecentSuggestedAppTargetTracker(),
@@ -601,6 +605,36 @@ final class AppModel: ObservableObject {
 
     func clearSelection() {
         selectedCardIDs.removeAll()
+    }
+
+    @discardableResult
+    func createWorkItemFromSelection(now: Date = Date()) -> WorkItem? {
+        guard let workItemStore else {
+            return nil
+        }
+
+        let selectedCards = selectedCardsInDisplayOrder
+        guard let workItem = WorkItem.manualDraft(from: selectedCards, createdAt: now) else {
+            return nil
+        }
+
+        let sources = selectedCards.enumerated().map { index, card in
+            WorkItemSource(
+                workItemID: workItem.id,
+                noteID: card.id,
+                relationType: index == 0 ? .primary : .supporting
+            )
+        }
+
+        do {
+            try workItemStore.save(workItem: workItem, sources: sources)
+            storageErrorMessage = nil
+            clearSelection()
+            return workItem
+        } catch {
+            logStorageFailure("Work item creation failed", error: error)
+            return nil
+        }
     }
 
     func assignSuggestedTarget(_ target: CaptureSuggestedTarget, to card: CaptureCard) {

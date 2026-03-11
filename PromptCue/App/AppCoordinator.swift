@@ -10,10 +10,17 @@ final class AppCoordinator {
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private let appearanceSettingsModel = AppearanceSettingsModel()
+    private let environment = AppEnvironment.current
     private lazy var executionMapStore = WorkItemStore()
     private lazy var executionMapModel = ExecutionMapModel(workItemLoader: executionMapStore)
     private lazy var capturePanelController = CapturePanelController(model: model)
-    private lazy var stackPanelController = StackPanelController(model: model)
+    private lazy var stackPanelController = StackPanelController(
+        model: model,
+        isExecutionMapEnabled: environment.isExecutionMapEnabled,
+        onDidCreateWorkItem: { [weak self] in
+            self?.showExecutionMapWindow()
+        }
+    )
     private lazy var designSystemWindowController = DesignSystemWindowController()
     private lazy var executionMapWindowController = ExecutionMapWindowController(model: executionMapModel)
     private lazy var settingsWindowController = SettingsWindowController(
@@ -33,7 +40,6 @@ final class AppCoordinator {
     }
 
     func start() {
-        let environment = AppEnvironment.current
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         appearanceSettingsModel.applyAppearance()

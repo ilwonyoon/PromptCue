@@ -6,6 +6,8 @@ import SwiftUI
 @MainActor
 final class StackPanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
+    private let isExecutionMapEnabled: Bool
+    private let onDidCreateWorkItem: () -> Void
     private var panel: StackPanel?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -16,8 +18,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         isVisible || isAnimatingClose || panel?.isVisible == true
     }
 
-    init(model: AppModel) {
+    init(
+        model: AppModel,
+        isExecutionMapEnabled: Bool = AppEnvironment.current.isExecutionMapEnabled,
+        onDidCreateWorkItem: @escaping () -> Void = {}
+    ) {
         self.model = model
+        self.isExecutionMapEnabled = isExecutionMapEnabled
+        self.onDidCreateWorkItem = onDidCreateWorkItem
     }
 
     deinit {
@@ -178,11 +186,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.contentViewController = NSHostingController(
             rootView: CardStackView(
                 model: model,
+                isExecutionMapEnabled: isExecutionMapEnabled,
                 onCopyCard: { [weak self] card in
                     self?.copyCardAndClose(card)
                 },
                 onCopySelection: { [weak self] in
                     self?.copySelectionAndClose()
+                },
+                onCreateWorkItemSelection: { [weak self] in
+                    self?.createWorkItemSelection()
                 },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
@@ -205,6 +217,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         close()
+    }
+
+    private func createWorkItemSelection() {
+        guard model.createWorkItemFromSelection() != nil else {
+            return
+        }
+
+        onDidCreateWorkItem()
     }
 
     private func primePanelLayout(_ panel: StackPanel) {

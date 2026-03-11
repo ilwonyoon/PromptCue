@@ -94,3 +94,110 @@ public struct WorkItem: Codable, Identifiable, Equatable, Sendable {
         return trimmed
     }
 }
+
+public extension WorkItem {
+    static func manualDraft(
+        from cards: [CaptureCard],
+        id: UUID = UUID(),
+        createdAt: Date = Date()
+    ) -> WorkItem? {
+        let normalizedTexts = cards.map(\.text).map(Self.normalizedText(from:))
+        let primaryIndex = normalizedTexts.firstIndex(where: { !$0.isEmpty }) ?? 0
+
+        guard cards.indices.contains(primaryIndex) else {
+            return nil
+        }
+
+        let primaryText = normalizedTexts[primaryIndex]
+        let additionalCount = max(0, cards.count - 1)
+        let titleSeed = primaryText.isEmpty ? "Captured note" : primaryText
+        let title = Self.buildManualTitle(
+            from: titleSeed,
+            additionalCount: additionalCount
+        )
+        let summary = Self.buildManualSummary(
+            from: cards,
+            normalizedTexts: normalizedTexts,
+            title: title
+        )
+
+        return WorkItem(
+            id: id,
+            title: title,
+            summary: summary,
+            repoName: Self.commonContextValue(for: cards) { $0.suggestedTarget?.repositoryName },
+            branchName: Self.commonContextValue(for: cards) { $0.suggestedTarget?.branch },
+            status: .open,
+            createdAt: createdAt,
+            createdBy: .user,
+            sourceNoteCount: cards.count
+        )
+    }
+
+    private static func buildManualTitle(from seed: String, additionalCount: Int) -> String {
+        let suffix = additionalCount > 0 ? " + \(additionalCount) more" : ""
+        let maxTitleLength = 72
+        let availableLength = max(12, maxTitleLength - suffix.count)
+        let truncatedSeed = truncate(seed, maxLength: availableLength)
+        return "\(truncatedSeed)\(suffix)"
+    }
+
+    private static func buildManualSummary(
+        from cards: [CaptureCard],
+        normalizedTexts: [String],
+        title: String
+    ) -> String? {
+        let fullTexts = cards
+            .map(\.text)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !fullTexts.isEmpty else {
+            return nil
+        }
+
+        if fullTexts.count > 1 {
+            return fullTexts.joined(separator: "\n\n")
+        }
+
+        let normalizedTitle = normalizedText(from: title)
+        let normalizedSingle = normalizedTexts.first ?? ""
+        if normalizedSingle == normalizedTitle {
+            return nil
+        }
+
+        return fullTexts.first
+    }
+
+    private static func commonContextValue(
+        for cards: [CaptureCard],
+        resolver: (CaptureCard) -> String?
+    ) -> String? {
+        let uniqueValues = Set(
+            cards.compactMap { resolver($0)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+
+        guard uniqueValues.count == 1 else {
+            return nil
+        }
+
+        return uniqueValues.first
+    }
+
+    private static func normalizedText(from text: String) -> String {
+        text
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func truncate(_ value: String, maxLength: Int) -> String {
+        guard value.count > maxLength else {
+            return value
+        }
+
+        return String(value.prefix(maxLength - 1)) + "…"
+    }
+}

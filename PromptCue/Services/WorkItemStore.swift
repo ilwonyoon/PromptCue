@@ -152,6 +152,31 @@ final class WorkItemStore {
         }
     }
 
+    func save(workItem: WorkItem, sources: [WorkItemSource]) throws {
+        guard let dbQueue = database.dbQueue else {
+            throw WorkItemStoreError.unavailable(underlying: database.setupError)
+        }
+
+        let normalizedSources = normalizedSources(for: workItem.id, sources: sources)
+
+        do {
+            try dbQueue.write { db in
+                try WorkItemRecord(workItem: workItem).upsert(db)
+                try db.execute(
+                    sql: "DELETE FROM \(PromptCueDatabaseSchema.workItemSourcesTableName) WHERE workItemID = ?",
+                    arguments: [workItem.id.uuidString]
+                )
+
+                for source in normalizedSources {
+                    try WorkItemSourceRecord(workItemSource: source).insert(db)
+                }
+            }
+        } catch {
+            NSLog("WorkItemStore save(workItem:sources:) failed: %@", error.localizedDescription)
+            throw WorkItemStoreError.saveFailed(error)
+        }
+    }
+
     func loadCopyEvents(for noteID: UUID? = nil) throws -> [CopyEvent] {
         guard let dbQueue = database.dbQueue else {
             throw WorkItemStoreError.unavailable(underlying: database.setupError)

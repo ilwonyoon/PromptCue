@@ -162,8 +162,9 @@ Current landed slices:
 - `MCP4` execution action landed on `main`
 - `MCP5` stdio tool surface landed on `main`
 - `MCP6` connector settings surface landed on `main`
-- execution-map style UI remains out of scope while guided setup and helper packaging are still in flight
-- Settings-based connector UI is now the user-facing MCP rollout surface
+- `MCP7` guided setup and local server validation landed on `main`
+- execution-map style UI remains out of scope while helper packaging is still in flight
+- Settings-based connector UI is now the user-facing MCP rollout surface, including setup and local validation
 
 Landed MCP gates:
 
@@ -194,17 +195,10 @@ Landed `MCP5` gate:
 
 Immediate next step:
 
-- run an external MCP client smoke against merged `main`
-- verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-- capture connector friction before finalizing guided setup UX
-
-`PR #30` gate:
-
-- `PR #30` (`backtick-mcp-guided-setup`) is `OPEN`, base `main`, and `MERGEABLE` on `2026-03-11`
-- the branch is one commit ahead of `main`; no restack is required
-- carry forward only guided setup copy, local server self-test, connector validation states, Claude automation guidance, and MCP doc updates
-- keep `MCP2` through `MCP6` behavior unchanged; this slice stays inside Settings
-- use the latest external smoke result as planning input:
+- package a bundled `BacktickMCP` helper for release builds
+- keep the repository-checkout launch path as a development fallback
+- rerun connector validation against the packaged helper path
+- preserve the current external smoke finding:
   - `Claude Code` and `Codex` both connect successfully on merged `main`
   - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
   - treat non-interactive permission denial as client setup friction, not as an MCP server failure
@@ -217,6 +211,14 @@ Landed `MCP6` gate:
 - `MCP2` through `MCP5` behavior remains unchanged; this slice is read-mostly UI
 - external MCP client smoke has now run against merged `main` and feeds `MCP7`
 
+Landed `MCP7` gate:
+
+- Settings `Connectors` now shows `What It Does`, `Setup Flow`, `Launch Command`, and `Server Test`
+- the local server self-test validates `initialize` and `tools/list` directly from Settings and promotes a configured client to `Connected`
+- failure states keep specific detail for launch failure, invalid response, missing tools, and other local validation issues
+- `Claude Code` now shows an automation lane for `--permission-mode dontAsk` with a copyable `--allowedTools` example
+- existing connector inspection actions remain intact while setup guidance moved into the same Settings surface
+
 Post-`MCP5` rollout:
 
 - `MCP6` adds a `Connectors` section to Settings so the user can see:
@@ -224,6 +226,10 @@ Post-`MCP5` rollout:
   - what command/path those clients should launch
   - copyable config/install instructions
 - `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
+  - guided setup explains what MCP means in Backtick terms and walks the user through config plus validation
+  - initial validation is a Backtick-owned local self-test of the launch command and tool surface
+  - Claude gets a separate automation lane for `--permission-mode dontAsk`
+  - product error handling should separate `tool permission denied` from launch/connect failures
 - `MCP8` packages a helper binary so connector setup works in release builds outside source checkouts
 - these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 

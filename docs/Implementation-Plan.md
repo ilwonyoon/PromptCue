@@ -307,6 +307,13 @@ Current landed slices:
    - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
    - shows `Claude Code` and `Codex` connector status, launch command, add command, and config snippets
    - supports repository-checkout launch commands while bundled helper packaging is still pending
+- `MCP7` guided setup and validation is on `main`
+   - `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+   - `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+   - `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+   - explains what Backtick MCP does, shows a concrete setup flow, and runs a local server self-test from Settings
+   - promotes configured clients to `Connected` after a successful local launch/tool-surface validation
+   - includes a Claude-specific automation example for `--permission-mode dontAsk` with explicit `--allowedTools`
 
 Verification gates run for landed MCP slices:
 
@@ -322,37 +329,16 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-1. external MCP client smoke
-   - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-   - collect connector friction from real client setup
-   - use that friction to finalize the guided setup flow instead of guessing
-
-2. `MCP7` guided setup and validation
-   - add a product-facing explanation of what MCP is in Backtick terms
-   - explain that MCP gives external coding agents direct read/write access to Stack storage
-   - provide a concrete setup flow:
-     - choose client
-     - copy or install config
-     - run connection test
-   - validate the Backtick MCP launch command locally from Settings before sending the user back to an external client
-   - keep full external-client handshake validation as a follow-up, since app-owned validation can prove server launch/tool surface but not every client auth or permission mode
-   - add a Claude-specific automation lane for non-interactive runs:
-     - explain that `--permission-mode dontAsk` requires Backtick MCP tools to be present in `--allowedTools`
-     - provide an automation example for the current Backtick tool set
-   - surface friendly states:
-     - `Not configured`
-     - `Configured`
-     - `Connected`
-     - `Connection test failed`
-   - classify connection test failures by cause when possible:
-     - MCP server unreachable / launch failure
-     - tool permission denied
-     - unsupported or incomplete client configuration
-
-3. `MCP8` bundled helper packaging
+1. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
    - keep repository-root detection as the development fallback
    - make connector setup work for direct-download users without requiring a Swift toolchain
+   - preserve the repository-checkout launch path as the developer fallback while release packaging lands
+
+2. release-path connector validation
+   - rerun the Settings server test against a packaged helper, not just a source checkout
+   - verify `Claude Code` and `Codex` setup still works when the user has no local Swift toolchain
+   - keep treating `tool permission denied` as client setup friction instead of a Backtick MCP launch failure
 
 Why this rollout is required:
 
@@ -369,45 +355,6 @@ Rules after `MCP5`:
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
 
-### `PR #30` Landing Plan
-
-`PR #30` (`backtick-mcp-guided-setup`) should land as the focused `MCP7` guided setup and local validation slice.
-
-Branch condition on `2026-03-11`:
-
-- state `OPEN`, base `main`, mergeable `MERGEABLE`
-- head commit `26e2a1a`
-- branch is one commit ahead of `main`; restack is not required
-
-Carry-forward scope:
-
-- `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
-- `PromptCue/UI/Settings/PromptCueSettingsView.swift`
-- `PromptCueTests/MCPConnectorSettingsModelTests.swift`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-
-Merge rules:
-
-1. keep `MCP2` through `MCP6` behavior and current connector inspection surface unchanged
-2. carry forward only guided setup copy, local server self-test, client validation states, and Claude automation guidance
-3. treat `Claude Code` `--permission-mode dontAsk` permission denial as client setup friction, not as a Backtick MCP launch failure
-4. do not expand scope into bundled helper packaging, project wiring changes, or new UI outside Settings
-
-Verification gate for `PR #30`:
-
-- `swift test`
-- `xcodegen generate`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/MCPConnectorSettingsModelTests`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-
-Required smoke checks after the gate:
-
-- Settings `Connectors` shows `What It Does`, `Setup Flow`, `Launch Command`, and `Server Test`
-- `Run Server Test` reaches `Connected` when the local `BacktickMCP` launch command is valid
-- failure states keep specific detail for launch failure, invalid response, missing tools, or permission-related client friction
-- `Claude Code` shows an `Automation` section with a copyable `--allowedTools` example
-- existing connector actions (`Copy Command`, `Copy Add Command`, `Copy Config Snippet`, `Reveal`, `Open Docs`) still work
 ## Phase 0: Research And Decisions
 
 ### Goal

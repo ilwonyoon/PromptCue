@@ -321,6 +321,30 @@ struct PromptCueSettingsView: View {
                 }
             }
 
+            detailPane(label: "What It Does") {
+                Text("Backtick MCP gives external coding agents direct read/write access to your Stack. Clients can list notes, inspect note detail, create notes, update notes, and mark notes executed without leaving Backtick as the source of truth.")
+                    .font(PrimitiveTokens.Typography.body)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            detailPane(label: "Setup Flow") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    ForEach(mcpConnectorSettingsModel.setupSteps) { step in
+                        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
+                            Text(step.title)
+                                .font(PrimitiveTokens.Typography.body.weight(.semibold))
+                                .foregroundStyle(SemanticTokens.Text.primary)
+                            Text(step.detail)
+                                .font(PrimitiveTokens.Typography.body)
+                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
             detailPane(label: "Launch Command") {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                     Text(mcpConnectorSettingsModel.serverStatusDetail)
@@ -333,6 +357,32 @@ struct PromptCueSettingsView: View {
                         mcpConnectorSettingsModel.copyServerCommand()
                     }
                     .controlSize(.small)
+                }
+            }
+
+            detailPane(label: "Server Test") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    Text(mcpConnectorSettingsModel.connectionState.title)
+                        .font(PrimitiveTokens.Typography.body.weight(.semibold))
+                        .foregroundStyle(SemanticTokens.Text.primary)
+
+                    Text(mcpConnectorSettingsModel.serverTestDetail)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                        Button("Run Server Test") {
+                            mcpConnectorSettingsModel.runServerTest()
+                        }
+                        .controlSize(.small)
+                        .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
+
+                        if mcpConnectorSettingsModel.connectionState.isRunning {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
                 }
             }
         }
@@ -364,12 +414,19 @@ struct PromptCueSettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                row("Configured") {
-                    Text(client.configurationSummary)
+                row("Status") {
+                    Text(mcpConnectorSettingsModel.clientStateTitle(for: client))
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+            }
+
+            detailPane(label: "Validation") {
+                Text(mcpConnectorSettingsModel.clientStateDetail(for: client))
+                    .font(PrimitiveTokens.Typography.body)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let projectConfig = client.projectConfig {
@@ -430,6 +487,28 @@ struct PromptCueSettingsView: View {
                         RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
                             .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
                     }
+            }
+
+            if let automationExample = mcpConnectorSettingsModel.automationExample(for: client.client) {
+                detailPane(label: "Automation") {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                        Text("Claude Code non-interactive runs with `--permission-mode dontAsk` still need Backtick MCP tools listed in `--allowedTools`.")
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Text(automationExample)
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        Button("Copy Automation Example") {
+                            mcpConnectorSettingsModel.copyAutomationExample(for: client.client)
+                        }
+                        .controlSize(.small)
+                    }
+                }
             }
         }
     }

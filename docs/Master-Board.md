@@ -146,8 +146,8 @@ Current landed slices:
 
 - `MCP2` read bridge landed on `main`
 - `MCP3` write bridge landed on `main`
-- `MCP4` execution action is the current merge slice
-- UI and transport remain out of scope through `MCP4`
+- `MCP4` execution action landed on `main`
+- UI remains out of scope while `MCP5` transport is in flight
 
 Landed MCP gates:
 
@@ -180,6 +180,15 @@ Immediate next slice:
 - tool surface exposes read, write, and execute actions for Stack notes
 - no menu, settings, panel, or execution-map changes
 - end-to-end smoke coverage exists for the shared DB path
+- `main` already contains the read, write, and execution services that the transport must wrap
+
+`PR #26` gate:
+
+- `PR #26` (`backtick-mcp-stdio-surface`) is `OPEN`, base `main`, and `MERGEABLE` on `2026-03-11`
+- although the branch forked before `PR #25` code landed, the actual PR diff is still bounded to 8 files
+- carry forward only package wiring, `BacktickMCP` stdio sources, transport tests, and MCP wording updates in docs
+- if the merge result picks up drift outside that 8-file scope, stop and restack onto the latest `main`
+- after merge, run an external MCP client smoke against the merged stdio surface
 
 Rules:
 
@@ -188,31 +197,17 @@ Rules:
 - copied state means execution happened, not that planning or grouping happened
 - cleanup of board and work-item code is not optional follow-up; it is part of getting MCP scope back into focus
 
-## Parallel UX Queue
+## Recent Non-MCP Landing
 
-Current queued non-MCP PR:
+`PR #25` `feat/default-multi-copy` is on `main` and is now the stack/export baseline for MCP-facing clipboard behavior.
 
-- `PR #25` `feat/default-multi-copy`
-  - title: `Make staged multi-copy the default stack flow`
-  - intended scope:
-    - make staged grouped copy the default stack click behavior
-    - commit copied grouping on stack close instead of on click
-    - skip export tails for standalone raw literals
+Landed scope:
 
-Branch condition on `2026-03-11`:
+- staged grouped copy is the default stack click behavior
+- copied ordering commits on stack close instead of on click
+- standalone raw literals skip the export tail suffix
 
-- the branch still forks from `d4b966c`, before landed `MCP2` through `MCP4`
-- it should be rebased onto the latest `main` before merge
-
-Rebase conflict surface:
-
-- `PromptCue.xcodeproj/project.pbxproj`
-- `PromptCue/UI/WindowControllers/StackPanelController.swift`
-- `Tests/PromptCueCoreTests/PromptCueCoreTests.swift`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-
-`PR #25` gate:
+Verification already run:
 
 - `swift test`
 - `xcodegen generate`
@@ -222,12 +217,9 @@ Rebase conflict surface:
 - stack smoke:
   card click stages copy without closing, second click unstages, panel close commits copied ordering
 
-Merge rule:
+Current rule:
 
-- keep landed MCP services and MCP docs as the source of truth
-- carry forward only the stack/export UX changes and matching preflight/remediation wording
-- regenerate `project.pbxproj` from `project.yml` after the rebase
-- merge `PR #25` before starting `MCP5` transport work so the new default stack behavior is the baseline for client-facing clipboard expectations
+- `MCP5` transport work must inherit this stack/export baseline instead of reintroducing the older `Copy Multiple` flow
 
 ## Track Gates
 

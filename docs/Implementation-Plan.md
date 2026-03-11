@@ -269,7 +269,7 @@ Current landed slices:
   - `PromptCueTests/StackWriteServiceTests.swift`
   - creates, updates, and deletes Stack notes directly
   - cleans up managed screenshot attachments on delete
-- `MCP4` execution action is the current merge slice
+- `MCP4` execution action is on `main`
    - `PromptCue/Services/StackExecutionService.swift`
    - `PromptCueTests/StackExecutionServiceTests.swift`
    - marks executed notes copied in Stack storage
@@ -302,7 +302,7 @@ Current next slice:
    - `create_note`
    - `update_note`
    - `delete_note`
-   - `mark_note_executed`
+   - `mark_notes_executed`
 
 3. add a minimal end-to-end smoke path
    - verify MCP transport can read, write, and execute notes against the shared DB
@@ -312,21 +312,50 @@ Rules for `MCP5`:
 - no dependency on current UI selection state
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
+- `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+- stdio transport is the only remaining MCP bridge slice before external-client smoke verification
 
-Rules for `MCP4`:
+### `PR #26` Landing Plan
 
-- no UI or menu changes
-- no derived item or board layer
-- do not blur plain write operations with execution semantics
-- keep stdio transport for `MCP5`
+`PR #26` (`backtick-mcp-stdio-surface`) should land as the focused `MCP5` transport slice.
 
-Post-merge state after `MCP4`:
+Branch condition on `2026-03-11`:
 
-- `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-- Stack remains the only source of truth
-- copied state changes only through the execution path
-- `CopyEvent` history is recorded by execution, not plain write operations
-- stdio transport remains a separate `MCP5` slice
+- state `OPEN`, base `main`, mergeable `MERGEABLE`
+- head commit `d843364`
+- the branch forks before `PR #25` code landed, but the actual PR diff remains bounded to 8 files
+
+Carry-forward scope:
+
+- `Package.swift`
+- `Package.resolved`
+- `Sources/BacktickMCP/main.swift`
+- `Sources/BacktickMCPServer/BacktickMCPApp.swift`
+- `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
+- `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift`
+- `docs/Implementation-Plan.md`
+- `docs/Master-Board.md`
+
+Merge rules:
+
+1. keep landed `MCP2`, `MCP3`, and `MCP4` services untouched
+2. keep landed `PR #25` staged multi-copy and raw-literal export wording intact in planning docs; accept only the `MCP5` wording from this PR
+3. keep UI, menus, settings, and selection-state wiring out of scope
+4. if the merge result picks up drift outside the 8-file scope, stop and restack onto the latest `main` before landing
+
+Verification gate for `PR #26`:
+
+- `swift test`
+- `xcodegen generate`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+- `swift run BacktickMCP --database-path <temp-db> --attachments-path <temp-attachments>`
+
+Required smoke checks after the gate:
+
+- send `initialize`, `notifications/initialized`, and `tools/list` over stdio JSON-RPC
+- verify `create_note`, `list_notes`, `get_note`, `update_note`, and `delete_note` round-trip against the shared Stack DB
+- verify `mark_notes_executed` updates `lastCopiedAt` and records `CopyEvent`
+- verify transport works without depending on any running app UI state
 ## Phase 0: Research And Decisions
 
 ### Goal
@@ -443,17 +472,11 @@ Backtick judgment rule for this phase:
 - Closing the stack commits staged cards into copied ordering.
 - The stack remains visually stable under frequent updates.
 
-### `PR #25` Landing Plan
+### `PR #25` Landed State
 
-`PR #25` (`feat/default-multi-copy`) should land as a focused Phase 3 stack/export UX slice, but only after it is restacked onto the latest `main`.
+`PR #25` (`feat/default-multi-copy`) is on `main` and is now the stack/export baseline that `MCP5` should inherit.
 
-Why restack first:
-
-- the branch currently forks from `d4b966c`, before the landed `MCP2`, `MCP3`, and `MCP4` slices
-- landing it without rebasing would force conflicts across planning docs and generated project state while the intended product change is narrower than that
-- `MCP5` should inherit the post-merge stack UX baseline instead of building on the older `Copy Multiple` interaction
-
-Carry-forward scope after restack:
+Landed scope:
 
 - `PromptCue/App/AppModel.swift`
 - `PromptCue/Services/ClipboardFormatter.swift`
@@ -471,23 +494,7 @@ Carry-forward scope after restack:
 - `docs/Quality-Remediation-Plan.md`
 - regenerated `PromptCue.xcodeproj/project.pbxproj`
 
-Expected conflict surface during restack:
-
-- `PromptCue.xcodeproj/project.pbxproj`
-- `PromptCue/UI/WindowControllers/StackPanelController.swift`
-- `Tests/PromptCueCoreTests/PromptCueCoreTests.swift`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-
-Restack rules:
-
-1. rebase `feat/default-multi-copy` onto the latest `main`
-2. keep landed `MCP2`, `MCP3`, and `MCP4` files and docs intact
-3. accept only the Phase 3 stack/export wording from this PR in `docs/Implementation-Plan.md` and `docs/Master-Board.md`
-4. keep `docs/Engineering-Preflight.md` and `docs/Quality-Remediation-Plan.md` updates because they align with the staged default stack contract
-5. regenerate `PromptCue.xcodeproj/project.pbxproj` from `project.yml` rather than hand-porting stale project edits
-
-Verification gate for `PR #25`:
+Verification that ran for `PR #25`:
 
 - `swift test`
 - `xcodegen generate`
@@ -502,7 +509,7 @@ Required smoke checks after the gate:
 - closing the stack commits the staged set into copied ordering
 - standalone raw literals such as links, paths, emails, secrets, and localhost URLs copy without the export tail suffix
 
-Rules for this slice:
+Current rules inherited by `MCP5`:
 
 - no changes to `StackReadService`, `StackWriteService`, or `StackExecutionService`
 - no new MCP transport or tool wiring

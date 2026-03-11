@@ -257,6 +257,17 @@ Next rollout:
    - expose read/write/execute actions through an MCP server transport
    - keep tool names aligned with Stack note semantics
 
+5. `MCP6` connector settings surface
+   - add a Settings section for MCP connectors
+   - show which clients are currently configured to use Backtick MCP
+   - show the executable / command path that clients should run
+   - provide client-specific config snippets for `Claude Code` and `Codex`
+
+6. `MCP7` guided setup and validation
+   - help the user attach Backtick MCP to external clients without manual guesswork
+   - validate that a configured client can actually reach the MCP server
+   - show last-known connection or handshake status in product language
+
 Current landed slices:
 
 - `MCP2` Stack read bridge is on `main`
@@ -313,7 +324,39 @@ Rules for `MCP5`:
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-- stdio transport is the only remaining MCP bridge slice before external-client smoke verification
+- stdio transport is the last bridge-internal slice before connector UX and client setup
+
+Planned rollout after `MCP5`:
+
+1. `MCP6` connector settings surface
+   - add a dedicated `Connectors` area in Settings
+   - list supported external clients:
+     - `Claude Code`
+     - `Codex`
+   - show current install/config status per client
+   - show the exact command/path Backtick expects the client to launch
+   - provide copyable client config snippets instead of expecting the user to discover MCP wiring alone
+   - keep this surface read-mostly at first; it can start by showing status and copy/install instructions before one-click setup exists
+
+2. `MCP7` guided setup and validation
+   - add a product-facing explanation of what MCP is in Backtick terms
+   - explain that MCP gives external coding agents direct read/write access to Stack storage
+   - provide a concrete setup flow:
+     - choose client
+     - copy or install config
+     - run connection test
+   - validate that the chosen client can initialize the Backtick MCP server successfully
+   - surface friendly states:
+     - `Not configured`
+     - `Configured`
+     - `Connection test passed`
+     - `Connection test failed`
+
+Why this rollout is required:
+
+- transport alone is not enough user value if the user does not know how to attach `Claude Code` or `Codex`
+- MCP is a connector feature from the user point of view, not just a local executable
+- sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
 
 ## Phase 0: Research And Decisions
 

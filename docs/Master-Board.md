@@ -142,6 +142,14 @@ Active MCP rollout:
 4. `MCP5` stdio tool surface
    - expose Stack note tools to external MCP clients
 
+5. `MCP6` connector settings surface
+   - show supported MCP clients, config status, and expected Backtick MCP command/path
+   - give users a native place to understand where MCP is attached
+
+6. `MCP7` guided setup and validation
+   - help users connect `Claude Code` and `Codex` without relying on undocumented shell knowledge
+   - test that client setup actually works
+
 Current landed slices:
 
 - `MCP2` read bridge landed on `main`
@@ -180,6 +188,15 @@ Immediate next slice:
 - tool surface exposes read, write, and execute actions for Stack notes
 - no menu, settings, panel, or execution-map changes
 - end-to-end smoke coverage exists for the shared DB path
+
+Post-`MCP5` rollout:
+
+- `MCP6` adds a `Connectors` section to Settings so the user can see:
+  - whether `Claude Code` or `Codex` is configured
+  - what command/path those clients should launch
+  - copyable config/install instructions
+- `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
+- these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 
 Rules:
 

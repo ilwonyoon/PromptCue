@@ -123,16 +123,12 @@ final class AppModel: ObservableObject {
         )
     }
 
-    var selectionCount: Int {
-        selectedCardIDs.count
-    }
-
-    var selectedCardsInDisplayOrder: [CaptureCard] {
-        cards.filter { selectedCardIDs.contains($0.id) }
-    }
-
     var stagedCopiedCount: Int {
         stagedCopiedCardIDs.count
+    }
+
+    var hasStagedCopiedCards: Bool {
+        !stagedCopiedCardIDs.isEmpty
     }
 
     var stagedCopiedCardsInClickOrder: [CaptureCard] {
@@ -628,27 +624,6 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
-    func copy(card: CaptureCard) -> String {
-        let payload = ClipboardFormatter.string(for: [card])
-        ClipboardFormatter.copyToPasteboard(cards: [card])
-        markCopied(orderedIDs: [card.id])
-        return payload
-    }
-
-    @discardableResult
-    func copySelection() -> String? {
-        let selectedCards = selectedCardsInDisplayOrder
-        guard !selectedCards.isEmpty else {
-            return nil
-        }
-
-        let payload = ClipboardFormatter.string(for: selectedCards)
-        ClipboardFormatter.copyToPasteboard(cards: selectedCards)
-        markCopied(orderedIDs: selectedCards.map(\.id))
-        return payload
-    }
-
-    @discardableResult
     func toggleMultiCopiedCard(_ card: CaptureCard) -> String? {
         if let existingIndex = stagedCopiedCardIDs.firstIndex(of: card.id) {
             stagedCopiedCardIDs.remove(at: existingIndex)
@@ -656,6 +631,7 @@ final class AppModel: ObservableObject {
             stagedCopiedCardIDs.append(card.id)
         }
 
+        syncStagedCopyMode()
         return syncStagedMultiCopyClipboard()
     }
 
@@ -684,7 +660,8 @@ final class AppModel: ObservableObject {
         cards = updatedCards
         selectedCardIDs.remove(card.id)
         stagedCopiedCardIDs.removeAll { $0 == card.id }
-        if isMultiSelectMode {
+        syncStagedCopyMode()
+        if hasStagedCopiedCards {
             _ = syncStagedMultiCopyClipboard()
         }
         cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
@@ -721,7 +698,8 @@ final class AppModel: ObservableObject {
             filtered.contains(where: { $0.id == id })
                 == false
         }
-        if isMultiSelectMode {
+        syncStagedCopyMode()
+        if hasStagedCopiedCards {
             _ = syncStagedMultiCopyClipboard()
         }
         cleanupManagedAttachments(removedCards: expiredCards, remainingCards: filtered)
@@ -780,6 +758,10 @@ final class AppModel: ObservableObject {
         let payload = ClipboardFormatter.string(for: stagedCards)
         ClipboardFormatter.copyToPasteboard(cards: stagedCards)
         return payload
+    }
+
+    private func syncStagedCopyMode() {
+        isMultiSelectMode = hasStagedCopiedCards
     }
 
     func pushCopiedCardsToCloudSync(
@@ -1324,7 +1306,12 @@ extension AppModel: CloudSyncDelegate {
 
         cards = plan.sortedCards
         selectedCardIDs.formIntersection(plan.survivingIDs)
+        let hadStagedCopiedCards = hasStagedCopiedCards
         stagedCopiedCardIDs.removeAll { plan.survivingIDs.contains($0) == false }
+        syncStagedCopyMode()
+        if hadStagedCopiedCards, hasStagedCopiedCards {
+            _ = syncStagedMultiCopyClipboard()
+        }
 
         if !plan.removedCards.isEmpty {
             cleanupManagedAttachments(

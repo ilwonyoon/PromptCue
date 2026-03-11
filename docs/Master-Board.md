@@ -243,7 +243,7 @@ Merge rule:
 - Full app builds on macOS target
 - Capture flow works with keyboard only
 - Card stack opens and closes reliably
-- Clipboard export works for single and multi-card selection
+- Clipboard export works for live staged stack copy and grouped export commit
 - TTL cleanup runs without data corruption
 
 ### Gate 3: Release Review

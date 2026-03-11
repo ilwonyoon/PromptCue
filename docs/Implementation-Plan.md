@@ -421,8 +421,8 @@ Make stored thoughts easy to review, compress, and export from the execution que
 | Implement right-side stack panel window behavior | Windowing lead | Phase 2 panel shell | Yes | Stack panel opens/closes cleanly and preserves size/placement rules | In progress |
 | Implement newest-first card stack UI | UI lead | Phase 2 persistence | Yes | Cards render in correct order with timestamps | In progress |
 | Implement screenshot thumbnail rendering | UI lead | Phase 2 screenshot attachment | Yes | Attached screenshots render safely and do not block the UI | In progress |
-| Implement single-card click-to-copy behavior | UX lead | Card stack UI | Yes | Clicking a card copies its payload immediately | In progress |
-| Implement multi-select and grouped clipboard export | UX lead | Card stack UI | Yes | Multiple selected cards copy in display order | In progress |
+| Implement default staged grouped copy-on-click behavior | UX lead | Card stack UI | Yes | Clicking a card stages or unstages it and refreshes the grouped clipboard payload immediately | In progress |
+| Commit staged copy state on panel close and remove explicit `Copy Multiple` entry | UX lead | Card stack UI | Yes | Closing the stack promotes staged cards into copied ordering and the old mode-switch affordance is gone | Planned |
 | Implement delete/expiry refresh behavior in the stack | App state lead | Persistence | Yes | Stack reflects deletions and TTL cleanup without stale state | In progress |
 
 Backtick judgment rule for this phase:
@@ -439,8 +439,8 @@ Backtick judgment rule for this phase:
 ### Exit Criteria
 
 - The configured stack shortcut opens the review/export surface. The default is `Cmd + 2`.
-- Single-card copy works.
-- Multi-card selection and export works.
+- Card clicks update grouped copy without auto-closing the stack.
+- Closing the stack commits staged cards into copied ordering.
 - The stack remains visually stable under frequent updates.
 
 ### `PR #25` Landing Plan
@@ -629,8 +629,8 @@ Verify that the product feels like a native macOS utility, not just a working pr
 - Core journeys work:
   - quick capture
   - stack open
-  - single-card copy
-  - multi-card copy
+  - staged stack copy
+  - grouped copy commit on close
   - relaunch persistence
   - TTL cleanup
 

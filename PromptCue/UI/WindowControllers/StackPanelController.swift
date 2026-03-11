@@ -79,7 +79,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
-        if model.isMultiSelectMode {
+        if model.hasStagedCopiedCards {
             model.commitDeferredCopies()
         } else {
             model.clearSelection()
@@ -180,12 +180,6 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.contentViewController = NSHostingController(
             rootView: CardStackView(
                 model: model,
-                onCopyCard: { [weak self] card in
-                    self?.copyCardAndClose(card)
-                },
-                onCopySelection: { [weak self] in
-                    self?.copySelectionAndClose()
-                },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
                 }
@@ -194,19 +188,6 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         self.panel = panel
         return panel
-    }
-
-    private func copyCardAndClose(_ card: CaptureCard) {
-        _ = model.copy(card: card)
-        close()
-    }
-
-    private func copySelectionAndClose() {
-        guard model.copySelection() != nil else {
-            return
-        }
-
-        close()
     }
 
     private func primePanelLayout(_ panel: StackPanel) {

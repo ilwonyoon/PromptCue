@@ -36,26 +36,34 @@ final class StackMultiCopyTests: XCTestCase {
 
         let model = makeModel()
         model.reloadCards()
-        model.enterMultiSelectMode()
 
         let firstPayload = model.toggleMultiCopiedCard(cards[1])
+        XCTAssertEqual(firstPayload, ClipboardFormatter.string(for: [cards[1]]))
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[1].id])
+        XCTAssertTrue(model.isMultiSelectMode)
+
         let secondPayload = model.toggleMultiCopiedCard(cards[0])
+        XCTAssertEqual(secondPayload, ClipboardFormatter.string(for: [cards[1], cards[0]]))
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[1].id, cards[0].id])
+        XCTAssertTrue(model.isMultiSelectMode)
+
         let thirdPayload = model.toggleMultiCopiedCard(cards[1])
+        XCTAssertEqual(thirdPayload, ClipboardFormatter.string(for: [cards[0]]))
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[0].id])
+        XCTAssertTrue(model.isMultiSelectMode)
+
         let fourthPayload = model.toggleMultiCopiedCard(cards[0])
 
-        XCTAssertEqual(firstPayload, ClipboardFormatter.string(for: [cards[1]]))
-        XCTAssertEqual(secondPayload, ClipboardFormatter.string(for: [cards[1], cards[0]]))
-        XCTAssertEqual(thirdPayload, ClipboardFormatter.string(for: [cards[0]]))
         XCTAssertNil(fourthPayload)
         XCTAssertEqual(model.cards.map(\.id), cards.map(\.id))
         XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
         XCTAssertEqual(model.stagedCopiedCount, 0)
-        XCTAssertTrue(model.isMultiSelectMode)
+        XCTAssertFalse(model.isMultiSelectMode)
         XCTAssertTrue(model.selectedCardIDs.isEmpty)
         XCTAssertTrue(model.cards.allSatisfy { $0.lastCopiedAt == nil })
     }
 
-    func testCommitDeferredCopiesPersistsCopiedStateInClickOrderAndExitsMode() throws {
+    func testStackPanelCloseCommitsOnlyCurrentlyStagedCards() throws {
         let cards = [
             CaptureCard(id: UUID(), text: "Newest", createdAt: Date(timeIntervalSinceReferenceDate: 300), sortOrder: 30),
             CaptureCard(id: UUID(), text: "Older", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
@@ -65,11 +73,12 @@ final class StackMultiCopyTests: XCTestCase {
 
         let model = makeModel()
         model.reloadCards()
-        model.enterMultiSelectMode()
         _ = model.toggleMultiCopiedCard(cards[1])
         _ = model.toggleMultiCopiedCard(cards[0])
+        _ = model.toggleMultiCopiedCard(cards[1])
 
-        model.commitDeferredCopies()
+        let controller = StackPanelController(model: model)
+        controller.close()
 
         XCTAssertFalse(model.isMultiSelectMode)
         XCTAssertTrue(model.selectedCardIDs.isEmpty)
@@ -77,16 +86,16 @@ final class StackMultiCopyTests: XCTestCase {
 
         let activeIDs = model.cards.filter { !$0.isCopied }.map(\.id)
         let copiedIDs = model.cards.filter { $0.isCopied }.map(\.id)
-        XCTAssertEqual(activeIDs, [cards[2].id])
-        XCTAssertEqual(copiedIDs, [cards[1].id, cards[0].id])
+        XCTAssertEqual(Set(activeIDs), [cards[1].id, cards[2].id])
+        XCTAssertEqual(copiedIDs, [cards[0].id])
         XCTAssertTrue(model.cards.filter { $0.isCopied }.allSatisfy { $0.lastCopiedAt != nil })
 
         let loadedCards = try CardStore(databaseURL: databaseURL).load()
         let sortedLoadedCards = CardStackOrdering.sort(loadedCards)
-        XCTAssertEqual(sortedLoadedCards.filter { $0.isCopied }.map(\.id), [cards[1].id, cards[0].id])
+        XCTAssertEqual(sortedLoadedCards.filter { $0.isCopied }.map(\.id), [cards[0].id])
     }
 
-    func testCommitDeferredCopiesWithoutPendingCopiedIDsStillExitsMode() throws {
+    func testStackPanelCloseWithoutStagedCardsLeavesCardsUncopied() throws {
         let cards = [
             CaptureCard(id: UUID(), text: "One", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
         ]
@@ -94,9 +103,8 @@ final class StackMultiCopyTests: XCTestCase {
 
         let model = makeModel()
         model.reloadCards()
-        model.enterMultiSelectMode()
-
-        model.commitDeferredCopies()
+        let controller = StackPanelController(model: model)
+        controller.close()
 
         XCTAssertFalse(model.isMultiSelectMode)
         XCTAssertTrue(model.selectedCardIDs.isEmpty)

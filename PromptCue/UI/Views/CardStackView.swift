@@ -4,8 +4,6 @@ import SwiftUI
 struct CardStackView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
-    let onCopyCard: (CaptureCard) -> Void
-    let onCopySelection: () -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
@@ -63,97 +61,23 @@ struct CardStackView: View {
 
     private var header: some View {
         Group {
-            if model.isMultiSelectMode {
-                multiSelectHeader
-            } else if selectionMode {
-                selectionHeader
-            } else if !model.cards.isEmpty {
-                defaultHeader
+            if model.stagedCopiedCount > 0 {
+                stagedCopyHeader
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private var defaultHeader: some View {
-        Button(action: model.enterMultiSelectMode) {
-            stackColumnSurface {
-                HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                    Text("Copy Multiple")
-                        .font(PrimitiveTokens.Typography.bodyStrong)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-
-                    Spacer(minLength: PrimitiveTokens.Space.xs)
-
-                    Text("⌘ click")
-                        .font(PrimitiveTokens.Typography.meta)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Enter multi-select mode")
-    }
-
-    private var multiSelectHeader: some View {
+    private var stagedCopyHeader: some View {
         stackColumnSurface {
             HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                if model.stagedCopiedCount > 0 {
-                    Text("\(model.stagedCopiedCount) copied")
-                        .font(PrimitiveTokens.Typography.bodyStrong)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                } else {
-                    Text("Select cues to copy")
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                }
+                Text("\(model.stagedCopiedCount) staged")
+                    .font(PrimitiveTokens.Typography.bodyStrong)
+                    .foregroundStyle(SemanticTokens.Text.primary)
 
                 Spacer(minLength: PrimitiveTokens.Space.xs)
-
-                Button(action: model.exitMultiSelectMode) {
-                    PromptCueChip {
-                        Image(systemName: "xmark")
-                            .font(PrimitiveTokens.Typography.chipIcon)
-                            .foregroundStyle(SemanticTokens.Text.primary)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Exit multi-select mode")
             }
         }
-    }
-
-    private var selectionHeader: some View {
-        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-            Text("\(model.selectionCount) selected")
-                .font(PrimitiveTokens.Typography.bodyStrong)
-                .foregroundStyle(SemanticTokens.Text.primary)
-
-            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-            Button(action: onCopySelection) {
-                PromptCueChip(
-                    fill: SemanticTokens.Surface.accentFill,
-                    border: SemanticTokens.Border.emphasis
-                ) {
-                    Text("Copy Selected")
-                        .font(PrimitiveTokens.Typography.chip)
-                        .foregroundStyle(SemanticTokens.Text.selection)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Copy \(model.selectionCount) selected cues")
-
-            Button(action: model.clearSelection) {
-                PromptCueChip {
-                    Text("Clear")
-                        .font(PrimitiveTokens.Typography.chip)
-                        .foregroundStyle(SemanticTokens.Text.primary)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Clear selection")
-        }
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
     private var emptyState: some View {
@@ -170,7 +94,7 @@ struct CardStackView: View {
     }
 
     private var selectionMode: Bool {
-        model.isMultiSelectMode || model.selectionCount > 0
+        model.hasStagedCopiedCards
     }
 
     private func cardRow(for card: CaptureCard) -> some View {
@@ -182,32 +106,17 @@ struct CardStackView: View {
                 classification: resolveClassification(for: card),
                 availableSuggestedTargets: model.availableSuggestedTargets,
                 automaticSuggestedTarget: model.automaticSuggestedTarget,
-                isSelected: model.isMultiSelectMode
-                    ? isStagedCopied
-                    : model.selectedCardIDs.contains(card.id),
+                isSelected: isStagedCopied,
                 isRecentlyCopied: isStagedCopied,
                 selectionMode: selectionMode,
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
-                    if model.isMultiSelectMode {
-                        _ = model.toggleMultiCopiedCard(card)
-                    } else if selectionMode {
-                        model.toggleSelection(for: card)
-                    } else {
-                        onCopyCard(card)
-                    }
+                    _ = model.toggleMultiCopiedCard(card)
                 },
                 onToggleSelection: {
-                    if model.isMultiSelectMode {
-                        _ = model.toggleMultiCopiedCard(card)
-                    } else {
-                        model.toggleSelection(for: card)
-                    }
+                    _ = model.toggleMultiCopiedCard(card)
                 },
                 onCmdClick: {
-                    if !model.isMultiSelectMode {
-                        model.enterMultiSelectMode()
-                    }
                     _ = model.toggleMultiCopiedCard(card)
                 },
                 onToggleExpansion: {
@@ -291,14 +200,22 @@ struct CardStackView: View {
 
                         if let card = copiedCards.first {
                             let classification = resolveClassification(for: card)
-                            let displayText = classification.primaryType == .secret
-                                ? SecretMasker.mask(classification.span?.matchedText ?? card.text)
-                                : card.text
+                            let displayConfiguration = ContentDisplayFormatter.configuration(
+                                for: card.text,
+                                classification: classification
+                            )
 
-                            Text(displayText)
+                            Text(displayConfiguration.text)
                                 .font(PrimitiveTokens.Typography.body)
                                 .foregroundStyle(copiedPreviewTextColor)
-                                .lineLimit(StackCardOverflowPolicy.collapsedCopiedLineLimit)
+                                .lineLimit(
+                                    displayConfiguration.prefersSingleLine
+                                        ? 1
+                                        : StackCardOverflowPolicy.collapsedCopiedLineLimit
+                                )
+                                .truncationMode(
+                                    displayConfiguration.truncation == .head ? .head : .tail
+                                )
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }

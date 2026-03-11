@@ -24,7 +24,6 @@ struct CaptureCardView: View {
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
-    @State private var isDetectedContentHovered = false
 
     private var actionStyle: CaptureCardActionStyle {
         CaptureCardActionStyle.resolve(
@@ -75,11 +74,14 @@ struct CaptureCardView: View {
     }
 
     var body: some View {
-        let layoutText = InteractiveDetectedTextView.layoutText(text: card.text, classification: classification)
+        let displayConfiguration = InteractiveDetectedTextView.displayConfiguration(
+            text: card.text,
+            classification: classification
+        )
         let overflowMetrics = StackCardOverflowPolicy.metrics(
-            for: layoutText,
+            for: displayConfiguration.text,
             cacheIdentity: card.id,
-            layoutVariant: classification.primaryType == .secret ? 1 : 0,
+            layoutVariant: displayConfiguration.layoutVariant,
             availableWidth: textContentWidth
         )
 
@@ -100,20 +102,17 @@ struct CaptureCardView: View {
                     InteractiveDetectedTextView(
                         text: card.text,
                         classification: classification,
-                        baseColor: actionStyle.bodyColor,
-                        onInteractionHoverChanged: { hovered in
-                            isDetectedContentHovered = hovered
-                        }
+                        baseColor: actionStyle.bodyColor
                     )
-                        .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
-                        .clipped()
-                        .accessibilityAddTraits(interactiveAccessibilityTraits)
-                        .accessibilityHint(interactiveAccessibilityHint)
-                        .accessibilityAction(named: interactiveAccessibilityActionName) {
-                            openDetectedContent()
-                        }
+                    .frame(
+                        height: displayConfiguration.prefersSingleLine
+                            ? nil
+                            : visibleTextHeight(for: overflowMetrics),
+                        alignment: .top
+                    )
+                    .clipped()
 
-                    if overflowMetrics.overflowsAtRest {
+                    if !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
                         overflowAffordance(metrics: overflowMetrics)
                             .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                     }
@@ -141,7 +140,7 @@ struct CaptureCardView: View {
                     .accessibilityLabel(selectionMode ? "Toggle staged cue copy" : "Copy cue")
                     .accessibilityHint(
                         selectionMode
-                            ? "Adds or removes this cue from the current multi-copy clipboard"
+                            ? "Adds or removes this cue from the current grouped clipboard"
                             : "Copies this cue to the clipboard"
                     )
                     .onHover { hovered in
@@ -171,15 +170,15 @@ struct CaptureCardView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Cue: \(card.text)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
-            .onTapGesture {
-                if isCommandClickEvent {
-                    onCmdClick()
-                } else {
-                    performPrimaryAction()
-                }
-            }
         }
         .contentShape(Rectangle())
+        .onTapGesture {
+            if isCommandClickEvent {
+                onCmdClick()
+            } else {
+                performPrimaryAction()
+            }
+        }
         .onContinuousHover { phase in
             let hovered: Bool
             switch phase {
@@ -191,82 +190,6 @@ struct CaptureCardView: View {
             withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                 isCardHovered = hovered
             }
-        }
-    }
-
-    private func openDetectedContent() {
-        guard let span = classification.span else {
-            return
-        }
-
-        switch classification.primaryType {
-        case .link:
-            guard let url = URL(string: span.matchedText),
-                  let scheme = url.scheme?.lowercased(),
-                  ["http", "https"].contains(scheme) else {
-                return
-            }
-            Task { @MainActor in
-                NSWorkspace.shared.open(url)
-            }
-        case .path:
-            let expandedPath = NSString(string: span.matchedText).expandingTildeInPath
-            let resolvedPath = URL(fileURLWithPath: expandedPath).standardized.path
-            let homePath = FileManager.default.homeDirectoryForCurrentUser.path
-            let allowedPrefixes = [homePath, "/tmp", "/Applications", "/usr/local", "/opt/homebrew", "/Library"]
-            guard allowedPrefixes.contains(where: { resolvedPath.hasPrefix($0) }) else {
-                return
-            }
-
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDirectory) {
-                if isDirectory.boolValue {
-                    Task { @MainActor in
-                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: resolvedPath)
-                    }
-                } else {
-                    Task { @MainActor in
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resolvedPath)])
-                    }
-                }
-            } else {
-                NSSound.beep()
-            }
-        case .plain, .secret:
-            break
-        }
-    }
-
-    private var interactiveAccessibilityTraits: AccessibilityTraits {
-        switch classification.primaryType {
-        case .link:
-            return .isLink
-        case .path:
-            return .isButton
-        case .plain, .secret:
-            return []
-        }
-    }
-
-    private var interactiveAccessibilityHint: String {
-        switch classification.primaryType {
-        case .link:
-            return "Double tap to open link in browser"
-        case .path:
-            return "Double tap to reveal in Finder"
-        case .plain, .secret:
-            return ""
-        }
-    }
-
-    private var interactiveAccessibilityActionName: String {
-        switch classification.primaryType {
-        case .link:
-            return "Open link"
-        case .path:
-            return "Reveal in Finder"
-        case .plain, .secret:
-            return "Open"
         }
     }
 
@@ -332,12 +255,6 @@ struct CaptureCardView: View {
             return
         }
 
-        if isDetectedContentHovered,
-           classification.primaryType == .link || classification.primaryType == .path {
-            openDetectedContent()
-            return
-        }
-
         performCopy()
     }
 
@@ -355,8 +272,8 @@ struct CaptureCardView: View {
             isShowingCopyFeedback = true
         }
 
+        onCopy()
         DispatchQueue.main.asyncAfter(deadline: .now() + PrimitiveTokens.Motion.quick) {
-            onCopy()
             isShowingCopyFeedback = false
         }
     }

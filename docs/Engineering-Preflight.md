@@ -238,8 +238,9 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 - anchored to the right side
 - consistent width
 - newest cards first
-- single click copies
-- multi-select should not feel modal or heavy
+- card click updates the grouped copy payload immediately
+- grouped selection should not feel modal or heavy
+- the stack should stay open while grouped copy is being assembled
 - acts as the execution queue where selection, export grouping, and AI compression can happen
 
 ### Windowing Checklist

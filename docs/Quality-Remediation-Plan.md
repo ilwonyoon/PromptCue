@@ -17,7 +17,7 @@ The goal is not generic cleanup. The goal is to close the specific gaps that cur
 
 The current audit found these primary gaps:
 
-1. Multi-card selection and grouped export exist in model code but are not reachable in the UI.
+1. Staged grouped export exists in model code, but the shipped stack interaction still depends on explicit mode entry and single-click auto-close.
 2. Screenshot attachments are stored as external file paths instead of app-owned assets.
 3. Screenshot folder access is still implicit instead of user-approved and bookmark-backed.
 4. Clipboard export of image + text is not reliable across target apps.
@@ -92,7 +92,7 @@ Freeze the smallest shared contracts required for the later tracks.
 | --- | --- | --- | --- | --- |
 | Replace raw screenshot path assumptions with an app-owned attachment contract | Master | None | No | `CaptureCard` can distinguish between attachment identity and source path |
 | Define screenshot folder access contract and bookmark storage interface | Master | None | No | settings and monitor code can depend on one access model |
-| Define multi-select export state contract and controller flow | Master | None | No | stack UI and controller can implement selection without reworking model shape |
+| Define staged grouped-copy state contract and panel commit flow | Master | None | No | stack UI and controller can implement default grouped copy without reworking model shape |
 | Record integration order and file ownership for remediation tracks | Master | None | No | worker tracks can start without file conflicts |
 
 ### Exit Criteria
@@ -126,26 +126,63 @@ Make screenshots durable, app-owned, and cleanup-safe.
 
 ### Goal
 
-Make the stack panel satisfy the actual export contract for Backtick's execution queue.
+Make the stack panel satisfy the actual grouped export contract for Backtick's execution queue.
 
 ### Tasks
 
 | Task | Owner | Dependency | Parallelizable | Exit Criteria |
 | --- | --- | --- | --- | --- |
-| Add reachable multi-select UI in stack panel | Track B | Phase R0 | Yes | user can select multiple cards intentionally |
-| Implement grouped copy action without breaking single-click quick copy | Track B | selection contract | Yes | both fast path and grouped export path exist |
+| Promote staged grouped copy to the default stack card-click behavior | Track B | Phase R0 | Yes | clicking a card updates the staged grouped payload without entering a separate mode |
+| Keep clipboard synced to the staged grouped payload while the stack stays open | Track B | selection contract | Yes | click and unclick both update the live grouped clipboard without auto-closing the panel |
+| Commit staged grouped copy into copied-state ordering on panel close | Track B | selection contract | No | cards move into the copied group only when the stack closes or the controller explicitly commits |
+| Remove the explicit `Copy Multiple` affordance and legacy single-click auto-close path | Track B | selection contract | Yes | the default stack contract no longer depends on a separate multi-copy entry point |
 | Redesign pasteboard writing so image + text export is deterministic for supported targets | Track B | attachment ownership from Phase R1 | No | paste behavior is stable in target apps under test |
-| Add copy/export smoke coverage for single-card and multi-card flows | Track B | above tasks | Yes | stack export no longer depends on ad hoc manual checking |
+| Add copy/export smoke coverage for staged click, deselect, and close-to-commit flows | Track B | above tasks | Yes | stack export no longer depends on ad hoc manual checking |
 
 Backtick rule for Phase R2:
 
 - add intelligence and compression affordances in Stack if needed
 - do not push review/organization complexity back into Capture
 
+### Default Multi-Copy UX Pivot
+
+This worktree should treat the existing staged multi-copy path as the new default stack contract.
+
+#### Locked Interaction Rules
+
+1. Clicking an unselected stack card stages it for grouped copy and immediately refreshes the clipboard payload.
+2. Clicking a staged card again removes it from the grouped payload and immediately refreshes the clipboard payload.
+3. Card clicks no longer auto-close the stack panel.
+4. Staged cards do not move into the copied grouping while the panel is still open.
+5. Closing the stack panel commits the current staged set into copied-state ordering and re-sorts on the next presentation.
+6. The explicit `Copy Multiple` control is removed rather than repurposed.
+
+#### Non-Goals For This Slice
+
+- redesign the copied-group visual treatment
+- change stack ordering outside the staged-copy commit path
+- rework pasteboard clearing semantics when the staged set becomes empty unless testing proves it is required
+
+#### Execution Order
+
+1. Freeze the default stack-click contract in `AppModel` and `StackPanelController`.
+2. Remove `Copy Multiple` entry points and old auto-close assumptions from the stack views.
+3. Keep live clipboard sync on every stage/unstage transition.
+4. Commit copied-state grouping on panel close and verify reorder timing.
+5. Add or update focused tests before broader target-app paste validation.
+
+#### Verification
+
+- `swift test`
+- `xcodegen generate`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+- targeted stack tests for staged copy / deselect / close commit flow
+
 ### Exit Criteria
 
-- Multi-card export is reachable.
-- Single-card copy remains frictionless.
+- Default grouped export is reachable without a separate mode switch.
+- Card clicks keep the stack open while the clipboard stays live.
+- Copied-group reordering happens on commit, not on the initial click.
 - Image + text export behavior is documented and verified against target apps.
 
 ## Phase R3: Screenshot Access, Permissions, And Settings
@@ -276,7 +313,7 @@ The current slice status is:
 6. Phase R5 app-level verification: started, but still too light
 7. Phase R6 stack sync and light-mode readability: in progress
 
-The next slice should close Phase R6 first, then return to the remaining parts of Phase R2 and the broader Phase R5 verification work.
+The next Track B slice is the default multi-copy pivot above, then the remaining target-app export validation and broader Phase R5 verification work.
 
 ## Phase DP: Capture And Stack Visual Polish
 

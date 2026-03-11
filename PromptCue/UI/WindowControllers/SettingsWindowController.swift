@@ -5,6 +5,7 @@ enum SettingsTab: Int, CaseIterable {
     case general = 0
     case capture = 1
     case stack = 2
+    case connectors = 3
 
     var title: String {
         switch self {
@@ -14,6 +15,8 @@ enum SettingsTab: Int, CaseIterable {
             return "Capture"
         case .stack:
             return "Stack"
+        case .connectors:
+            return "Connectors"
         }
     }
 
@@ -25,6 +28,8 @@ enum SettingsTab: Int, CaseIterable {
             return "rectangle.and.pencil.and.ellipsis"
         case .stack:
             return "square.stack.3d.up"
+        case .connectors:
+            return "link"
         }
     }
 }
@@ -41,6 +46,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let retentionSettingsModel: CardRetentionSettingsModel
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
     private let appearanceSettingsModel: AppearanceSettingsModel
+    private let mcpConnectorSettingsModel: MCPConnectorSettingsModel
     private var selectedTab: SettingsTab = .general
     private var toolbarTabsHostingView: NSHostingView<SettingsToolbarTabsView>?
 
@@ -49,13 +55,15 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        appearanceSettingsModel: AppearanceSettingsModel
+        appearanceSettingsModel: AppearanceSettingsModel,
+        mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.appearanceSettingsModel = appearanceSettingsModel
+        self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
         super.init()
     }
 
@@ -82,6 +90,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         retentionSettingsModel.refresh()
         cloudSyncSettingsModel.refresh()
         appearanceSettingsModel.refresh()
+        mcpConnectorSettingsModel.refresh()
     }
 
     private func makeWindow() -> NSWindow {
@@ -135,7 +144,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
                 exportTailSettingsModel: exportTailSettingsModel,
                 retentionSettingsModel: retentionSettingsModel,
                 cloudSyncSettingsModel: cloudSyncSettingsModel,
-                appearanceSettingsModel: appearanceSettingsModel
+                appearanceSettingsModel: appearanceSettingsModel,
+                mcpConnectorSettingsModel: mcpConnectorSettingsModel
             )
         )
     }

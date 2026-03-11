@@ -145,10 +145,15 @@ Active MCP rollout:
 5. `MCP6` connector settings surface
    - show supported MCP clients, config status, and expected Backtick MCP command/path
    - give users a native place to understand where MCP is attached
+   - support both repository-checkout workflows and a future bundled helper path
 
 6. `MCP7` guided setup and validation
    - help users connect `Claude Code` and `Codex` without relying on undocumented shell knowledge
    - test that client setup actually works
+
+7. `MCP8` bundled helper packaging
+   - ship a launchable `BacktickMCP` helper with release builds
+   - keep the source-checkout path as the developer fallback
 
 Current landed slices:
 
@@ -156,7 +161,8 @@ Current landed slices:
 - `MCP3` write bridge landed on `main`
 - `MCP4` execution action landed on `main`
 - `MCP5` stdio tool surface landed on `main`
-- UI remains out of scope while connector setup and validation are still in flight
+- execution-map style UI remains out of scope while connector setup and validation are still in flight
+- Settings-based connector UI is the active rollout surface after `MCP5`
 
 Landed MCP gates:
 
@@ -187,9 +193,10 @@ Landed `MCP5` gate:
 
 Immediate next step:
 
+- land `MCP6` connector settings UI on top of merged `main`
 - run an external MCP client smoke against merged `main`
 - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-- capture connector friction before landing Settings/UI work
+- capture connector friction before finalizing guided setup UX
 
 Post-`MCP5` rollout:
 
@@ -198,6 +205,7 @@ Post-`MCP5` rollout:
   - what command/path those clients should launch
   - copyable config/install instructions
 - `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
+- `MCP8` packages a helper binary so connector setup works in release builds outside source checkouts
 - these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 
 Rules:

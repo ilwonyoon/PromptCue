@@ -10,6 +10,7 @@ final class AppCoordinator {
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private let appearanceSettingsModel = AppearanceSettingsModel()
+    private let mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     private let environment = AppEnvironment.current
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
@@ -19,7 +20,8 @@ final class AppCoordinator {
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,
-        appearanceSettingsModel: appearanceSettingsModel
+        appearanceSettingsModel: appearanceSettingsModel,
+        mcpConnectorSettingsModel: mcpConnectorSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?

@@ -262,11 +262,17 @@ Next rollout:
    - show which clients are currently configured to use Backtick MCP
    - show the executable / command path that clients should run
    - provide client-specific config snippets for `Claude Code` and `Codex`
+   - support both repository-checkout workflows and a future bundled helper path
 
 6. `MCP7` guided setup and validation
    - help the user attach Backtick MCP to external clients without manual guesswork
    - validate that a configured client can actually reach the MCP server
    - show last-known connection or handshake status in product language
+
+7. `MCP8` bundled helper packaging
+   - ship a launchable `BacktickMCP` helper with release builds
+   - keep source-checkout fallback for local development
+   - make connector setup usable outside a Swift package checkout
 
 Current landed slices:
 
@@ -308,12 +314,6 @@ Verification gates run for landed MCP slices:
 
 Current immediate next step:
 
-- run external MCP client smoke against merged `main`
-- verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
-- collect connector friction before starting user-facing setup work
-
-Next product slices after client smoke:
-
 1. `MCP6` connector settings surface
    - add a dedicated `Connectors` area in Settings
    - list supported external clients:
@@ -324,7 +324,12 @@ Next product slices after client smoke:
    - provide copyable client config snippets instead of expecting the user to discover MCP wiring alone
    - keep this surface read-mostly at first; it can start by showing status and copy/install instructions before one-click setup exists
 
-2. `MCP7` guided setup and validation
+2. external MCP client smoke
+   - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
+   - collect connector friction from real client setup
+   - use that friction to finalize the guided setup flow instead of guessing
+
+3. `MCP7` guided setup and validation
    - add a product-facing explanation of what MCP is in Backtick terms
    - explain that MCP gives external coding agents direct read/write access to Stack storage
    - provide a concrete setup flow:
@@ -338,11 +343,17 @@ Next product slices after client smoke:
      - `Connection test passed`
      - `Connection test failed`
 
+4. `MCP8` bundled helper packaging
+   - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
+   - keep repository-root detection as the development fallback
+   - make connector setup work for direct-download users without requiring a Swift toolchain
+
 Why this rollout is required:
 
 - transport alone is not enough user value if the user does not know how to attach `Claude Code` or `Codex`
 - MCP is a connector feature from the user point of view, not just a local executable
 - sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
+- connector setup is incomplete for release users until Backtick ships a helper binary or equivalent launchable surface
 
 Rules after `MCP5`:
 - no new board, work-item, or execution-map layer

@@ -9,6 +9,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
     @ObservedObject private var appearanceSettingsModel: AppearanceSettingsModel
+    @ObservedObject private var mcpConnectorSettingsModel: MCPConnectorSettingsModel
 
     private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
 
@@ -18,7 +19,8 @@ struct PromptCueSettingsView: View {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        appearanceSettingsModel: AppearanceSettingsModel
+        appearanceSettingsModel: AppearanceSettingsModel,
+        mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.selectedTab = selectedTab
         self.screenshotSettingsModel = screenshotSettingsModel
@@ -26,6 +28,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.appearanceSettingsModel = appearanceSettingsModel
+        self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
     }
 
     init() {
@@ -35,6 +38,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = CardRetentionSettingsModel()
         self.cloudSyncSettingsModel = CloudSyncSettingsModel()
         self.appearanceSettingsModel = AppearanceSettingsModel()
+        self.mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     }
 
     var body: some View {
@@ -47,6 +51,8 @@ struct PromptCueSettingsView: View {
                     captureContent
                 case .stack:
                     stackContent
+                case .connectors:
+                    connectorsContent
                 }
             }
             .padding(PrimitiveTokens.Space.xl)
@@ -63,6 +69,7 @@ struct PromptCueSettingsView: View {
             retentionSettingsModel.refresh()
             cloudSyncSettingsModel.refresh()
             appearanceSettingsModel.refresh()
+            mcpConnectorSettingsModel.refresh()
         }
     }
 
@@ -288,6 +295,180 @@ struct PromptCueSettingsView: View {
                         }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var connectorsContent: some View {
+        settingsSection(
+            title: "Backtick MCP",
+            footer: "Connect Stack storage to external coding agents without guessing the command or config format."
+        ) {
+            settingsGrid {
+                row("Server") {
+                    Text(mcpConnectorSettingsModel.serverStatusTitle)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                row("Repository") {
+                    Text(mcpConnectorSettingsModel.repositoryRootPath)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            detailPane(label: "Launch Command") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    Text(mcpConnectorSettingsModel.serverStatusDetail)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button("Copy Command") {
+                        mcpConnectorSettingsModel.copyServerCommand()
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+
+        sectionDivider
+
+        ForEach(mcpConnectorSettingsModel.clients, id: \.client.id) { client in
+            connectorSection(client)
+            if client.client != mcpConnectorSettingsModel.clients.last?.client {
+                sectionDivider
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func connectorSection(_ client: MCPConnectorClientStatus) -> some View {
+        settingsSection(
+            title: client.client.title,
+            footer: connectorFooter(for: client.client)
+        ) {
+            settingsGrid {
+                row("CLI") {
+                    Text(client.cliStatusText)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(
+                            client.cliPath == nil ? SemanticTokens.Text.secondary : SemanticTokens.Text.primary
+                        )
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                row("Configured") {
+                    Text(client.configurationSummary)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            if let projectConfig = client.projectConfig {
+                detailPane(label: "Project Config") {
+                    connectorConfigDetail(
+                        client: client.client,
+                        config: projectConfig,
+                        revealAction: { mcpConnectorSettingsModel.revealProjectConfig(for: client.client) }
+                    )
+                }
+            }
+
+            detailPane(label: "Home Config") {
+                connectorConfigDetail(
+                    client: client.client,
+                    config: client.homeConfig,
+                    revealAction: { mcpConnectorSettingsModel.revealHomeConfig(for: client.client) }
+                )
+            }
+
+            detailPane(label: "Quick Add") {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    Text(client.addCommand ?? "Backtick MCP launch command is not available yet.")
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                        Button("Copy Add Command") {
+                            mcpConnectorSettingsModel.copyAddCommand(for: client.client)
+                        }
+                        .controlSize(.small)
+
+                        Button("Copy Config Snippet") {
+                            mcpConnectorSettingsModel.copyConfigSnippet(for: client.client)
+                        }
+                        .controlSize(.small)
+
+                        Button("Open Docs") {
+                            mcpConnectorSettingsModel.openDocumentation(for: client.client)
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            detailPane(label: "Config Snippet") {
+                Text(client.configSnippet ?? "Launch command unavailable.")
+                    .font(PrimitiveTokens.Typography.body)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(PrimitiveTokens.Space.sm)
+                    .background(SemanticTokens.Surface.cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
+                            .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+                    }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func connectorConfigDetail(
+        client: MCPConnectorClient,
+        config: MCPConnectorConfigLocationStatus,
+        revealAction: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+            Text("\(config.presence.title) · \(config.path)")
+                .font(PrimitiveTokens.Typography.body)
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: PrimitiveTokens.Space.xs) {
+                Button("Reveal") {
+                    revealAction()
+                }
+                .controlSize(.small)
+
+                if config.presence != .configured {
+                    Button("Copy Config Snippet") {
+                        mcpConnectorSettingsModel.copyConfigSnippet(for: client)
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func connectorFooter(for client: MCPConnectorClient) -> String {
+        switch client {
+        case .claudeCode:
+            return "Claude Code supports project `.mcp.json` files and home-level `~/.claude.json` entries."
+        case .codex:
+            return "Codex reads MCP servers from `.codex/config.toml`, either in the repo or your home directory."
         }
     }
 

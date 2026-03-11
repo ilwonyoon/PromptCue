@@ -257,6 +257,17 @@ Next rollout:
    - expose read/write/execute actions through an MCP server transport
    - keep tool names aligned with Stack note semantics
 
+5. `MCP6` connector settings surface
+   - add a Settings section for MCP connectors
+   - show which clients are currently configured to use Backtick MCP
+   - show the executable / command path that clients should run
+   - provide client-specific config snippets for `Claude Code` and `Codex`
+
+6. `MCP7` guided setup and validation
+   - help the user attach Backtick MCP to external clients without manual guesswork
+   - validate that a configured client can actually reach the MCP server
+   - show last-known connection or handshake status in product language
+
 Current landed slices:
 
 - `MCP2` Stack read bridge is on `main`
@@ -274,88 +285,71 @@ Current landed slices:
    - `PromptCueTests/StackExecutionServiceTests.swift`
    - marks executed notes copied in Stack storage
    - persists matching `CopyEvent` rows in the same transaction
+- `MCP5` stdio tool surface is on `main`
+   - `Package.swift`
+   - `Package.resolved`
+   - `Sources/BacktickMCP/main.swift`
+   - `Sources/BacktickMCPServer/BacktickMCPApp.swift`
+   - `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
+   - `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift`
+   - exposes `list_notes`, `get_note`, `create_note`, `update_note`, `delete_note`, and `mark_notes_executed`
+   - routes all note operations through the landed Stack services against the shared DB
 
 Verification gates run for landed MCP slices:
 
 - `xcodegen generate`
 - `swift test`
+- `swift test --filter BacktickMCPServerTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackExecutionServiceTests`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+- `swift run BacktickMCP --database-path <temp-db> --attachments-path <temp-attachments>`
 
-Current next slice:
+Current immediate next step:
 
-- implement `MCP5` stdio tool surface over the landed Stack services
-- expose Stack note operations without introducing any new UI or derived item layer
-- keep transport separate from app runtime state such as current selection
+- run external MCP client smoke against merged `main`
+- verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
+- collect connector friction before starting user-facing setup work
 
-`MCP5` landing plan:
+Next product slices after client smoke:
 
-1. add an app-internal MCP transport wrapper
-   - use `StackReadService`, `StackWriteService`, and `StackExecutionService`
-   - keep tool names aligned with Stack note semantics
+1. `MCP6` connector settings surface
+   - add a dedicated `Connectors` area in Settings
+   - list supported external clients:
+     - `Claude Code`
+     - `Codex`
+   - show current install/config status per client
+   - show the exact command/path Backtick expects the client to launch
+   - provide copyable client config snippets instead of expecting the user to discover MCP wiring alone
+   - keep this surface read-mostly at first; it can start by showing status and copy/install instructions before one-click setup exists
 
-2. expose the first tool set
-   - `list_notes`
-   - `get_note`
-   - `create_note`
-   - `update_note`
-   - `delete_note`
-   - `mark_notes_executed`
+2. `MCP7` guided setup and validation
+   - add a product-facing explanation of what MCP is in Backtick terms
+   - explain that MCP gives external coding agents direct read/write access to Stack storage
+   - provide a concrete setup flow:
+     - choose client
+     - copy or install config
+     - run connection test
+   - validate that the chosen client can initialize the Backtick MCP server successfully
+   - surface friendly states:
+     - `Not configured`
+     - `Configured`
+     - `Connection test passed`
+     - `Connection test failed`
 
-3. add a minimal end-to-end smoke path
-   - verify MCP transport can read, write, and execute notes against the shared DB
+Why this rollout is required:
 
-Rules for `MCP5`:
+- transport alone is not enough user value if the user does not know how to attach `Claude Code` or `Codex`
+- MCP is a connector feature from the user point of view, not just a local executable
+- sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
+
+Rules after `MCP5`:
 - no new board, work-item, or execution-map layer
 - no dependency on current UI selection state
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-- stdio transport is the only remaining MCP bridge slice before external-client smoke verification
-
-### `PR #26` Landing Plan
-
-`PR #26` (`backtick-mcp-stdio-surface`) should land as the focused `MCP5` transport slice.
-
-Branch condition on `2026-03-11`:
-
-- state `OPEN`, base `main`, mergeable `MERGEABLE`
-- head commit `d843364`
-- the branch forks before `PR #25` code landed, but the actual PR diff remains bounded to 8 files
-
-Carry-forward scope:
-
-- `Package.swift`
-- `Package.resolved`
-- `Sources/BacktickMCP/main.swift`
-- `Sources/BacktickMCPServer/BacktickMCPApp.swift`
-- `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
-- `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift`
-- `docs/Implementation-Plan.md`
-- `docs/Master-Board.md`
-
-Merge rules:
-
-1. keep landed `MCP2`, `MCP3`, and `MCP4` services untouched
-2. keep landed `PR #25` staged multi-copy and raw-literal export wording intact in planning docs; accept only the `MCP5` wording from this PR
-3. keep UI, menus, settings, and selection-state wiring out of scope
-4. if the merge result picks up drift outside the 8-file scope, stop and restack onto the latest `main` before landing
-
-Verification gate for `PR #26`:
-
-- `swift test`
-- `xcodegen generate`
-- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
-- `swift run BacktickMCP --database-path <temp-db> --attachments-path <temp-attachments>`
-
-Required smoke checks after the gate:
-
-- send `initialize`, `notifications/initialized`, and `tools/list` over stdio JSON-RPC
-- verify `create_note`, `list_notes`, `get_note`, `update_note`, and `delete_note` round-trip against the shared Stack DB
-- verify `mark_notes_executed` updates `lastCopiedAt` and records `CopyEvent`
-- verify transport works without depending on any running app UI state
 ## Phase 0: Research And Decisions
 
 ### Goal

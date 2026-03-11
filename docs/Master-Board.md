@@ -142,12 +142,21 @@ Active MCP rollout:
 4. `MCP5` stdio tool surface
    - expose Stack note tools to external MCP clients
 
+5. `MCP6` connector settings surface
+   - show supported MCP clients, config status, and expected Backtick MCP command/path
+   - give users a native place to understand where MCP is attached
+
+6. `MCP7` guided setup and validation
+   - help users connect `Claude Code` and `Codex` without relying on undocumented shell knowledge
+   - test that client setup actually works
+
 Current landed slices:
 
 - `MCP2` read bridge landed on `main`
 - `MCP3` write bridge landed on `main`
 - `MCP4` execution action landed on `main`
-- UI remains out of scope while `MCP5` transport is in flight
+- `MCP5` stdio tool surface landed on `main`
+- UI remains out of scope while connector setup and validation are still in flight
 
 Landed MCP gates:
 
@@ -168,27 +177,28 @@ Landed MCP gates:
 - no menu, settings, panel, or execution-map changes
 - app build and targeted execution-service tests pass
 
-Immediate next slice:
-
-- implement `MCP5` stdio tool surface over landed Stack services
-- expose read, write, and execute tools to MCP clients
-- keep all UI work out of scope
-
-`MCP5` gate:
+Landed `MCP5` gate:
 
 - MCP transport calls the landed Stack services instead of duplicating logic
 - tool surface exposes read, write, and execute actions for Stack notes
 - no menu, settings, panel, or execution-map changes
 - end-to-end smoke coverage exists for the shared DB path
-- `main` already contains the read, write, and execution services that the transport must wrap
+- `main` contains the read, write, execution, and stdio transport layers together
 
-`PR #26` gate:
+Immediate next step:
 
-- `PR #26` (`backtick-mcp-stdio-surface`) is `OPEN`, base `main`, and `MERGEABLE` on `2026-03-11`
-- although the branch forked before `PR #25` code landed, the actual PR diff is still bounded to 8 files
-- carry forward only package wiring, `BacktickMCP` stdio sources, transport tests, and MCP wording updates in docs
-- if the merge result picks up drift outside that 8-file scope, stop and restack onto the latest `main`
-- after merge, run an external MCP client smoke against the merged stdio surface
+- run an external MCP client smoke against merged `main`
+- verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
+- capture connector friction before landing Settings/UI work
+
+Post-`MCP5` rollout:
+
+- `MCP6` adds a `Connectors` section to Settings so the user can see:
+  - whether `Claude Code` or `Codex` is configured
+  - what command/path those clients should launch
+  - copyable config/install instructions
+- `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
+- these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 
 Rules:
 

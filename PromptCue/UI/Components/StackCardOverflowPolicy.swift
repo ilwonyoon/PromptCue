@@ -78,10 +78,15 @@ enum StackCardOverflowPolicy {
     static func metrics(
         for text: String,
         cacheIdentity: UUID,
+        layoutVariant: Int = 0,
         availableWidth: CGFloat = cardTextWidth
     ) -> Metrics {
         let normalizedWidth = max(availableWidth, 1)
-        let cacheKey = identityCacheKey(cacheIdentity: cacheIdentity, width: normalizedWidth)
+        let cacheKey = identityCacheKey(
+            cacheIdentity: cacheIdentity,
+            layoutVariant: layoutVariant,
+            width: normalizedWidth
+        )
         if let cached = metricsCache.object(forKey: cacheKey) {
             return cached.metrics
         }
@@ -170,9 +175,13 @@ enum StackCardOverflowPolicy {
         return NSString(string: "\(normalizedWidth):\(text.utf16.count):\(stableTextHash(text))")
     }
 
-    private static func identityCacheKey(cacheIdentity: UUID, width: CGFloat) -> NSString {
+    private static func identityCacheKey(
+        cacheIdentity: UUID,
+        layoutVariant: Int,
+        width: CGFloat
+    ) -> NSString {
         let normalizedWidth = Int((width * 10).rounded())
-        return NSString(string: "\(normalizedWidth):\(cacheIdentity.uuidString)")
+        return NSString(string: "\(normalizedWidth):\(cacheIdentity.uuidString):\(layoutVariant)")
     }
 
     private static func stableTextHash(_ text: String) -> UInt64 {

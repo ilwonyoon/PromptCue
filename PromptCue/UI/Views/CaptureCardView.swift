@@ -24,6 +24,7 @@ struct CaptureCardView: View {
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
+    @State private var isDetectedContentHovered = false
 
     private var actionStyle: CaptureCardActionStyle {
         CaptureCardActionStyle.resolve(
@@ -74,9 +75,11 @@ struct CaptureCardView: View {
     }
 
     var body: some View {
+        let layoutText = InteractiveDetectedTextView.layoutText(text: card.text, classification: classification)
         let overflowMetrics = StackCardOverflowPolicy.metrics(
-            for: card.text,
+            for: layoutText,
             cacheIdentity: card.id,
+            layoutVariant: classification.primaryType == .secret ? 1 : 0,
             availableWidth: textContentWidth
         )
 
@@ -98,7 +101,9 @@ struct CaptureCardView: View {
                         text: card.text,
                         classification: classification,
                         baseColor: actionStyle.bodyColor,
-                        onOpenDetected: openDetectedContent
+                        onInteractionHoverChanged: { hovered in
+                            isDetectedContentHovered = hovered
+                        }
                     )
                         .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
                         .clipped()
@@ -324,6 +329,12 @@ struct CaptureCardView: View {
     private func performPrimaryAction() {
         if selectionMode {
             onToggleSelection()
+            return
+        }
+
+        if isDetectedContentHovered,
+           classification.primaryType == .link || classification.primaryType == .path {
+            openDetectedContent()
             return
         }
 

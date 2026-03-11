@@ -1,4 +1,5 @@
 import AppKit
+import PromptCueCore
 import SwiftUI
 import XCTest
 @testable import Prompt_Cue
@@ -114,6 +115,53 @@ final class CaptureCardRenderingTests: XCTestCase {
         expandedView.layoutSubtreeIfNeeded()
 
         XCTAssertGreaterThan(expandedView.fittingSize.height, collapsedView.fittingSize.height)
+    }
+
+    func testSecretClassificationUsesMaskedLayoutHeight() throws {
+        let text = "sk-ant-api03-plsA-whwgZpvfyNc8M1s9ZcBzMbb83HB1f-HAv5nXS1yvLJqlEG7zLJyMksg4KYkoQ3UNhj0_qeMYWPyhNwG7Q-9O_6gAAA"
+        let card = CaptureCard(
+            text: text,
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: nil,
+            sortOrder: 102
+        )
+
+        let plainView = NSHostingView(
+            rootView: CaptureCardView(
+                card: card,
+                classification: .plain,
+                isSelected: false,
+                selectionMode: false,
+                isExpanded: false,
+                onCopy: {},
+                onToggleSelection: {},
+                onToggleExpansion: {},
+                onDelete: {}
+            )
+            .environment(\.colorScheme, .light)
+        )
+        plainView.frame = NSRect(x: 0, y: 0, width: 360, height: 400)
+        plainView.layoutSubtreeIfNeeded()
+
+        let secretView = NSHostingView(
+            rootView: CaptureCardView(
+                card: card,
+                classification: ContentClassifier.classify(text),
+                isSelected: false,
+                selectionMode: false,
+                isExpanded: false,
+                onCopy: {},
+                onToggleSelection: {},
+                onToggleExpansion: {},
+                onDelete: {}
+            )
+            .environment(\.colorScheme, .light)
+        )
+        secretView.frame = NSRect(x: 0, y: 0, width: 360, height: 400)
+        secretView.layoutSubtreeIfNeeded()
+
+        XCTAssertLessThan(secretView.fittingSize.height, plainView.fittingSize.height)
     }
 
     private func renderPNG(of view: NSView, to url: URL) throws {

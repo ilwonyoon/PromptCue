@@ -5,7 +5,7 @@ struct InteractiveDetectedTextView: View {
     let text: String
     let classification: ContentClassification
     let baseColor: Color
-    let onOpenDetected: () -> Void
+    let onInteractionHoverChanged: (Bool) -> Void
 
     @State private var isSpanHovered = false
     @State private var isCursorPushed = false
@@ -49,18 +49,16 @@ struct InteractiveDetectedTextView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if isSpanHovered {
-                    Button(action: onOpenDetected) {
-                        HStack(spacing: PrimitiveTokens.Space.xxs) {
-                            Text(openActionLabel)
-                            Image(systemName: "arrow.up.right")
-                        }
-                        .font(PrimitiveTokens.Typography.meta)
-                        .foregroundStyle(spanRestingColor)
+                    HStack(spacing: PrimitiveTokens.Space.xxs) {
+                        Text(openActionLabel)
+                        Image(systemName: "arrow.up.right")
                     }
-                    .buttonStyle(.plain)
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(spanRestingColor)
                     .transition(.opacity)
                 }
             }
+            .contentShape(Rectangle())
             .onContinuousHover { phase in
                 switch phase {
                 case .active:
@@ -68,6 +66,7 @@ struct InteractiveDetectedTextView: View {
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isSpanHovered = true
                         }
+                        onInteractionHoverChanged(true)
                     }
                     if !isCursorPushed {
                         NSCursor.pointingHand.push()
@@ -78,6 +77,7 @@ struct InteractiveDetectedTextView: View {
                         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                             isSpanHovered = false
                         }
+                        onInteractionHoverChanged(false)
                     }
                     if isCursorPushed {
                         NSCursor.pop()
@@ -86,6 +86,7 @@ struct InteractiveDetectedTextView: View {
                 }
             }
             .onDisappear {
+                onInteractionHoverChanged(false)
                 if isCursorPushed {
                     NSCursor.pop()
                     isCursorPushed = false
@@ -125,6 +126,17 @@ struct InteractiveDetectedTextView: View {
 
     private func resolvedDisplayText(for span: DetectedSpan) -> String {
         classification.primaryType == .secret ? SecretMasker.mask(span.matchedText) : span.matchedText
+    }
+
+    static func layoutText(text: String, classification: ContentClassification) -> String {
+        guard let span = classification.span, classification.primaryType == .secret else {
+            return text
+        }
+
+        let masked = SecretMasker.mask(span.matchedText)
+        let prefix = text[text.startIndex..<span.range.lowerBound]
+        let suffix = text[span.range.upperBound..<text.endIndex]
+        return String(prefix) + masked + String(suffix)
     }
 
     private func textSegment<S: StringProtocol>(

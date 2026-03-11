@@ -198,13 +198,24 @@ Immediate next step:
 - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
 - capture connector friction before finalizing guided setup UX
 
+`PR #30` gate:
+
+- `PR #30` (`backtick-mcp-guided-setup`) is `OPEN`, base `main`, and `MERGEABLE` on `2026-03-11`
+- the branch is one commit ahead of `main`; no restack is required
+- carry forward only guided setup copy, local server self-test, connector validation states, Claude automation guidance, and MCP doc updates
+- keep `MCP2` through `MCP6` behavior unchanged; this slice stays inside Settings
+- use the latest external smoke result as planning input:
+  - `Claude Code` and `Codex` both connect successfully on merged `main`
+  - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
+  - treat non-interactive permission denial as client setup friction, not as an MCP server failure
+
 Landed `MCP6` gate:
 
 - Settings shows a `Connectors` tab without regressing existing tabs
 - `Claude Code` and `Codex` sections expose CLI path, project/home config status, quick-add command, and config snippet
 - `Copy Command`, `Copy Add Command`, `Copy Config Snippet`, `Reveal`, and `Open Docs` all worked in manual smoke
 - `MCP2` through `MCP5` behavior remains unchanged; this slice is read-mostly UI
-- external MCP client smoke still needs to run against merged `main`
+- external MCP client smoke has now run against merged `main` and feeds `MCP7`
 
 Post-`MCP5` rollout:
 

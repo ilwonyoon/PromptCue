@@ -334,12 +334,20 @@ Current immediate next step:
      - choose client
      - copy or install config
      - run connection test
-   - validate that the chosen client can initialize the Backtick MCP server successfully
+   - validate the Backtick MCP launch command locally from Settings before sending the user back to an external client
+   - keep full external-client handshake validation as a follow-up, since app-owned validation can prove server launch/tool surface but not every client auth or permission mode
+   - add a Claude-specific automation lane for non-interactive runs:
+     - explain that `--permission-mode dontAsk` requires Backtick MCP tools to be present in `--allowedTools`
+     - provide an automation example for the current Backtick tool set
    - surface friendly states:
      - `Not configured`
      - `Configured`
-     - `Connection test passed`
+     - `Connected`
      - `Connection test failed`
+   - classify connection test failures by cause when possible:
+     - MCP server unreachable / launch failure
+     - tool permission denied
+     - unsupported or incomplete client configuration
 
 3. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
@@ -352,6 +360,7 @@ Why this rollout is required:
 - MCP is a connector feature from the user point of view, not just a local executable
 - sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
 - connector setup is incomplete for release users until Backtick ships a helper binary or equivalent launchable surface
+- successful interactive connection is not enough if common automation modes still fail on client-side tool permissions
 
 Rules after `MCP5`:
 - no new board, work-item, or execution-map layer
@@ -359,6 +368,46 @@ Rules after `MCP5`:
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
 - `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+
+### `PR #30` Landing Plan
+
+`PR #30` (`backtick-mcp-guided-setup`) should land as the focused `MCP7` guided setup and local validation slice.
+
+Branch condition on `2026-03-11`:
+
+- state `OPEN`, base `main`, mergeable `MERGEABLE`
+- head commit `26e2a1a`
+- branch is one commit ahead of `main`; restack is not required
+
+Carry-forward scope:
+
+- `PromptCue/UI/Settings/MCPConnectorSettingsModel.swift`
+- `PromptCue/UI/Settings/PromptCueSettingsView.swift`
+- `PromptCueTests/MCPConnectorSettingsModelTests.swift`
+- `docs/Implementation-Plan.md`
+- `docs/Master-Board.md`
+
+Merge rules:
+
+1. keep `MCP2` through `MCP6` behavior and current connector inspection surface unchanged
+2. carry forward only guided setup copy, local server self-test, client validation states, and Claude automation guidance
+3. treat `Claude Code` `--permission-mode dontAsk` permission denial as client setup friction, not as a Backtick MCP launch failure
+4. do not expand scope into bundled helper packaging, project wiring changes, or new UI outside Settings
+
+Verification gate for `PR #30`:
+
+- `swift test`
+- `xcodegen generate`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/MCPConnectorSettingsModelTests`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+
+Required smoke checks after the gate:
+
+- Settings `Connectors` shows `What It Does`, `Setup Flow`, `Launch Command`, and `Server Test`
+- `Run Server Test` reaches `Connected` when the local `BacktickMCP` launch command is valid
+- failure states keep specific detail for launch failure, invalid response, missing tools, or permission-related client friction
+- `Claude Code` shows an `Automation` section with a copyable `--allowedTools` example
+- existing connector actions (`Copy Command`, `Copy Add Command`, `Copy Config Snippet`, `Reveal`, `Open Docs`) still work
 ## Phase 0: Research And Decisions
 
 ### Goal

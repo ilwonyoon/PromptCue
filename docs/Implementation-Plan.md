@@ -334,12 +334,20 @@ Current immediate next step:
      - choose client
      - copy or install config
      - run connection test
-   - validate that the chosen client can initialize the Backtick MCP server successfully
+   - validate the Backtick MCP launch command locally from Settings before sending the user back to an external client
+   - keep full external-client handshake validation as a follow-up, since app-owned validation can prove server launch/tool surface but not every client auth or permission mode
+   - add a Claude-specific automation lane for non-interactive runs:
+     - explain that `--permission-mode dontAsk` requires Backtick MCP tools to be present in `--allowedTools`
+     - provide an automation example for the current Backtick tool set
    - surface friendly states:
      - `Not configured`
      - `Configured`
-     - `Connection test passed`
+     - `Connected`
      - `Connection test failed`
+   - classify connection test failures by cause when possible:
+     - MCP server unreachable / launch failure
+     - tool permission denied
+     - unsupported or incomplete client configuration
 
 3. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
@@ -352,6 +360,7 @@ Why this rollout is required:
 - MCP is a connector feature from the user point of view, not just a local executable
 - sensitive integration behavior should be visible in Settings rather than hidden in docs or shell commands
 - connector setup is incomplete for release users until Backtick ships a helper binary or equivalent launchable surface
+- successful interactive connection is not enough if common automation modes still fail on client-side tool permissions
 
 Rules after `MCP5`:
 - no new board, work-item, or execution-map layer

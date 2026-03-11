@@ -197,6 +197,10 @@ Immediate next step:
 - run an external MCP client smoke against merged `main`
 - verify `Claude Code` and `Codex` can initialize the stdio surface and call Stack tools
 - capture connector friction before finalizing guided setup UX
+- latest smoke result:
+  - `Claude Code` and `Codex` both connect successfully on merged `main`
+  - `Claude Code` in `--permission-mode dontAsk` requires Backtick MCP tools in `--allowedTools`
+  - treat non-interactive permission denial as client setup friction, not as an MCP server failure
 
 Landed `MCP6` gate:
 
@@ -213,6 +217,10 @@ Post-`MCP5` rollout:
   - what command/path those clients should launch
   - copyable config/install instructions
 - `MCP7` adds guided setup and validation so the user can connect a client and confirm the MCP handshake works
+  - guided setup explains what MCP means in Backtick terms and walks the user through config plus validation
+  - initial validation is a Backtick-owned local self-test of the launch command and tool surface
+  - Claude gets a separate automation lane for `--permission-mode dontAsk`
+  - product error handling should separate `tool permission denied` from launch/connect failures
 - `MCP8` packages a helper binary so connector setup works in release builds outside source checkouts
 - these slices exist because transport-only MCP is not enough if the user cannot discover, attach, or verify the connector from inside Backtick
 

@@ -161,11 +161,95 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testModelPromotesConfiguredClientToConnectedAfterServerTestPasses() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": []
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let expectedReport = MCPServerConnectionReport(
+            protocolVersion: "2025-03-26",
+            toolNames: ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .passed(expectedReport))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientStateTitle(for: claude), "Configured")
+
+        await model.performServerTest()
+
+        XCTAssertEqual(model.connectionState, .passed(expectedReport))
+        XCTAssertEqual(model.clientStateTitle(for: claude), "Connected")
+        XCTAssertTrue(model.clientStateDetail(for: claude).contains("--allowedTools"))
+    }
+
+    @MainActor
+    func testModelSurfacesConnectionFailureDetail() async {
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.launchFailed("boom")))
+        )
+
+        await model.performServerTest()
+
+        XCTAssertEqual(model.connectionState, .failed(.launchFailed("boom")))
+        XCTAssertEqual(model.serverTestDetail, "boom")
+    }
+
+    @MainActor
+    func testClaudeAutomationExampleIncludesAllowList() {
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+
+        let example = model.automationExample(for: .claudeCode)
+
+        XCTAssertEqual(model.automationExample(for: .codex), nil)
+        XCTAssertTrue(example?.contains("--permission-mode dontAsk") == true)
+        XCTAssertTrue(example?.contains("--allowedTools") == true)
+        XCTAssertTrue(example?.contains("mcp__backtick__mark_notes_executed") == true)
+    }
+
     private func makeInspector() -> MCPConnectorInspector {
         MCPConnectorInspector(
             environment: [:],
             homeDirectoryURL: homeDirectoryURL,
             repositoryRootURL: repositoryRootURL
         )
+    }
+}
+
+private struct TestConnectionTester: MCPServerConnectionTesting {
+    let state: MCPServerConnectionState
+
+    func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
+        state
     }
 }

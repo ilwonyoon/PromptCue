@@ -121,6 +121,10 @@ struct MCPConnectorClientStatus: Equatable {
     var cliStatusText: String {
         cliPath ?? "Not detected"
     }
+
+    var hasConfiguredScope: Bool {
+        projectConfig?.presence == .configured || homeConfig.presence == .configured
+    }
 }
 
 struct MCPConnectorInspection: Equatable {
@@ -131,6 +135,73 @@ struct MCPConnectorInspection: Equatable {
     func status(for client: MCPConnectorClient) -> MCPConnectorClientStatus {
         clients.first(where: { $0.client == client })!
     }
+}
+
+struct MCPConnectorSetupStep: Equatable, Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+}
+
+enum MCPServerConnectionState: Equatable {
+    case idle
+    case running
+    case passed(MCPServerConnectionReport)
+    case failed(MCPServerConnectionFailure)
+
+    var title: String {
+        switch self {
+        case .idle:
+            return "Not run yet"
+        case .running:
+            return "Running…"
+        case .passed:
+            return "Connection test passed"
+        case .failed:
+            return "Connection test failed"
+        }
+    }
+
+    var isRunning: Bool {
+        if case .running = self {
+            return true
+        }
+
+        return false
+    }
+}
+
+struct MCPServerConnectionReport: Equatable {
+    let protocolVersion: String
+    let toolNames: [String]
+
+    var detail: String {
+        "Backtick MCP launched and answered initialize/tools/list for \(toolNames.count) tools."
+    }
+}
+
+enum MCPServerConnectionFailure: Error, Equatable {
+    case unavailable
+    case launchFailed(String)
+    case invalidResponse(String)
+    case missingExpectedTools([String])
+
+    var detail: String {
+        switch self {
+        case .unavailable:
+            return "Backtick MCP launch command is unavailable. Build the helper or use a detected source checkout first."
+        case .launchFailed(let message):
+            return message
+        case .invalidResponse(let message):
+            return message
+        case .missingExpectedTools(let toolNames):
+            return "Backtick MCP launched, but these expected tools were missing: \(toolNames.joined(separator: ", "))"
+        }
+    }
+}
+
+protocol MCPServerConnectionTesting {
+    func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState
 }
 
 struct MCPConnectorInspector {
@@ -406,17 +477,22 @@ struct MCPConnectorInspector {
 @MainActor
 final class MCPConnectorSettingsModel: ObservableObject {
     @Published private(set) var inspection: MCPConnectorInspection
+    @Published private(set) var connectionState: MCPServerConnectionState = .idle
 
     private let inspector: MCPConnectorInspector
+    private let connectionTester: MCPServerConnectionTesting
     private let workspace: NSWorkspace
     private let pasteboard: NSPasteboard
+    private var connectionTask: Task<Void, Never>?
 
     init(
         inspector: MCPConnectorInspector = MCPConnectorInspector(),
+        connectionTester: MCPServerConnectionTesting = MCPServerSelfTester(),
         workspace: NSWorkspace = .shared,
         pasteboard: NSPasteboard = .general
     ) {
         self.inspector = inspector
+        self.connectionTester = connectionTester
         self.workspace = workspace
         self.pasteboard = pasteboard
         self.inspection = inspector.inspect()
@@ -442,8 +518,97 @@ final class MCPConnectorSettingsModel: ObservableObject {
         inspection.clients
     }
 
+    var setupSteps: [MCPConnectorSetupStep] {
+        [
+            MCPConnectorSetupStep(
+                id: "pick-client",
+                title: "1. Pick a client",
+                detail: "Choose Claude Code or Codex and check whether Backtick is already configured in the project or home config."
+            ),
+            MCPConnectorSetupStep(
+                id: "install-config",
+                title: "2. Install the connector",
+                detail: "Use Quick Add or copy the config snippet so the client launches Backtick MCP with the exact command shown here."
+            ),
+            MCPConnectorSetupStep(
+                id: "run-test",
+                title: "3. Run the server test",
+                detail: "Backtick launches the MCP server locally and verifies initialize/tools/list before you rely on it in another client."
+            ),
+        ]
+    }
+
     func refresh() {
         inspection = inspector.inspect()
+    }
+
+    func clientStateTitle(for client: MCPConnectorClientStatus) -> String {
+        if !client.hasConfiguredScope {
+            return "Not configured"
+        }
+
+        if case .passed = connectionState {
+            return "Connected"
+        }
+
+        return "Configured"
+    }
+
+    func clientStateDetail(for client: MCPConnectorClientStatus) -> String {
+        if !client.hasConfiguredScope {
+            return "Backtick is not present in this client's project or home config yet."
+        }
+
+        switch connectionState {
+        case .idle:
+            return "Backtick is configured. Run the server test to verify that the current launch command actually works."
+        case .running:
+            return "Backtick is configured. The local server test is running now."
+        case .passed:
+            if client.client == .claudeCode {
+                return "Backtick is configured and the local server test passed. Claude non-interactive runs still need an explicit --allowedTools list."
+            }
+
+            return "Backtick is configured and the local server test passed."
+        case .failed(let failure):
+            return "Backtick is configured, but the latest local server test failed: \(failure.detail)"
+        }
+    }
+
+    var serverTestDetail: String {
+        switch connectionState {
+        case .idle:
+            return "This checks the Backtick MCP launch command directly. It validates initialize/tools/list without depending on Claude Code or Codex auth state."
+        case .running:
+            return "Launching Backtick MCP and waiting for initialize/tools/list…"
+        case .passed(let report):
+            return "\(report.detail) Protocol \(report.protocolVersion)."
+        case .failed(let failure):
+            return failure.detail
+        }
+    }
+
+    func runServerTest() {
+        connectionTask?.cancel()
+        connectionTask = Task { [weak self] in
+            await self?.performServerTest()
+        }
+    }
+
+    func performServerTest() async {
+        guard let launchSpec = inspection.launchSpec else {
+            connectionState = .failed(.unavailable)
+            return
+        }
+
+        connectionState = .running
+        let result = await connectionTester.run(launchSpec: launchSpec)
+        guard !Task.isCancelled else {
+            return
+        }
+
+        connectionState = result
+        connectionTask = nil
     }
 
     func copyServerCommand() {
@@ -456,6 +621,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func copyConfigSnippet(for client: MCPConnectorClient) {
         copy(inspection.status(for: client).configSnippet)
+    }
+
+    func copyAutomationExample(for client: MCPConnectorClient) {
+        copy(automationExample(for: client))
     }
 
     func openDocumentation(for client: MCPConnectorClient) {
@@ -472,6 +641,28 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func revealHomeConfig(for client: MCPConnectorClient) {
         revealPath(inspection.status(for: client).homeConfig.path)
+    }
+
+    func automationExample(for client: MCPConnectorClient) -> String? {
+        switch client {
+        case .claudeCode:
+            let executable = inspection.status(for: client).cliPath ?? client.executableName
+            let allowedTools = [
+                "mcp__backtick__list_notes",
+                "mcp__backtick__get_note",
+                "mcp__backtick__create_note",
+                "mcp__backtick__update_note",
+                "mcp__backtick__mark_notes_executed",
+                "mcp__backtick__delete_note",
+            ].joined(separator: ",")
+
+            return """
+            \(executable) -p --permission-mode dontAsk --allowedTools "\(allowedTools)" "List active Backtick notes."
+            """
+
+        case .codex:
+            return nil
+        }
     }
 
     private func copy(_ value: String?) {
@@ -496,5 +687,171 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return standardizedURL.deletingLastPathComponent()
+    }
+}
+
+struct MCPServerSelfTester: MCPServerConnectionTesting {
+    private static let expectedToolNames = [
+        "list_notes",
+        "get_note",
+        "create_note",
+        "update_note",
+        "delete_note",
+        "mark_notes_executed",
+    ]
+
+    func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
+        await Task.detached(priority: .utility) {
+            do {
+                return try runSynchronously(launchSpec: launchSpec)
+            } catch let failure as MCPServerConnectionFailure {
+                return .failed(failure)
+            } catch {
+                return .failed(.launchFailed(error.localizedDescription))
+            }
+        }.value
+    }
+
+    private func runSynchronously(launchSpec: MCPServerLaunchSpec) throws -> MCPServerConnectionState {
+        let fileManager = FileManager.default
+        let temporaryRootURL = fileManager.temporaryDirectory
+            .appendingPathComponent("backtick-mcp-self-test-\(UUID().uuidString)", isDirectory: true)
+        let databaseURL = temporaryRootURL.appendingPathComponent("PromptCue.sqlite")
+        let attachmentsURL = temporaryRootURL.appendingPathComponent("Attachments", isDirectory: true)
+
+        try fileManager.createDirectory(at: temporaryRootURL, withIntermediateDirectories: true)
+        defer {
+            try? fileManager.removeItem(at: temporaryRootURL)
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: launchSpec.command)
+        process.arguments = launchSpec.arguments + [
+            "--database-path",
+            databaseURL.path,
+            "--attachments-path",
+            attachmentsURL.path,
+        ]
+
+        let inputPipe = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardInput = inputPipe
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+        } catch {
+            throw MCPServerConnectionFailure.launchFailed(error.localizedDescription)
+        }
+
+        let initializeRequest = try requestLine(
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "backtick-settings",
+                    "version": "1.0",
+                ],
+            ]
+        )
+        let toolsRequest = try requestLine(id: 2, method: "tools/list")
+        inputPipe.fileHandleForWriting.write(Data((initializeRequest + "\n" + toolsRequest + "\n").utf8))
+        try? inputPipe.fileHandleForWriting.close()
+
+        process.waitUntilExit()
+
+        let stdoutData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderr = String(data: stderrData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard process.terminationStatus == 0 else {
+            let detail = stderr.isEmpty
+                ? "Backtick MCP exited with status \(process.terminationStatus)."
+                : stderr
+            throw MCPServerConnectionFailure.launchFailed(detail)
+        }
+
+        let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
+        let responses = try parseResponses(from: stdout)
+
+        guard let initialize = responses[1],
+              let initializeResult = initialize["result"] as? [String: Any],
+              let protocolVersion = initializeResult["protocolVersion"] as? String else {
+            throw MCPServerConnectionFailure.invalidResponse(
+                "Backtick MCP did not return a valid initialize response."
+            )
+        }
+
+        guard let tools = responses[2],
+              let toolsResult = tools["result"] as? [String: Any],
+              let toolEntries = toolsResult["tools"] as? [[String: Any]] else {
+            throw MCPServerConnectionFailure.invalidResponse(
+                "Backtick MCP did not return a valid tools/list response."
+            )
+        }
+
+        let toolNames = toolEntries.compactMap { $0["name"] as? String }
+        let missingTools = Self.expectedToolNames.filter { !toolNames.contains($0) }
+        if !missingTools.isEmpty {
+            throw MCPServerConnectionFailure.missingExpectedTools(missingTools)
+        }
+
+        return .passed(
+            MCPServerConnectionReport(
+                protocolVersion: protocolVersion,
+                toolNames: toolNames
+            )
+        )
+    }
+
+    private func requestLine(
+        id: Int,
+        method: String,
+        params: [String: Any] = [:]
+    ) throws -> String {
+        let request: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": params,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: request, options: [.sortedKeys])
+        guard let line = String(data: data, encoding: .utf8) else {
+            throw MCPServerConnectionFailure.invalidResponse("Failed to encode test request.")
+        }
+
+        return line
+    }
+
+    private func parseResponses(from stdout: String) throws -> [Int: [String: Any]] {
+        let lines = stdout
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+
+        var responses: [Int: [String: Any]] = [:]
+
+        for line in lines {
+            guard let data = line.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data),
+                  let payload = object as? [String: Any],
+                  let id = payload["id"] as? Int else {
+                continue
+            }
+
+            responses[id] = payload
+        }
+
+        if responses.isEmpty {
+            throw MCPServerConnectionFailure.invalidResponse(
+                "Backtick MCP produced no parseable JSON-RPC output."
+            )
+        }
+
+        return responses
     }
 }

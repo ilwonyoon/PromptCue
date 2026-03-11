@@ -146,8 +146,8 @@ Current landed slices:
 
 - `MCP2` read bridge landed on `main`
 - `MCP3` write bridge landed on `main`
-- `MCP4` execution action is the current merge slice
-- UI and transport remain out of scope through `MCP4`
+- `MCP4` execution action landed on `main`
+- UI remains out of scope while `MCP5` transport is in flight
 
 Landed MCP gates:
 

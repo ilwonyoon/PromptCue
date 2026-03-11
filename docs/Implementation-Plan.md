@@ -269,7 +269,7 @@ Current landed slices:
   - `PromptCueTests/StackWriteServiceTests.swift`
   - creates, updates, and deletes Stack notes directly
   - cleans up managed screenshot attachments on delete
-- `MCP4` execution action is the current merge slice
+- `MCP4` execution action is on `main`
    - `PromptCue/Services/StackExecutionService.swift`
    - `PromptCueTests/StackExecutionServiceTests.swift`
    - marks executed notes copied in Stack storage
@@ -302,7 +302,7 @@ Current next slice:
    - `create_note`
    - `update_note`
    - `delete_note`
-   - `mark_note_executed`
+   - `mark_notes_executed`
 
 3. add a minimal end-to-end smoke path
    - verify MCP transport can read, write, and execute notes against the shared DB
@@ -312,21 +312,9 @@ Rules for `MCP5`:
 - no dependency on current UI selection state
 - keep Stack as the only source of truth
 - reuse the landed services instead of duplicating note logic in the transport layer
+- `main` already contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
+- stdio transport is the only remaining MCP bridge slice before external-client smoke verification
 
-Rules for `MCP4`:
-
-- no UI or menu changes
-- no derived item or board layer
-- do not blur plain write operations with execution semantics
-- keep stdio transport for `MCP5`
-
-Post-merge state after `MCP4`:
-
-- `main` contains `StackReadService`, `StackWriteService`, and `StackExecutionService`
-- Stack remains the only source of truth
-- copied state changes only through the execution path
-- `CopyEvent` history is recorded by execution, not plain write operations
-- stdio transport remains a separate `MCP5` slice
 ## Phase 0: Research And Decisions
 
 ### Goal

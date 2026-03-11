@@ -181,6 +181,25 @@ enum SemanticTokens {
         )
     }
 
+    enum Classification {
+        static let interactiveText = adaptiveColor(
+            light: NSColor.systemBlue.withAlphaComponent(0.72),
+            dark: NSColor.systemBlue.withAlphaComponent(0.68)
+        )
+        static let interactiveHoverText = adaptiveColor(
+            light: NSColor.systemBlue.withAlphaComponent(0.90),
+            dark: NSColor.systemBlue.withAlphaComponent(0.85)
+        )
+        static let secretText = adaptiveColor(
+            light: NSColor.secondaryLabelColor.withAlphaComponent(0.50),
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.55)
+        )
+        static let interactiveHoverUnderline = adaptiveColor(
+            light: NSColor.systemBlue.withAlphaComponent(0.40),
+            dark: NSColor.systemBlue.withAlphaComponent(0.35)
+        )
+    }
+
     private static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {
         Color(
             nsColor: NSColor(name: nil) { appearance in

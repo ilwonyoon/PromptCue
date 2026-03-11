@@ -92,6 +92,7 @@
 		D3E0A4FB416F1388131D8320 /* PromptExportTailSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */; };
 		D70CA12B7EE92B8021E7A589 /* ShowcaseGlassChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */; };
 		D89222A2A16923B28CA23834 /* CapturePanelRuntimeViewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C343F2CAC571F12332D46BBA /* CapturePanelRuntimeViewControllerTests.swift */; };
+		DD789D6A554599FD7839FD00 /* InteractiveDetectedTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */; };
 		E11F430A23AB41A4A98614C2 /* CueTextEditorMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F756E64C316B19267AB3E0E /* CueTextEditorMetricsTests.swift */; };
 		E23D3ACFA5D3B089CD1901FC /* ScreenshotFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */; };
 		E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */; };
@@ -198,6 +199,7 @@
 		C3AF65D17E0E0A80CFBE4E86 /* CardSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardSurface.swift; sourceTree = "<group>"; };
 		C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsModel.swift; sourceTree = "<group>"; };
 		CA2879AA171EC8A6059D6871 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveDetectedTextView.swift; sourceTree = "<group>"; };
 		D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryResolver.swift; sourceTree = "<group>"; };
 		D22FB45DBB32F2BBE0BA3218 /* CardStorePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStorePerformanceTests.swift; sourceTree = "<group>"; };
 		D372ADD4A30AC64621AF5E05 /* RecentScreenshotLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotLocator.swift; sourceTree = "<group>"; };
@@ -415,6 +417,7 @@
 				0DA754E495B637178A614D3C /* CaptureCardView.swift */,
 				57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */,
 				45B066AAC1F6859743A3CD47 /* CardStackView.swift */,
+				CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */,
 				EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */,
 			);
 			path = Views;
@@ -623,6 +626,7 @@
 				C2407D1A540A57F74B8CD8A2 /* DesignSystemWindowController.swift in Sources */,
 				EDD8142E6E57D70B3270212B /* GlassPanel.swift in Sources */,
 				A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */,
+				DD789D6A554599FD7839FD00 /* InteractiveDetectedTextView.swift in Sources */,
 				BD3347E542F5DB6843EBB2EB /* LocalImageThumbnail.swift in Sources */,
 				70AF913F1738D2501C3DF99E /* NotificationCardChromeRecipe.swift in Sources */,
 				71731D8F9A1BB001EA7AD76C /* PanelBackdropFamily.swift in Sources */,

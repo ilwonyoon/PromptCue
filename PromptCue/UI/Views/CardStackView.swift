@@ -1,3 +1,4 @@
+import PromptCueCore
 import SwiftUI
 
 struct CardStackView: View {
@@ -9,6 +10,7 @@ struct CardStackView: View {
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
+    @State private var classificationCache: [CaptureCard.ID: ContentClassification] = [:]
 
     var body: some View {
         let sections = partitionedCards(from: model.cards)
@@ -46,6 +48,16 @@ struct CardStackView: View {
             .padding(.top, PrimitiveTokens.Space.sm)
             .padding(.bottom, PrimitiveTokens.Space.md)
             .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .onAppear {
+            classificationCache = buildClassificationCache(for: model.cards)
+        }
+        .onChange(of: model.cards) { _, newCards in
+            let currentIDs = Set(newCards.map(\.id))
+            classificationCache = classificationCache.filter { currentIDs.contains($0.key) }
+            for card in newCards where classificationCache[card.id] == nil {
+                classificationCache[card.id] = ContentClassifier.classify(card.text)
+            }
         }
     }
 
@@ -167,6 +179,7 @@ struct CardStackView: View {
         return stackColumnContent {
             CaptureCardView(
                 card: card,
+                classification: resolveClassification(for: card),
                 availableSuggestedTargets: model.availableSuggestedTargets,
                 automaticSuggestedTarget: model.automaticSuggestedTarget,
                 isSelected: model.isMultiSelectMode
@@ -277,7 +290,12 @@ struct CardStackView: View {
                         }
 
                         if let card = copiedCards.first {
-                            Text(card.text)
+                            let classification = resolveClassification(for: card)
+                            let displayText = classification.primaryType == .secret
+                                ? SecretMasker.mask(classification.span?.matchedText ?? card.text)
+                                : card.text
+
+                            Text(displayText)
                                 .font(PrimitiveTokens.Typography.body)
                                 .foregroundStyle(copiedPreviewTextColor)
                                 .lineLimit(StackCardOverflowPolicy.collapsedCopiedLineLimit)
@@ -408,6 +426,27 @@ struct CardStackView: View {
                 expandedCardIDs.insert(card.id)
             }
         }
+    }
+
+    private func resolveClassification(for card: CaptureCard) -> ContentClassification {
+        if let cachedClassification = classificationCache[card.id] {
+            return cachedClassification
+        }
+
+        let classification = ContentClassifier.classify(card.text)
+        DispatchQueue.main.async {
+            classificationCache[card.id] = classification
+        }
+        return classification
+    }
+
+    private func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
+        var cache: [CaptureCard.ID: ContentClassification] = [:]
+        cache.reserveCapacity(cards.count)
+        for card in cards {
+            cache[card.id] = ContentClassifier.classify(card.text)
+        }
+        return cache
     }
 
     private func stackColumnSurface<Content: View>(

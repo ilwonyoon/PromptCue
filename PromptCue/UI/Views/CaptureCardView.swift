@@ -5,6 +5,7 @@ import SwiftUI
 struct CaptureCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let card: CaptureCard
+    let classification: ContentClassification
     let availableSuggestedTargets: [CaptureSuggestedTarget]
     let automaticSuggestedTarget: CaptureSuggestedTarget?
     let isSelected: Bool
@@ -40,6 +41,7 @@ struct CaptureCardView: View {
 
     init(
         card: CaptureCard,
+        classification: ContentClassification = .plain,
         availableSuggestedTargets: [CaptureSuggestedTarget] = [],
         automaticSuggestedTarget: CaptureSuggestedTarget? = nil,
         isSelected: Bool,
@@ -55,6 +57,7 @@ struct CaptureCardView: View {
         onAssignSuggestedTarget: @escaping (CaptureSuggestedTarget) -> Void = { _ in }
     ) {
         self.card = card
+        self.classification = classification
         self.availableSuggestedTargets = availableSuggestedTargets
         self.automaticSuggestedTarget = automaticSuggestedTarget
         self.isSelected = isSelected
@@ -91,15 +94,19 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    Text(card.text)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(actionStyle.bodyColor)
-                        .multilineTextAlignment(.leading)
-                        .lineSpacing(PrimitiveTokens.Space.xxxs)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    InteractiveDetectedTextView(
+                        text: card.text,
+                        classification: classification,
+                        baseColor: actionStyle.bodyColor,
+                        onOpenDetected: openDetectedContent
+                    )
                         .frame(height: visibleTextHeight(for: overflowMetrics), alignment: .top)
                         .clipped()
+                        .accessibilityAddTraits(interactiveAccessibilityTraits)
+                        .accessibilityHint(interactiveAccessibilityHint)
+                        .accessibilityAction(named: interactiveAccessibilityActionName) {
+                            openDetectedContent()
+                        }
 
                     if overflowMetrics.overflowsAtRest {
                         overflowAffordance(metrics: overflowMetrics)
@@ -179,6 +186,82 @@ struct CaptureCardView: View {
             withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
                 isCardHovered = hovered
             }
+        }
+    }
+
+    private func openDetectedContent() {
+        guard let span = classification.span else {
+            return
+        }
+
+        switch classification.primaryType {
+        case .link:
+            guard let url = URL(string: span.matchedText),
+                  let scheme = url.scheme?.lowercased(),
+                  ["http", "https"].contains(scheme) else {
+                return
+            }
+            Task { @MainActor in
+                NSWorkspace.shared.open(url)
+            }
+        case .path:
+            let expandedPath = NSString(string: span.matchedText).expandingTildeInPath
+            let resolvedPath = URL(fileURLWithPath: expandedPath).standardized.path
+            let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+            let allowedPrefixes = [homePath, "/tmp", "/Applications", "/usr/local", "/opt/homebrew", "/Library"]
+            guard allowedPrefixes.contains(where: { resolvedPath.hasPrefix($0) }) else {
+                return
+            }
+
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: resolvedPath, isDirectory: &isDirectory) {
+                if isDirectory.boolValue {
+                    Task { @MainActor in
+                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: resolvedPath)
+                    }
+                } else {
+                    Task { @MainActor in
+                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resolvedPath)])
+                    }
+                }
+            } else {
+                NSSound.beep()
+            }
+        case .plain, .secret:
+            break
+        }
+    }
+
+    private var interactiveAccessibilityTraits: AccessibilityTraits {
+        switch classification.primaryType {
+        case .link:
+            return .isLink
+        case .path:
+            return .isButton
+        case .plain, .secret:
+            return []
+        }
+    }
+
+    private var interactiveAccessibilityHint: String {
+        switch classification.primaryType {
+        case .link:
+            return "Double tap to open link in browser"
+        case .path:
+            return "Double tap to reveal in Finder"
+        case .plain, .secret:
+            return ""
+        }
+    }
+
+    private var interactiveAccessibilityActionName: String {
+        switch classification.primaryType {
+        case .link:
+            return "Open link"
+        case .path:
+            return "Reveal in Finder"
+        case .plain, .secret:
+            return "Open"
         }
     }
 

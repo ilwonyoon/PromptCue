@@ -10,87 +10,22 @@ enum CardStoreError: Error {
 
 @MainActor
 final class CardStore {
-    private let dbQueue: DatabaseQueue?
-    private let setupError: Error?
+    private let database: PromptCueDatabase
 
-    init(
+    init(database: PromptCueDatabase) {
+        self.database = database
+    }
+
+    convenience init(
         fileManager: FileManager = .default,
         databaseURL: URL? = nil
     ) {
-        let databaseURL = (databaseURL ?? Self.databaseURL(fileManager: fileManager)).standardizedFileURL
-
-        do {
-            try fileManager.createDirectory(
-                at: databaseURL.deletingLastPathComponent(),
-                withIntermediateDirectories: true,
-                attributes: nil
-            )
-
-            let queue = try DatabaseQueue(path: databaseURL.path)
-            var migrator = DatabaseMigrator()
-            migrator.registerMigration("createCards") { db in
-                try db.create(table: CardRecord.databaseTableName) { table in
-                    table.column("id", .text).notNull().primaryKey()
-                    table.column("text", .text).notNull()
-                    table.column("createdAt", .datetime).notNull()
-                    table.column("screenshotPath", .text)
-                    table.column("sortOrder", .double).notNull()
-                }
-            }
-            migrator.registerMigration("addLastCopiedAt") { db in
-                try db.alter(table: CardRecord.databaseTableName) { table in
-                    table.add(column: "lastCopiedAt", .datetime)
-                }
-            }
-            migrator.registerMigration("addSortOrder") { db in
-                let existingColumnNames = try db.columns(in: CardRecord.databaseTableName).map(\.name)
-                guard !existingColumnNames.contains("sortOrder") else {
-                    return
-                }
-
-                try db.alter(table: CardRecord.databaseTableName) { table in
-                    table.add(column: "sortOrder", .double).notNull().defaults(to: 0)
-                }
-
-                let legacyCards = try LegacyCardRecord.fetchAll(
-                    db,
-                    sql: """
-                    SELECT id, createdAt
-                    FROM \(CardRecord.databaseTableName)
-                    ORDER BY createdAt DESC
-                    """
-                )
-                for (index, card) in legacyCards.enumerated() {
-                    let order = card.createdAt.timeIntervalSinceReferenceDate - (Double(index) * 0.000001)
-                    try db.execute(
-                        sql: "UPDATE \(CardRecord.databaseTableName) SET sortOrder = ? WHERE id = ?",
-                        arguments: [order, card.id]
-                    )
-                }
-            }
-            migrator.registerMigration("addSuggestedTargetJSON") { db in
-                let existingColumnNames = try db.columns(in: CardRecord.databaseTableName).map(\.name)
-                guard !existingColumnNames.contains("suggestedTargetJSON") else {
-                    return
-                }
-
-                try db.alter(table: CardRecord.databaseTableName) { table in
-                    table.add(column: "suggestedTargetJSON", .text)
-                }
-            }
-            try migrator.migrate(queue)
-            dbQueue = queue
-            setupError = nil
-        } catch {
-            dbQueue = nil
-            setupError = error
-            NSLog("CardStore setup failed: %@", error.localizedDescription)
-        }
+        self.init(database: PromptCueDatabase(fileManager: fileManager, databaseURL: databaseURL))
     }
 
     func load() throws -> [CaptureCard] {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         do {
@@ -111,8 +46,8 @@ final class CardStore {
     }
 
     func replaceAll(_ cards: [CaptureCard]) throws {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         do {
@@ -133,8 +68,8 @@ final class CardStore {
     }
 
     func upsert(_ cards: [CaptureCard]) throws {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         guard !cards.isEmpty else {
@@ -158,8 +93,8 @@ final class CardStore {
     }
 
     func apply(upserts cards: [CaptureCard], deletions ids: [UUID]) throws {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         guard !cards.isEmpty || !ids.isEmpty else {
@@ -187,8 +122,8 @@ final class CardStore {
     }
 
     func delete(ids: [UUID]) throws {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         guard !ids.isEmpty else {
@@ -210,8 +145,8 @@ final class CardStore {
     }
 
     func allIDs() throws -> Set<UUID> {
-        guard let dbQueue else {
-            throw CardStoreError.unavailable(underlying: setupError)
+        guard let dbQueue = database.dbQueue else {
+            throw CardStoreError.unavailable(underlying: database.setupError)
         }
 
         do {
@@ -227,19 +162,10 @@ final class CardStore {
             throw CardStoreError.loadFailed(error)
         }
     }
-
-    private static func databaseURL(fileManager: FileManager) -> URL {
-        let baseDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-
-        return baseDirectory
-            .appendingPathComponent("PromptCue", isDirectory: true)
-            .appendingPathComponent("PromptCue.sqlite", isDirectory: false)
-    }
 }
 
 private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
-    static let databaseTableName = "cards"
+    static let databaseTableName = PromptCueDatabaseSchema.cardsTableName
 
     let id: String
     let text: String
@@ -289,9 +215,4 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
 
         return target
     }
-}
-
-private struct LegacyCardRecord: FetchableRecord, Decodable {
-    let id: String
-    let createdAt: Date
 }

@@ -17,6 +17,7 @@
 		1A221597310D99FE05170A56 /* CaptureRuntimeMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD841B199B35A1509E1A787E /* CaptureRuntimeMetrics.swift */; };
 		1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E7982703EC6D0302F17A37 /* CapturePanelController.swift */; };
 		1FE7A3F3443CA6A36A525129 /* StackCardOverflowPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D905A922322288295EECE24 /* StackCardOverflowPerformanceTests.swift */; };
+		202C1BC04959F9C7DAFE65F2 /* PromptCueDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */; };
 		23C965DA44CED7A359BCF844 /* ScreenshotSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */; };
 		27CAB09D5BA59322FBD7770B /* CloudSyncSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */; };
 		2881AFAAED24B84D13C1D2F9 /* SemanticTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */; };
@@ -50,6 +51,7 @@
 		70AF913F1738D2501C3DF99E /* NotificationCardChromeRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA6940F989AD9EE0936045E8 /* NotificationCardChromeRecipe.swift */; };
 		71731D8F9A1BB001EA7AD76C /* PanelBackdropFamily.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE106606E5FFD57A136A5ED9 /* PanelBackdropFamily.swift */; };
 		71E16059075785332FDE9994 /* CapturePanelRuntimeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBCAD08F6EF428AD0BFFA79 /* CapturePanelRuntimeViewController.swift */; };
+		74DE5476C76B6826311F0012 /* WorkItemStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF9A11D8A63445BC78DBD1ED /* WorkItemStore.swift */; };
 		755EA71A621537FE2BC9A64E /* PromptCueSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */; };
 		786094F18BF590AAD9790C44 /* CardStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45B066AAC1F6859743A3CD47 /* CardStackView.swift */; };
 		79F1666E049700E9F2A3695F /* RecentClipboardImageMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D62AB3ED6DC7BDB15C83D3BA /* RecentClipboardImageMonitorTests.swift */; };
@@ -180,6 +182,7 @@
 		7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueSettingsView.swift; sourceTree = "<group>"; };
 		7F84F89D58A59910B164953B /* RecentScreenshotCoordinatorPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotCoordinatorPerformanceTests.swift; sourceTree = "<group>"; };
 		838FAC8FE4F5AE11EC0D8DBC /* CapturePanelResizePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelResizePerformanceTests.swift; sourceTree = "<group>"; };
+		8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueDatabase.swift; sourceTree = "<group>"; };
 		87E24278B2DDB9065FF78900 /* CloudSyncPushPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncPushPerformanceTests.swift; sourceTree = "<group>"; };
 		89F0750F1298FD38DDDBBB34 /* PromptCueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptCueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B5ACFB745ADD636ED5EC0A4 /* AttachmentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentStore.swift; sourceTree = "<group>"; };
@@ -224,6 +227,7 @@
 		FA398C36FD577AAFA26C7F9F /* RecentScreenshotCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotCoordinator.swift; sourceTree = "<group>"; };
 		FE106606E5FFD57A136A5ED9 /* PanelBackdropFamily.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelBackdropFamily.swift; sourceTree = "<group>"; };
 		FEBCB8BBEBAA5498AFF55F28 /* CardRetentionSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsModel.swift; sourceTree = "<group>"; };
+		FF9A11D8A63445BC78DBD1ED /* WorkItemStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkItemStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -308,6 +312,7 @@
 				9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */,
 				3A94909BD4C8A3D066BC97BD /* CloudSyncEngine.swift */,
 				F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */,
+				8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */,
 				B8FF6E5313712AEB634FE5B6 /* RecentClipboardImageMonitor.swift */,
 				23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */,
 				FA398C36FD577AAFA26C7F9F /* RecentScreenshotCoordinator.swift */,
@@ -317,6 +322,7 @@
 				D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */,
 				5494BC3D393236C1E14A6833 /* ScreenshotFolderAccess.swift */,
 				2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */,
+				FF9A11D8A63445BC78DBD1ED /* WorkItemStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -648,6 +654,7 @@
 				B358F4085B2EDA1EAF7764BD /* PrimitiveTokens.swift in Sources */,
 				9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */,
 				4C3EBD00780FCCB62BC81BAC /* PromptCueChip.swift in Sources */,
+				202C1BC04959F9C7DAFE65F2 /* PromptCueDatabase.swift in Sources */,
 				755EA71A621537FE2BC9A64E /* PromptCueSettingsView.swift in Sources */,
 				02C6BDE093B5A2C49D4B21C8 /* PromptCueShadowModifiers.swift in Sources */,
 				821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */,
@@ -674,6 +681,7 @@
 				A3B388733B91B624F0344F36 /* TopEdgeStrokeOverlay.swift in Sources */,
 				9FDC842CD22533DEF3817216 /* TransientScreenshotCache.swift in Sources */,
 				E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */,
+				74DE5476C76B6826311F0012 /* WorkItemStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

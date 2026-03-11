@@ -168,4 +168,137 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertEqual(loadedCards.map(\.id), [second.id])
         XCTAssertEqual(loadedCards.first?.text, second.text)
     }
+
+    func testWorkItemStoreRoundTripsItemsSourcesAndCopyEvents() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let database = PromptCueDatabase(databaseURL: databaseURL)
+        let store = WorkItemStore(database: database)
+        let workItem = WorkItem(
+            id: UUID(),
+            title: "Stabilize MCP lane",
+            summary: "Keep raw notes and derived work items separate",
+            repoName: "PromptCue",
+            branchName: "backtick-mcp",
+            status: .inProgress,
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            updatedAt: Date(timeIntervalSinceReferenceDate: 120),
+            createdBy: .mcpAI,
+            difficultyHint: .large,
+            sourceNoteCount: 2
+        )
+        let firstNoteID = UUID()
+        let secondNoteID = UUID()
+        let sources = [
+            WorkItemSource(workItemID: UUID(), noteID: firstNoteID, relationType: .primary),
+            WorkItemSource(workItemID: UUID(), noteID: secondNoteID, relationType: .supporting),
+        ]
+        let copyEvent = CopyEvent(
+            id: UUID(),
+            noteID: firstNoteID,
+            sessionID: "run-17",
+            copiedAt: Date(timeIntervalSinceReferenceDate: 140),
+            copiedVia: .agentRun,
+            copiedBy: .mcp
+        )
+
+        try store.upsert(workItem)
+        try store.replaceSources(for: workItem.id, with: sources)
+        try store.recordCopyEvents([copyEvent])
+
+        let loadedWorkItems = try store.loadWorkItems()
+        let loadedSources = try store.loadSources(for: workItem.id)
+        let loadedCopyEvents = try store.loadCopyEvents(for: firstNoteID)
+
+        XCTAssertEqual(loadedWorkItems, [workItem])
+        XCTAssertEqual(
+            loadedSources,
+            [
+                WorkItemSource(workItemID: workItem.id, noteID: firstNoteID, relationType: .primary),
+                WorkItemSource(workItemID: workItem.id, noteID: secondNoteID, relationType: .supporting),
+            ]
+        )
+        XCTAssertEqual(loadedCopyEvents, [copyEvent])
+    }
+
+    func testWorkItemStoreSourceReplacementDoesNotDuplicateMappings() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let store = WorkItemStore(databaseURL: databaseURL)
+        let workItemID = UUID()
+        let firstNoteID = UUID()
+        let secondNoteID = UUID()
+        let workItem = WorkItem(
+            id: workItemID,
+            title: "Replace mappings",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            createdBy: .user,
+            sourceNoteCount: 1
+        )
+
+        try store.upsert(workItem)
+
+        try store.replaceSources(
+            for: workItemID,
+            with: [
+                WorkItemSource(workItemID: workItemID, noteID: firstNoteID, relationType: .primary),
+                WorkItemSource(workItemID: workItemID, noteID: firstNoteID, relationType: .duplicate),
+            ]
+        )
+        try store.replaceSources(
+            for: workItemID,
+            with: [
+                WorkItemSource(workItemID: workItemID, noteID: secondNoteID, relationType: .supporting),
+            ]
+        )
+
+        let loadedSources = try store.loadSources(for: workItemID)
+
+        XCTAssertEqual(
+            loadedSources,
+            [
+                WorkItemSource(workItemID: workItemID, noteID: secondNoteID, relationType: .supporting),
+            ]
+        )
+    }
+
+    func testWorkItemStoreCoexistsWithCardStoreOnSharedDatabase() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let database = PromptCueDatabase(databaseURL: databaseURL)
+        let cardStore = CardStore(database: database)
+        let workItemStore = WorkItemStore(database: database)
+        let card = CaptureCard(
+            id: UUID(),
+            text: "Raw note stays intact",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+        let workItem = WorkItem(
+            id: UUID(),
+            title: "Derived execution card",
+            createdAt: Date(timeIntervalSinceReferenceDate: 110),
+            createdBy: .user,
+            sourceNoteCount: 1
+        )
+
+        try cardStore.save([card])
+        try workItemStore.upsert(workItem)
+        try workItemStore.replaceSources(
+            for: workItem.id,
+            with: [
+                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
+            ]
+        )
+
+        let loadedCards = try cardStore.load()
+        let loadedWorkItems = try workItemStore.loadWorkItems()
+        let loadedSources = try workItemStore.loadSources(for: workItem.id)
+
+        XCTAssertEqual(loadedCards, [card])
+        XCTAssertEqual(loadedWorkItems, [workItem])
+        XCTAssertEqual(
+            loadedSources,
+            [
+                WorkItemSource(workItemID: workItem.id, noteID: card.id, relationType: .primary),
+            ]
+        )
+    }
 }

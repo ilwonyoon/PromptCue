@@ -154,11 +154,50 @@ Explicitly deferred from `PR #18`:
 - any rollout that changes default user behavior
 - feature wiring beyond additive flags
 
+Follow-up MCP rollout after the initial contract lane:
+
+1. `MCP2` read-only execution map board
+2. `MCP3` manual work item creation
+3. `MCP4` execution handoff and copied-state application
+4. `MCP5` AI regrouping
+5. `MCP6` settings surface for execution map rollout controls
+6. `MCP7` in-product guidance inside the execution map board
+
+Ownership split for the last two slices:
+
+- Settings owns preference controls and brief explanatory copy only.
+- The execution map board owns first-run guidance, empty-state education, and contextual usage instruction.
+
 Integration order:
 
 1. land `PromptCueCore` contract seed
 2. adapt and land `AppEnvironment` on latest `main`
 3. land docs after code is already on `main`
+
+## PR20 Landing Plan
+
+`PR #20` (`backtick-mcp-board`) should not merge whole. Land it as three slices:
+
+1. `ExecutionMapModel` + `ExecutionMapModelTests`
+2. `ExecutionMapView` + `ExecutionMapWindowController`
+3. `AppCoordinator` menu/startup/appearance wiring
+
+Why this order:
+
+- `ExecutionMapModel` is the lowest-risk read-only contract over already-landed MCP persistence
+- board window UI is safe after the model exists
+- `AppCoordinator` is master-owned and is the only part that changes menu and startup behavior
+
+Required smoke checks before the final slice lands:
+
+- MCP disabled:
+  no execution-map menu item, no board on launch
+- MCP enabled:
+  menu item appears and opens one reusable board window
+- MCP enabled + open-on-start:
+  board opens once without interfering with capture/stack startup
+- appearance:
+  board follows the same light/dark propagation as capture, stack, and settings
 
 ## Track Gates
 

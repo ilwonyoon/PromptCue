@@ -220,6 +220,103 @@ Rules for this lane:
 - do not merge old branch assumptions about startup if they drop current `main` flags
 - keep all MCP terminology internal until the actual UI/persistence model is ready
 
+## MCP Rollout Follow-Up
+
+Terminology for this lane:
+
+- `board` means the `Execution Map` window
+- this is the MCP execution surface, not the raw Stack view
+
+Settings and guidance are both required, but they do not own the same job:
+
+1. Settings owns preference and rollout control
+   - enable or disable the execution map feature
+   - open the execution map on startup
+   - expose only concise explanation for what the feature is and what enabling it changes
+
+2. The execution map board owns usage guidance
+   - first-run empty state
+   - read-only phase explanation
+   - how raw notes relate to work items
+   - what the user should do next when no work items exist yet
+
+Reason:
+
+- Settings should remain a native preference surface, not a tutorial surface.
+- The execution map board is where the user needs the guidance in context.
+
+Planned MCP rollout after contracts and persistence:
+
+1. `MCP2` read-only execution map board
+   - add the feature-flagged board window
+   - render repo and status lanes from stored work items
+
+2. `MCP3` manual work item creation
+   - create work items from selected raw notes
+   - preserve source traceability
+
+3. `MCP4` execution handoff
+   - export or send from work items
+   - apply copied semantics only on actual execution entry
+
+## PR20 Landing Plan
+
+`PR #20` (`backtick-mcp-board`) should land as a staged `MCP2` board slice, not as one large merge.
+
+Landing order:
+
+1. `ExecutionMapModel` and tests
+   - `PromptCue/UI/ExecutionMap/ExecutionMapModel.swift`
+   - `PromptCueTests/ExecutionMapModelTests.swift`
+   - why first:
+     isolated grouping/sorting logic over already-landed `WorkItemStore`
+   - gate:
+     `xcodegen generate`
+     `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/ExecutionMapModelTests`
+     `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+
+2. `Execution Map` window and read-only board view
+   - `PromptCue/UI/ExecutionMap/ExecutionMapView.swift`
+   - `PromptCue/UI/WindowControllers/ExecutionMapWindowController.swift`
+   - `PromptCue.xcodeproj/project.pbxproj`
+   - why second:
+     UI is low risk once the model contract exists, and still keeps the feature dark without app wiring
+   - gate:
+     app build
+     empty-state smoke in a debug build
+
+3. `AppCoordinator` wiring and rollout behavior
+   - `PromptCue/App/AppCoordinator.swift`
+   - status item menu item
+   - `PROMPTCUE_ENABLE_MCP` and `PROMPTCUE_OPEN_MCP_ON_START` gating
+   - why last:
+     this is the only slice that changes startup/menu behavior and should land after the board itself is stable
+   - gate:
+     app build
+     MCP disabled smoke
+     MCP enabled smoke
+     MCP enabled + open-on-start smoke
+
+Rules for this lane:
+
+- keep the board read-only
+- do not add work-item creation or execution actions in this PR
+- do not let MCP startup/menu wiring affect capture or stack startup behavior
+- preserve current appearance propagation behavior when the board window is added
+
+4. `MCP5` AI regrouping
+   - derive work items from related raw notes without mutating raw source data
+
+5. `MCP6` settings and rollout surface
+   - add execution map settings to the existing Settings window
+   - expose enable or disable and open-on-start as user-facing controls
+   - add short explanatory copy only, not full usage education
+
+6. `MCP7` in-product usage guidance
+   - add first-run guidance and empty-state instruction inside the execution map board
+   - explain the relationship between Stack, copied history, and execution cards
+   - tell the user where to start when the board is empty
+
 ## Phase 0: Research And Decisions
 
 ### Goal

@@ -189,6 +189,37 @@ Planned integration order:
 3. update collapsed copied-stack summaries
 4. add automated visual/behavior verification for long-card fixtures
 
+## PR18 Landing Plan
+
+`PR #18` (`backtick-mcp-contracts`) is being landed as a staged contract branch, not a single merge candidate.
+
+Landing status:
+
+1. `PromptCueCore` contract seed
+   - `CopyEvent`
+   - `WorkItem`
+   - `WorkItemSource`
+   - matching `PromptCueCore` tests
+   - status: landed on `main`
+
+2. `AppEnvironment` and startup-flag refactor
+   - preserve current `main` startup flags
+   - add MCP flags as additive rollout toggles only
+   - do not wire MCP UI or persistence in this slice
+   - status: landed on `main`
+
+3. MCP planning docs
+   - execution plan
+   - user scenarios
+   - board/implementation references
+   - status: current slice
+
+Rules for this lane:
+
+- do not land dead UX or hidden runtime behavior behind the MCP flags yet
+- do not merge old branch assumptions about startup if they drop current `main` flags
+- keep all MCP terminology internal until the actual UI/persistence model is ready
+
 ## Phase 0: Research And Decisions
 
 ### Goal

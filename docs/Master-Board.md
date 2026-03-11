@@ -96,6 +96,70 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 7. Phase R9 stack card overflow and click expansion
 8. Full verification pass
 
+## Next Merge Plan
+
+`PR #18` (`backtick-mcp-contracts`) is being landed as three independent slices.
+
+1. `MCP contract seed in PromptCueCore`
+   Files:
+   `Sources/PromptCueCore/CopyEvent.swift`
+   `Sources/PromptCueCore/WorkItem.swift`
+   `Sources/PromptCueCore/WorkItemSource.swift`
+   `Tests/PromptCueCoreTests/PromptCueCoreTests.swift`
+   Why first:
+   Pure models only, no app-target wiring, lowest merge risk.
+   Known contract notes:
+   `noteID`, `sourceNoteCount`, and actor naming (`mcp` vs `mcpAI`) should stay internal until a later persistence/API slice normalizes terminology.
+   Gate:
+   `xcodegen generate`
+   `swift test`
+   optional app build after landing
+   Status:
+   landed on `main`
+
+2. `AppEnvironment refactor and MCP rollout flags`
+   Files:
+   `PromptCue/App/AppEnvironment.swift`
+   `PromptCue/App/AppCoordinator.swift`
+   `PromptCueTests/AppEnvironmentTests.swift`
+   `PromptCue.xcodeproj/project.pbxproj`
+   Why second:
+   Isolated startup contract refactor, but it touches `AppCoordinator.swift`, which is master-owned and currently diverged from the PR branch.
+   Required adaptation before landing:
+   add `PROMPTCUE_OPEN_SETTINGS_ON_START` to `AppEnvironment`
+   preserve current `main` startup behavior
+   keep `PROMPTCUE_ENABLE_MCP` and `PROMPTCUE_OPEN_MCP_ON_START` additive and unused
+   Gate:
+   `xcodegen generate`
+   `swift test`
+   `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+   Status:
+   landed on `main`
+
+3. `Planning docs`
+   Files:
+   `docs/Backtick-MCP-Execution-Plan.md`
+   `docs/Backtick-MCP-User-Scenarios.md`
+   `docs/Implementation-Plan.md`
+   `docs/Master-Board.md`
+   Why last:
+   These are useful once the contract and flag slices are already on `main`; otherwise docs would describe code that has not landed yet.
+   Gate:
+   docs-only self-review
+
+Explicitly deferred from `PR #18`:
+
+- persistence for work items or copy events
+- UI for execution map / MCP boards
+- any rollout that changes default user behavior
+- feature wiring beyond additive flags
+
+Integration order:
+
+1. land `PromptCueCore` contract seed
+2. adapt and land `AppEnvironment` on latest `main`
+3. land docs after code is already on `main`
+
 ## Track Gates
 
 ### Gate 1: Track Review

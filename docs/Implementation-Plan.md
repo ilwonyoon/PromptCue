@@ -323,13 +323,14 @@ Verification gates run for landed MCP slices:
 Current immediate next step:
 
 1. connector surface refinement
-   - keep the current `Connectors` functionality, but make the default view status-first instead of prose-first
+   - keep the current `Connectors` functionality, but make the default view action-first instead of prose-first
    - show one Backtick server summary card plus one card per supported client
    - separate `client setup` from `local server verification` instead of collapsing both into a single `Connected` state
    - make one primary action visible per client:
+     - `Open Docs` when the client CLI is missing
      - `Copy Add Command` when setup is missing
      - `Run Test` when setup exists but local verification has not passed
-     - no primary action after verification passes
+     - no loud primary action after verification passes
    - surface the refined product states:
      - `CLI not found`
      - `Needs setup`
@@ -337,7 +338,14 @@ Current immediate next step:
      - `Not verified`
      - `Local server OK`
      - `Needs attention`
-   - move raw command lines, config paths, config snippets, and Claude automation examples behind `Advanced`
+   - replace generic `Advanced` with action-specific disclosures:
+     - `Manual Setup`
+     - `Troubleshooting`
+     - `Automation`
+   - make disclosures action-driven instead of informational:
+     - `Manual Setup` holds config locations, add commands, and config snippets
+     - `Troubleshooting` holds failure detail, CLI state, and fix actions
+     - `Automation` holds Claude allowlist guidance only when relevant
    - keep all existing actions intact inside the refined hierarchy:
      - `Run Test`
      - `Copy Launch Command`

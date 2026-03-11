@@ -223,6 +223,11 @@ Post-`MCP5` rollout:
   - product error handling should separate `tool permission denied` from launch/connect failures
 - connector UX refinement keeps that surface terse and action-first
   - the default screen should show server readiness, client setup state, and the next action without opening long snippets
+  - action priority is fixed:
+    - install the client if the CLI is missing
+    - add Backtick to config if setup is missing
+    - run the local test after setup
+    - show fix-oriented troubleshooting when validation fails
   - refined states should read like product status, not transport internals:
     - `CLI not found`
     - `Needs setup`
@@ -230,7 +235,11 @@ Post-`MCP5` rollout:
     - `Not verified`
     - `Local server OK`
     - `Needs attention`
-  - raw config, CLI paths, and automation examples belong behind `Advanced`
+  - generic `Advanced` should be replaced by:
+    - `Manual Setup`
+    - `Troubleshooting`
+    - `Automation`
+  - raw config, CLI paths, and automation examples belong behind those action-specific disclosures
   - reference patterns:
     - Cursor `Tools & MCP` settings structure
       - https://cursor.com/docs/mcp

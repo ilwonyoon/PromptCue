@@ -257,6 +257,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.serverTestDetail, "boom")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Needs attention")
         XCTAssertEqual(model.clientFailureDetail(for: claude), "boom")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
     }
 
     @MainActor
@@ -298,6 +299,26 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Needs setup")
         XCTAssertEqual(model.clientScopeTitle(for: claude), nil)
         XCTAssertEqual(model.primaryAction(for: claude), .copyAddCommand)
+    }
+
+    @MainActor
+    func testModelShowsCLIUnavailableWhenClientBinaryIsMissing() throws {
+        let freshHomeDirectoryURL = tempDirectoryURL.appendingPathComponent("FreshHome", isDirectory: true)
+        try FileManager.default.createDirectory(at: freshHomeDirectoryURL, withIntermediateDirectories: true)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: MCPConnectorInspector(
+                environment: [:],
+                homeDirectoryURL: freshHomeDirectoryURL,
+                repositoryRootURL: repositoryRootURL
+            ),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientSetupTitle(for: claude), "CLI not found")
+        XCTAssertEqual(model.primaryAction(for: claude), .openDocumentation)
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Install"))
     }
 
     private func makeInspector() -> MCPConnectorInspector {

@@ -122,6 +122,8 @@ enum PrimitiveTokens {
         static let bodyStrong = Font.system(size: FontSize.body, weight: .medium)
         static let meta = Font.system(size: FontSize.meta, weight: .regular)
         static let metaStrong = Font.system(size: FontSize.meta, weight: .semibold)
+        static let code = Font.system(size: FontSize.micro, weight: .regular, design: .monospaced)
+        static let codeStrong = Font.system(size: FontSize.micro, weight: .medium, design: .monospaced)
         static let selection = Font.system(size: FontSize.micro, weight: .semibold)
         static let chip = Font.system(size: FontSize.meta, weight: .medium)
         static let captureInput = Font.system(size: FontSize.capture, weight: .regular)

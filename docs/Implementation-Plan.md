@@ -253,6 +253,64 @@ Next rollout:
    - mark a note executed by updating `lastCopiedAt`
    - persist a matching `CopyEvent` with MCP actor metadata
 
+Current queued PRs:
+
+- `PR #22` `backtick-mcp-read-bridge`
+  - title: `Add Stack MCP read bridge service`
+  - scope:
+    - `PromptCue/Services/StackReadService.swift`
+    - `PromptCueTests/StackReadServiceTests.swift`
+    - docs and generated project updates only
+- `PR #23` `backtick-mcp-write-bridge`
+  - title: `Add Stack MCP write bridge service`
+  - current base: `backtick-mcp-read-bridge`
+  - scope:
+    - `PromptCue/Services/StackWriteService.swift`
+    - `PromptCueTests/StackWriteServiceTests.swift`
+    - docs and generated project updates only
+
+`PR #22` landing plan:
+
+1. merge `PR #22` into `main` first
+2. keep the slice read-only
+3. do not add stdio transport, MCP tool wiring, or UI affordances in this PR
+
+`PR #22` gate:
+
+- `xcodegen generate`
+- `swift test`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackReadServiceTests`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+
+`PR #23` landing plan:
+
+1. merge `PR #22`
+2. retarget `PR #23` from `backtick-mcp-read-bridge` to `main`
+3. resolve the expected overlap in:
+   - `docs/Implementation-Plan.md`
+   - `docs/Master-Board.md`
+   - `PromptCue.xcodeproj/project.pbxproj`
+4. keep `PR #23` limited to Stack note mutation:
+   - create
+   - update
+   - delete
+   - managed attachment cleanup on delete
+5. do not add execution semantics or `CopyEvent` writes in `PR #23`
+
+`PR #23` gate:
+
+- `xcodegen generate`
+- `swift test`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/StackWriteServiceTests`
+- `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+
+Post-merge state after `PR #23`:
+
+- `main` contains both `StackReadService` and `StackWriteService`
+- Stack remains the only source of truth
+- copied state is still untouched by read/write PRs
+- execution and stdio transport remain separate follow-up slices
+
 ## Phase 0: Research And Decisions
 
 ### Goal

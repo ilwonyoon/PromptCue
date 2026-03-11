@@ -9,6 +9,7 @@ final class AppCoordinator {
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
+    private let appearanceSettingsModel = AppearanceSettingsModel()
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(model: model)
     private lazy var designSystemWindowController = DesignSystemWindowController()
@@ -16,7 +17,8 @@ final class AppCoordinator {
         screenshotSettingsModel: screenshotSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
-        cloudSyncSettingsModel: cloudSyncSettingsModel
+        cloudSyncSettingsModel: cloudSyncSettingsModel,
+        appearanceSettingsModel: appearanceSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
@@ -24,6 +26,7 @@ final class AppCoordinator {
     func start() {
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
+        appearanceSettingsModel.applyAppearance()
         model.start()
         applyCaptureQADraftSeedIfNeeded()
         hotKeyCenter.registerDefaultShortcuts(
@@ -56,6 +59,13 @@ final class AppCoordinator {
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: PerformanceTrace.stackToggleDelayNanoseconds)
                 self?.toggleStackPanel()
+            }
+        }
+
+        if ProcessInfo.processInfo.environment["PROMPTCUE_OPEN_SETTINGS_ON_START"] == "1" {
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                self?.showSettingsWindow()
             }
         }
 

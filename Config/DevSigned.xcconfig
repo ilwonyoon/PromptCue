@@ -1,0 +1,6 @@
+#include "Base.xcconfig"
+#include? "Local.xcconfig"
+
+// Interactive local runs should be signed by a stable local identity instead
+// of ad hoc signing so macOS TCC keeps recognizing the app across rebuilds.
+CODE_SIGNING_ALLOWED = NO

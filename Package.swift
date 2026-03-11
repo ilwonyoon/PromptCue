@@ -42,6 +42,7 @@ let package = Package(
                 ".swiftpm",
                 "AGENTS.md",
                 "CLAUDE.md",
+                "Config",
                 "PromptCue.xcodeproj",
                 "PromptCue/App",
                 "PromptCue/Domain",

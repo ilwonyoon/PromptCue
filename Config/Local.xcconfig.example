@@ -1,0 +1,8 @@
+// Copy this file to Config/Local.xcconfig and update any machine-specific
+// values there. The copied file is gitignored.
+//
+// DevSigned is intended for interactive local runs from Xcode. It replaces
+// ad hoc signing with a stable local Apple Development identity so
+// Documents/Desktop/Downloads permissions do not churn across rebuilds.
+
+PROMPTCUE_DEV_SIGNING_SHA1 = YOUR_CERTIFICATE_SHA1

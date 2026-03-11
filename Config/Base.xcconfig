@@ -1,0 +1,4 @@
+// Shared build settings baseline.
+//
+// Machine-specific signing overrides belong in Config/Local.xcconfig,
+// which is gitignored and only included by the DevSigned configuration.

@@ -3,17 +3,29 @@ options:
   bundleIdPrefix: com.promptcue
   deploymentTarget:
     macOS: "14.0"
+configs:
+  Debug: debug
+  DevSigned: debug
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  DevSigned: Config/DevSigned.xcconfig
+  Release: Config/Release.xcconfig
 settings:
   base:
     SWIFT_VERSION: 5.0
-    DEVELOPMENT_TEAM: ""
+fileGroups:
+  - Config
 schemes:
   PromptCue:
     build:
       targets:
         PromptCue: all
         PromptCueTests: [test]
+    run:
+      config: DevSigned
     test:
+      config: Debug
       gatherCoverageData: false
       targets:
         - name: PromptCueTests
@@ -33,6 +45,11 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: PromptCue
+    postBuildScripts:
+      - path: scripts/sign_dev_app.sh
+        name: Sign Dev App
+        basedOnDependencyAnalysis: false
+        showEnvVars: false
     dependencies:
       - package: PromptCueCore
         product: PromptCueCore

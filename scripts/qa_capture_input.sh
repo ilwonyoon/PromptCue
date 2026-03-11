@@ -48,6 +48,28 @@ escape_json() {
 }
 
 resolve_latest_app() {
+  local resolved_path=""
+  local settings=""
+  local target_build_dir=""
+  local full_product_name=""
+
+  for configuration in DevSigned Debug; do
+    if settings="$(xcodebuild \
+      -project "${REPO_ROOT}/PromptCue.xcodeproj" \
+      -scheme PromptCue \
+      -configuration "${configuration}" \
+      -showBuildSettings 2>/dev/null)"; then
+      target_build_dir="$(printf '%s\n' "${settings}" | awk -F ' = ' '/TARGET_BUILD_DIR/ { print $2; exit }')"
+      full_product_name="$(printf '%s\n' "${settings}" | awk -F ' = ' '/FULL_PRODUCT_NAME/ { print $2; exit }')"
+      resolved_path="${target_build_dir}/${full_product_name}"
+
+      if [[ -x "${resolved_path}/Contents/MacOS/Prompt Cue" ]]; then
+        printf '%s\n' "${resolved_path}"
+        return 0
+      fi
+    fi
+  done
+
   local candidates=()
   while IFS= read -r path; do
     candidates+=("$path")
@@ -174,7 +196,7 @@ done
 configure_scenario
 
 if [[ -z "${APP_PATH}" ]]; then
-  APP_PATH="$(resolve_latest_app)" || fail "could not find a local Debug build of Prompt Cue.app; pass --app"
+  APP_PATH="$(resolve_latest_app)" || fail "could not find a local DevSigned or Debug build of Prompt Cue.app; pass --app"
 fi
 
 APP_PATH="$(cd "${APP_PATH}" && pwd)"

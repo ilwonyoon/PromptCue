@@ -21,7 +21,7 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
         case .claudeCode:
             return URL(string: "https://docs.anthropic.com/en/docs/claude-code/mcp")!
         case .codex:
-            return URL(string: "https://developers.openai.com/codex")!
+            return URL(string: "https://platform.openai.com/docs/codex/cli#model-context-protocol-mcp")!
         }
     }
 
@@ -153,6 +153,7 @@ struct MCPConnectorClientStatus: Equatable {
 
 struct MCPConnectorInspection: Equatable {
     let repositoryRootPath: String?
+    let bundledHelperPath: String?
     let launchSpec: MCPServerLaunchSpec?
     let clients: [MCPConnectorClientStatus]
 
@@ -243,25 +244,30 @@ struct MCPConnectorInspector {
     private let fileManager: FileManager
     private let environment: [String: String]
     private let homeDirectoryURL: URL
+    private let applicationBundleURL: URL?
     private let repositoryRootURL: URL?
 
     init(
         fileManager: FileManager = .default,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectoryURL: URL = FileManager.default.homeDirectoryForCurrentUser,
+        applicationBundleURL: URL? = Bundle.main.bundleURL,
         repositoryRootURL: URL? = nil
     ) {
         self.fileManager = fileManager
         self.environment = environment
         self.homeDirectoryURL = homeDirectoryURL
+        self.applicationBundleURL = applicationBundleURL
         self.repositoryRootURL = repositoryRootURL ?? Self.detectRepositoryRoot(fileManager: fileManager)
     }
 
     func inspect() -> MCPConnectorInspection {
-        let launchSpec = launchSpecification()
+        let bundledHelperURL = bundledHelperURL()
+        let launchSpec = launchSpecification(bundledHelperURL: bundledHelperURL)
 
         return MCPConnectorInspection(
             repositoryRootPath: repositoryRootURL?.path,
+            bundledHelperPath: bundledHelperURL?.path,
             launchSpec: launchSpec,
             clients: MCPConnectorClient.allCases.map { client in
                 clientStatus(for: client, launchSpec: launchSpec)
@@ -289,7 +295,14 @@ struct MCPConnectorInspector {
         return nil
     }
 
-    private func launchSpecification() -> MCPServerLaunchSpec? {
+    private func launchSpecification(bundledHelperURL: URL?) -> MCPServerLaunchSpec? {
+        if let bundledHelperURL {
+            return MCPServerLaunchSpec(
+                command: bundledHelperURL.path,
+                arguments: []
+            )
+        }
+
         guard let repositoryRootURL else {
             return nil
         }
@@ -317,6 +330,23 @@ struct MCPConnectorInspector {
                 "BacktickMCP",
             ]
         )
+    }
+
+    private func bundledHelperURL() -> URL? {
+        guard let applicationBundleURL else {
+            return nil
+        }
+
+        let helperURL = applicationBundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+
+        if isExecutableFile(helperURL) {
+            return helperURL.standardizedFileURL
+        }
+
+        return nil
     }
 
     private func clientStatus(
@@ -541,6 +571,22 @@ final class MCPConnectorSettingsModel: ObservableObject {
         inspection.launchSpec != nil
     }
 
+    var serverSourcePath: String {
+        inspection.bundledHelperPath ?? inspection.repositoryRootPath ?? "Not detected"
+    }
+
+    var serverSourceLabel: String {
+        if inspection.bundledHelperPath != nil {
+            return "Bundled helper"
+        }
+
+        if inspection.repositoryRootPath != nil {
+            return "Repository"
+        }
+
+        return "Not detected"
+    }
+
     var serverStatusTitle: String {
         inspection.launchSpec == nil ? "Needs build" : "Available"
     }
@@ -553,13 +599,29 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return "Backtick MCP needs a detectable source checkout or bundled helper before connector setup can be generated."
     }
 
+    var serverStatusFootnote: String {
+        if let bundledHelperPath = inspection.bundledHelperPath {
+            return "Backtick MCP is bundled inside this app build at \(bundledHelperPath)."
+        }
+
+        if let repositoryRootPath = inspection.repositoryRootPath {
+            return "Backtick MCP is being launched from the current source checkout at \(repositoryRootPath)."
+        }
+
+        return "No bundled helper or source checkout was detected."
+    }
+
     var clients: [MCPConnectorClientStatus] {
         inspection.clients
     }
 
     var serverSummary: String {
-        if inspection.launchSpec != nil {
-            return "Run a local test, then finish setup in Claude Code or Codex."
+        if inspection.bundledHelperPath != nil {
+            return "This build already includes Backtick MCP. Run a local test, then finish setup in Claude Code or Codex."
+        }
+
+        if inspection.repositoryRootPath != nil {
+            return "Backtick MCP is available from the current source checkout. Run a local test, then finish setup in Claude Code or Codex."
         }
 
         return "Build or bundle the Backtick MCP helper before setting up a client."

@@ -312,6 +312,11 @@ struct PromptCueSettingsView: View {
 
                         if mcpConnectorSettingsModel.isServerAvailable {
                             connectorChip(
+                                mcpConnectorSettingsModel.serverSourceLabel,
+                                tone: .neutral
+                            )
+
+                            connectorChip(
                                 mcpConnectorSettingsModel.serverVerificationTitle,
                                 tone: serverVerificationTone
                             )
@@ -322,6 +327,14 @@ struct PromptCueSettingsView: View {
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if mcpConnectorSettingsModel.isServerAvailable {
+                        Text(mcpConnectorSettingsModel.serverStatusFootnote)
+                            .font(PrimitiveTokens.Typography.meta)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     HStack(spacing: PrimitiveTokens.Space.xs) {
                         if mcpConnectorSettingsModel.isServerAvailable {

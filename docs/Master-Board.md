@@ -196,6 +196,8 @@ Landed `MCP5` gate:
 Immediate next step:
 
 - package a bundled `BacktickMCP` helper for release builds
+- copy the helper into `Prompt Cue.app/Contents/Helpers/BacktickMCP` during app builds
+- prefer the bundled helper path in Settings when it exists
 - keep the repository-checkout launch path as a development fallback
 - rerun connector validation against the packaged helper path
 - preserve the current external smoke finding:

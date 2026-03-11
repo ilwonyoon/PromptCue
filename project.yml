@@ -33,6 +33,11 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: PromptCue
+    postBuildScripts:
+      - name: Bundle BacktickMCP Helper
+        basedOnDependencyAnalysis: false
+        script: |
+          /bin/sh "${SRCROOT}/scripts/build_backtick_mcp_helper.sh"
     dependencies:
       - package: PromptCueCore
         product: PromptCueCore

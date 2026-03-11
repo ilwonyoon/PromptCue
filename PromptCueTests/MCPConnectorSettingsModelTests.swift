@@ -93,6 +93,45 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains("codex mcp add") == true)
     }
 
+    func testInspectorPrefersBundledHelperOverRepositoryCheckout() throws {
+        let repoExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: repoExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: repoExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: repoExecutableURL.path
+        )
+
+        let appBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let bundledHelperURL = appBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: bundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: bundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: bundledHelperURL.path
+        )
+
+        let inspection = makeInspector(applicationBundleURL: appBundleURL).inspect()
+
+        XCTAssertEqual(inspection.bundledHelperPath, bundledHelperURL.path)
+        XCTAssertEqual(inspection.launchSpec?.command, bundledHelperURL.path)
+        XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains(bundledHelperURL.path) == true)
+        XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains(bundledHelperURL.path) == true)
+        XCTAssertTrue(inspection.status(for: .claudeCode).configSnippet?.contains(bundledHelperURL.path) == true)
+        XCTAssertTrue(inspection.status(for: .codex).configSnippet?.contains(bundledHelperURL.path) == true)
+    }
+
     func testInspectorFallsBackToSwiftRunAndDetectsHomeConfigs() throws {
         let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
         try """
@@ -321,12 +360,42 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(model.clientSummary(for: claude).contains("Install"))
     }
 
-    private func makeInspector() -> MCPConnectorInspector {
+    private func makeInspector(applicationBundleURL: URL? = nil) -> MCPConnectorInspector {
         MCPConnectorInspector(
             environment: [:],
             homeDirectoryURL: homeDirectoryURL,
+            applicationBundleURL: applicationBundleURL,
             repositoryRootURL: repositoryRootURL
         )
+    }
+
+    @MainActor
+    func testModelSurfacesBundledHelperSourceWhenAppBundleContainsHelper() throws {
+        let appBundleURL = tempDirectoryURL
+            .appendingPathComponent("Prompt Cue.app", isDirectory: true)
+        let bundledHelperURL = appBundleURL
+            .appendingPathComponent("Contents/Helpers", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: bundledHelperURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: bundledHelperURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: bundledHelperURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(applicationBundleURL: appBundleURL),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+
+        XCTAssertTrue(model.isServerAvailable)
+        XCTAssertEqual(model.serverSourceLabel, "Bundled helper")
+        XCTAssertEqual(model.serverSourcePath, bundledHelperURL.path)
+        XCTAssertTrue(model.serverSummary.contains("already includes Backtick MCP"))
+        XCTAssertTrue(model.serverStatusFootnote.contains(bundledHelperURL.path))
     }
 
     private func installClientExecutable(named executableName: String) throws {

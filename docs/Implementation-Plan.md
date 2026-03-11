@@ -331,6 +331,8 @@ Current immediate next step:
 
 1. `MCP8` bundled helper packaging
    - package `BacktickMCP` with app builds so Settings can show a ready command outside local source checkouts
+   - copy the helper into `Prompt Cue.app/Contents/Helpers/BacktickMCP` during app builds
+   - prefer the bundled helper in Settings connector setup when it exists
    - keep repository-root detection as the development fallback
    - make connector setup work for direct-download users without requiring a Swift toolchain
    - preserve the repository-checkout launch path as the developer fallback while release packaging lands

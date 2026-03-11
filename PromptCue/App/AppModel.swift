@@ -93,6 +93,7 @@ final class AppModel: ObservableObject {
     private var pendingRemoteChanges: [SyncChange] = []
     private var draftSuggestedTargetOverride: CaptureSuggestedTarget?
     private var draftRecentScreenshotStateOverride: RecentScreenshotState?
+    private var isSeedingCaptureFromCopiedCard = false
 
     init(
         cardStore: CardStore,
@@ -216,6 +217,10 @@ final class AppModel: ObservableObject {
         editingCaptureCardID != nil
     }
 
+    private var hasSeededCaptureSession: Bool {
+        isEditingCaptureCard || isSeedingCaptureFromCopiedCard
+    }
+
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
         suggestedTargetProvider.start()
         syncAvailableSuggestedTargets()
@@ -258,6 +263,7 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
+        isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         isMultiSelectMode = false
@@ -291,7 +297,7 @@ final class AppModel: ObservableObject {
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         refreshAvailableSuggestedTargets()
-        if !isEditingCaptureCard {
+        if !hasSeededCaptureSession {
             draftSuggestedTargetOverride = nil
             draftRecentScreenshotStateOverride = nil
             recentScreenshotCoordinator.prepareForCaptureSession()
@@ -305,7 +311,7 @@ final class AppModel: ObservableObject {
     }
 
     func endCaptureSession() {
-        if !isEditingCaptureCard {
+        if !hasSeededCaptureSession {
             draftSuggestedTargetOverride = nil
             draftRecentScreenshotStateOverride = nil
         }
@@ -325,7 +331,8 @@ final class AppModel: ObservableObject {
     }
 
     func beginEditingCaptureCard(_ card: CaptureCard) {
-        editingCaptureCardID = card.id
+        editingCaptureCardID = card.isCopied ? nil : card.id
+        isSeedingCaptureFromCopiedCard = card.isCopied
         draftText = card.text
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = card.suggestedTarget
@@ -555,6 +562,8 @@ final class AppModel: ObservableObject {
         draftText = ""
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = nil
+        draftRecentScreenshotStateOverride = nil
+        isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         if attachment != nil {
@@ -571,6 +580,7 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
+        isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         syncRecentScreenshotState()
@@ -1143,6 +1153,7 @@ final class AppModel: ObservableObject {
         draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
+        isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
         syncRecentScreenshotState()

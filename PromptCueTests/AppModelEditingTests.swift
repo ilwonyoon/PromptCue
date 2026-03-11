@@ -141,6 +141,43 @@ final class AppModelEditingTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: screenshotURL.path))
     }
 
+    func testSubmitCaptureFromCopiedCardEditCreatesNewActiveCard() async throws {
+        let copiedAt = Date(timeIntervalSinceReferenceDate: 200)
+        let copiedCard = CaptureCard(
+            id: UUID(),
+            text: "Copied source",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            lastCopiedAt: copiedAt,
+            sortOrder: 10
+        )
+        try CardStore(databaseURL: databaseURL).save([copiedCard])
+
+        let model = makeModel()
+        model.start()
+        model.beginEditingCaptureCard(copiedCard)
+        model.beginCaptureSession()
+        model.draftText = "Copied source refined"
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertFalse(model.isEditingCaptureCard)
+        XCTAssertEqual(model.cards.count, 2)
+
+        let copiedCards = model.cards.filter(\.isCopied)
+        let activeCards = model.cards.filter { !$0.isCopied }
+
+        XCTAssertEqual(copiedCards.count, 1)
+        XCTAssertEqual(copiedCards.first?.id, copiedCard.id)
+        XCTAssertEqual(copiedCards.first?.text, copiedCard.text)
+        XCTAssertEqual(activeCards.count, 1)
+        XCTAssertNotEqual(activeCards.first?.id, copiedCard.id)
+        XCTAssertEqual(activeCards.first?.text, "Copied source refined")
+        XCTAssertNil(activeCards.first?.lastCopiedAt)
+        XCTAssertEqual(model.draftText, "")
+        XCTAssertNil(model.recentScreenshotPreviewURL)
+    }
+
     private func makeModel(
         provider: EditingTestSuggestedTargetProvider? = nil
     ) -> AppModel {

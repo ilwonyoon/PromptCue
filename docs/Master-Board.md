@@ -139,23 +139,13 @@ Active MCP rollout:
    - mark executed notes as copied
    - persist `CopyEvent` rows with MCP actor/session metadata
 
-Immediate queued PRs:
+Current landed slice:
 
-- `PR #22` `backtick-mcp-read-bridge`
-  - adds `StackReadService`
-  - stays read-only
-- `PR #23` `backtick-mcp-write-bridge`
-  - adds `StackWriteService`
-  - is currently based on `PR #22`
+- `MCP2` read bridge landed on `main`
+- `StackReadService` stays read-only
+- UI and transport remain out of scope
 
-Merge order:
-
-1. merge `PR #22` into `main`
-2. retarget `PR #23` to `main`
-3. resolve only the shared doc and project-file overlap
-4. merge `PR #23`
-
-`PR #22` gate:
+`MCP2` gate:
 
 - service lists active and copied notes directly from Stack storage
 - service returns note detail plus `CopyEvent` history

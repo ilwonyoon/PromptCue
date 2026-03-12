@@ -86,8 +86,8 @@ struct SettingsSidebarIconTile: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .foregroundStyle(Color.white)
-                .padding(4)
+                .foregroundStyle(Color.white.opacity(0.94))
+                .padding(SettingsTokens.Layout.sidebarAssetIconInset)
         }
     }
 }

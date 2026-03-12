@@ -18,16 +18,17 @@ enum SettingsTokens {
         static let sectionTitleSpacing: CGFloat = 2
         static let contentMaxWidth: CGFloat = 600
 
-        static let sidebarRowHeight: CGFloat = 30
+        static let sidebarRowHeight: CGFloat = 32
         static let sidebarCornerRadius: CGFloat = 10
         static let sidebarItemSpacing: CGFloat = 8
         static let sidebarItemHorizontalPadding: CGFloat = 10
         static let sidebarItemVerticalPadding: CGFloat = 3
         static let sidebarVerticalPadding: CGFloat = 16
         static let sidebarHorizontalPadding: CGFloat = 10
-        static let sidebarIconSize: CGFloat = 24
-        static let sidebarIconGlyphSize: CGFloat = 11
-        static let sidebarIconTextSpacing: CGFloat = 6
+        static let sidebarIconSize: CGFloat = 26
+        static let sidebarIconGlyphSize: CGFloat = 12
+        static let sidebarAssetIconInset: CGFloat = 2.5
+        static let sidebarIconTextSpacing: CGFloat = 7
         static let sidebarIconCornerRadius: CGFloat = 5
 
         static let groupCornerRadius: CGFloat = 12

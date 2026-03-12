@@ -69,7 +69,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
     private let appearanceSettingsModel: AppearanceSettingsModel
     private let mcpConnectorSettingsModel: MCPConnectorSettingsModel
-    private var selectedTab: SettingsTab = .general
+    private let navigationModel = SettingsNavigationModel()
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
@@ -90,9 +90,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     func show(selectedTab preferredTab: SettingsTab? = nil) {
         let window = window ?? makeWindow()
         if let preferredTab,
-           preferredTab != selectedTab {
-            selectedTab = preferredTab
-            updateContent(for: window)
+           preferredTab != navigationModel.selectedTab {
+            navigationModel.selectedTab = preferredTab
         }
         refreshModels()
         window.orderFrontRegardless()
@@ -148,36 +147,36 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         )
         window.delegate = self
 
-        updateContent(for: window)
+        window.contentViewController = NSHostingController(
+            rootView: makeRootView()
+        )
 
         self.window = window
         return window
     }
 
-    private func updateContent(for window: NSWindow) {
-        window.contentViewController = NSHostingController(
-            rootView: PromptCueSettingsView(
-                selectedTab: selectedTab,
-                onSelectTab: { [weak self] tab in
-                    self?.switchTab(tab)
-                },
-                screenshotSettingsModel: screenshotSettingsModel,
-                exportTailSettingsModel: exportTailSettingsModel,
-                retentionSettingsModel: retentionSettingsModel,
-                cloudSyncSettingsModel: cloudSyncSettingsModel,
-                appearanceSettingsModel: appearanceSettingsModel,
-                mcpConnectorSettingsModel: mcpConnectorSettingsModel
-            )
+    private func makeRootView() -> PromptCueSettingsView {
+        PromptCueSettingsView(
+            selectedTab: navigationModel.selectedTab,
+            navigationModel: navigationModel,
+            onSelectTab: { [weak self] tab in
+                self?.switchTab(tab)
+            },
+            screenshotSettingsModel: screenshotSettingsModel,
+            exportTailSettingsModel: exportTailSettingsModel,
+            retentionSettingsModel: retentionSettingsModel,
+            cloudSyncSettingsModel: cloudSyncSettingsModel,
+            appearanceSettingsModel: appearanceSettingsModel,
+            mcpConnectorSettingsModel: mcpConnectorSettingsModel
         )
     }
 
     private func switchTab(_ tab: SettingsTab) {
-        guard tab != selectedTab, let window else {
+        guard tab != navigationModel.selectedTab else {
             return
         }
 
-        selectedTab = tab
-        updateContent(for: window)
+        navigationModel.selectedTab = tab
     }
 
     func windowWillClose(_ notification: Notification) {

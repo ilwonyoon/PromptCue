@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor
 struct PromptCueSettingsView: View {
-    let selectedTab: SettingsTab
+    @ObservedObject private var navigationModel: SettingsNavigationModel
     let onSelectTab: ((SettingsTab) -> Void)?
     @ObservedObject private var screenshotSettingsModel: ScreenshotSettingsModel
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
@@ -22,6 +22,7 @@ struct PromptCueSettingsView: View {
 
     init(
         selectedTab: SettingsTab,
+        navigationModel: SettingsNavigationModel? = nil,
         onSelectTab: ((SettingsTab) -> Void)? = nil,
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
@@ -30,7 +31,9 @@ struct PromptCueSettingsView: View {
         appearanceSettingsModel: AppearanceSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
-        self.selectedTab = selectedTab
+        _navigationModel = ObservedObject(
+            wrappedValue: navigationModel ?? SettingsNavigationModel(selectedTab: selectedTab)
+        )
         self.onSelectTab = onSelectTab
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
@@ -41,7 +44,9 @@ struct PromptCueSettingsView: View {
     }
 
     init() {
-        self.selectedTab = .general
+        _navigationModel = ObservedObject(
+            wrappedValue: SettingsNavigationModel(selectedTab: .general)
+        )
         self.onSelectTab = nil
         self.screenshotSettingsModel = ScreenshotSettingsModel()
         self.exportTailSettingsModel = PromptExportTailSettingsModel()
@@ -99,7 +104,7 @@ struct PromptCueSettingsView: View {
 
     private var settingsPageHeader: some View {
         HStack(alignment: .center, spacing: 0) {
-            Text(selectedTab.title)
+            Text(navigationModel.selectedTab.title)
                 .font(SettingsTokens.Typography.pageTitle)
                 .foregroundStyle(SettingsSemanticTokens.Text.primary)
                 .lineLimit(1)
@@ -110,7 +115,7 @@ struct PromptCueSettingsView: View {
 
     @ViewBuilder
     private var selectedTabContent: some View {
-        switch selectedTab {
+        switch navigationModel.selectedTab {
         case .general:
             generalPage
         case .capture:
@@ -134,10 +139,14 @@ struct PromptCueSettingsView: View {
                             title: tab.title,
                             icon: tab.sidebarIcon,
                             iconFill: tab.sidebarIconColor,
-                            isSelected: tab == selectedTab,
+                            isSelected: tab == navigationModel.selectedTab,
                             usesManualSelection: true
                         ) {
-                            onSelectTab?(tab)
+                            if let onSelectTab {
+                                onSelectTab(tab)
+                            } else {
+                                navigationModel.selectedTab = tab
+                            }
                         }
                     }
 
@@ -332,7 +341,7 @@ struct PromptCueSettingsView: View {
 
                 SettingsDetailGroupRow("Folder", showsDivider: false) {
                     Text(screenshotStatusDetail)
-                        .font(PrimitiveTokens.Typography.body)
+                        .font(PrimitiveTokens.Typography.bodyStrong)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -478,12 +487,19 @@ struct PromptCueSettingsView: View {
                 )
 
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
-                    Text(client.client.title)
-                        .font(PrimitiveTokens.Typography.bodyStrong)
-                        .foregroundStyle(SemanticTokens.Text.primary)
+                    HStack(alignment: .center, spacing: PrimitiveTokens.Space.xxs) {
+                        Text(client.client.title)
+                            .font(PrimitiveTokens.Typography.bodyStrong)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+
+                        SettingsStatusBadge(
+                            title: connectorStatusTitle(for: client),
+                            tone: connectorStatusBadgeTone(for: client)
+                        )
+                    }
 
                     Text(focusedConnectorDetail(for: client))
-                        .font(PrimitiveTokens.Typography.meta)
+                        .font(PrimitiveTokens.Typography.metaStrong)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -612,7 +628,7 @@ struct PromptCueSettingsView: View {
 
     private func focusedConnectorDetail(for client: MCPConnectorClientStatus) -> String {
         if !mcpConnectorSettingsModel.isServerAvailable {
-            return "Restart Backtick, then try again."
+            return "Restart Backtick, then verify again."
         }
 
         if !client.hasDetectedCLI {
@@ -620,18 +636,18 @@ struct PromptCueSettingsView: View {
         }
 
         if !client.hasConfiguredScope {
-            return "Not connected yet."
+            return "Add Backtick to \(client.client.title) to connect it."
         }
 
         switch mcpConnectorSettingsModel.connectionState {
         case .idle:
-            return "Connected, but not verified yet."
+            return "Backtick is configured and ready to verify."
         case .running:
             return "Checking the connection now."
         case .passed(let report):
-            return "Connected. \(report.toolNames.count) tools available."
+            return "\(report.toolNames.count) tools are ready in \(client.client.title)."
         case .failed:
-            return "Connected, but verification failed."
+            return "Connected, but the last verification failed."
         }
     }
 
@@ -671,21 +687,14 @@ struct PromptCueSettingsView: View {
             case nil:
                 if case .passed = mcpConnectorSettingsModel.connectionState,
                    client.hasConfiguredScope {
-                    HStack(spacing: PrimitiveTokens.Space.xs) {
-                        SettingsStatusBadge(
-                            title: "Connected",
-                            tone: .success
-                        )
-
-                        Button(
-                            isToolsExpanded(for: client)
-                                ? "Hide Tools"
-                                : "Show Tools"
-                        ) {
-                            expandedToolsClient = isToolsExpanded(for: client) ? nil : client.client
-                        }
-                        .controlSize(.small)
+                    Button(
+                        isToolsExpanded(for: client)
+                            ? "Hide Tools"
+                            : "Show Tools"
+                    ) {
+                        expandedToolsClient = isToolsExpanded(for: client) ? nil : client.client
                     }
+                    .controlSize(.small)
                 } else {
                     EmptyView()
                 }
@@ -702,8 +711,16 @@ struct PromptCueSettingsView: View {
     }
 
     private func connectorStatusTone(for client: MCPConnectorClientStatus) -> ConnectorChipTone {
+        if !mcpConnectorSettingsModel.isServerAvailable {
+            return .warning
+        }
+
+        if !client.hasDetectedCLI {
+            return .warning
+        }
+
         guard client.hasConfiguredScope else {
-            return .neutral
+            return .accent
         }
 
         switch mcpConnectorSettingsModel.connectionState {
@@ -712,7 +729,7 @@ struct PromptCueSettingsView: View {
         case .failed:
             return .danger
         case .idle, .running:
-            return .neutral
+            return .accent
         }
     }
 
@@ -722,6 +739,54 @@ struct PromptCueSettingsView: View {
             return SemanticTokens.Text.secondary
         case .accent, .success, .warning, .danger:
             return tone.foreground
+        }
+    }
+
+    private func connectorStatusTitle(for client: MCPConnectorClientStatus) -> String {
+        if !mcpConnectorSettingsModel.isServerAvailable {
+            return "Restart"
+        }
+
+        if !client.hasDetectedCLI {
+            return "Install"
+        }
+
+        if !client.hasConfiguredScope {
+            return "Setup Needed"
+        }
+
+        switch mcpConnectorSettingsModel.connectionState {
+        case .idle:
+            return "Ready to Verify"
+        case .running:
+            return "Checking"
+        case .passed:
+            return "Connected"
+        case .failed:
+            return "Needs Repair"
+        }
+    }
+
+    private func connectorStatusBadgeTone(for client: MCPConnectorClientStatus) -> SettingsStatusBadge.Tone {
+        if !mcpConnectorSettingsModel.isServerAvailable {
+            return .warning
+        }
+
+        if !client.hasDetectedCLI {
+            return .warning
+        }
+
+        if !client.hasConfiguredScope {
+            return .accent
+        }
+
+        switch mcpConnectorSettingsModel.connectionState {
+        case .idle, .running:
+            return .accent
+        case .passed:
+            return .success
+        case .failed:
+            return .danger
         }
     }
 
@@ -1635,7 +1700,7 @@ struct PromptCueSettingsView: View {
 
     private func rowNote(_ text: String) -> some View {
         Text(text)
-            .font(SettingsTokens.Typography.supporting)
+            .font(SettingsTokens.Typography.supportingStrong)
             .foregroundStyle(SettingsSemanticTokens.Text.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }

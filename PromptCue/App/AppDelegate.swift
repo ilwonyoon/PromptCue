@@ -22,6 +22,12 @@ struct ApplicationRemoteNotificationRegistrar: RemoteNotificationRegistering {
     }
 }
 
+@MainActor
+private func defaultAppDelegateManagesRemoteNotifications() -> Bool {
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let coordinatorFactory: @MainActor () -> any AppLifecycleCoordinating
     private let remoteNotificationRegistrar: any RemoteNotificationRegistering
@@ -30,11 +36,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: (any AppLifecycleCoordinating)?
     private var cloudSyncEnabledObserver: NSObjectProtocol?
 
+    override init() {
+        self.coordinatorFactory = { AppCoordinator() }
+        self.remoteNotificationRegistrar = ApplicationRemoteNotificationRegistrar()
+        self.cloudSyncPreferencesDefaults = .standard
+        self.managesRemoteNotifications = defaultAppDelegateManagesRemoteNotifications()
+        super.init()
+    }
+
     init(
-        coordinatorFactory: @escaping @MainActor () -> any AppLifecycleCoordinating = { AppCoordinator() },
-        remoteNotificationRegistrar: any RemoteNotificationRegistering = ApplicationRemoteNotificationRegistrar(),
-        cloudSyncPreferencesDefaults: UserDefaults = .standard,
-        managesRemoteNotifications: Bool = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+        coordinatorFactory: @escaping @MainActor () -> any AppLifecycleCoordinating,
+        remoteNotificationRegistrar: any RemoteNotificationRegistering,
+        cloudSyncPreferencesDefaults: UserDefaults,
+        managesRemoteNotifications: Bool
     ) {
         self.coordinatorFactory = coordinatorFactory
         self.remoteNotificationRegistrar = remoteNotificationRegistrar

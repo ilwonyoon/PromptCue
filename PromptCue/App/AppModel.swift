@@ -1114,6 +1114,10 @@ final class AppModel: ObservableObject {
             return
         }
 
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
+            return
+        }
+
         syncToggleObserver = NotificationCenter.default.addObserver(
             forName: .cloudSyncEnabledChanged,
             object: nil,

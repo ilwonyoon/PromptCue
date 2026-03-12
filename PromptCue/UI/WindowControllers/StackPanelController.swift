@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class StackPanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
+    private let onEditCard: (CaptureCard) -> Void
     private var panel: StackPanel?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -17,9 +18,11 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     init(
-        model: AppModel
+        model: AppModel,
+        onEditCard: @escaping (CaptureCard) -> Void = { _ in }
     ) {
         self.model = model
+        self.onEditCard = onEditCard
     }
 
     deinit {
@@ -79,11 +82,11 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         primePanelLayout(panel)
     }
 
-    func close() {
-        if model.hasStagedCopiedCards {
+    func close(commitDeferredCopies: Bool = true) {
+        if commitDeferredCopies, model.hasStagedCopiedCards {
             model.commitDeferredCopies()
         } else {
-            model.clearSelection()
+            model.exitMultiSelectMode()
         }
 
         guard let panel else {
@@ -184,6 +187,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.contentViewController = NSHostingController(
             rootView: CardStackView(
                 model: model,
+                onEditCard: { [weak self] card in
+                    self?.onEditCard(card)
+                },
                 onDeleteCard: { [weak self] card in
                     self?.model.delete(card: card)
                 }

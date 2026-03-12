@@ -1,5 +1,6 @@
 import AppKit
 import KeyboardShortcuts
+import PromptCueCore
 
 @MainActor
 final class AppCoordinator: AppLifecycleCoordinating {
@@ -13,7 +14,12 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private let mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     private let environment = AppEnvironment.current
     private lazy var capturePanelController = CapturePanelController(model: model)
-    private lazy var stackPanelController = StackPanelController(model: model)
+    private lazy var stackPanelController = StackPanelController(
+        model: model,
+        onEditCard: { [weak self] card in
+            self?.editCardFromStack(card)
+        }
+    )
     private lazy var designSystemWindowController = DesignSystemWindowController()
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
@@ -141,6 +147,14 @@ final class AppCoordinator: AppLifecycleCoordinating {
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
         stackPanelController.close()
+        capturePanelController.show()
+    }
+
+    private func editCardFromStack(_ card: CaptureCard) {
+        pendingStackToggleTask?.cancel()
+        pendingStackToggleTask = nil
+        model.beginEditingCaptureCard(card)
+        stackPanelController.close(commitDeferredCopies: false)
         capturePanelController.show()
     }
 

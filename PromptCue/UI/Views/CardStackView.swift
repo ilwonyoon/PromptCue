@@ -4,6 +4,7 @@ import SwiftUI
 struct CardStackView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
+    let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
@@ -112,6 +113,9 @@ struct CardStackView: View {
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
                     _ = model.toggleMultiCopiedCard(card)
+                },
+                onEdit: {
+                    onEditCard(card)
                 },
                 onCopyRaw: {
                     _ = model.copyRaw(card: card)

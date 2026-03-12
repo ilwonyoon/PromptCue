@@ -109,6 +109,22 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         )
     }
 
+    public func updatingContent(
+        text: String,
+        suggestedTarget: CaptureSuggestedTarget?,
+        screenshotPath: String?
+    ) -> CaptureCard {
+        CaptureCard(
+            id: id,
+            text: text,
+            suggestedTarget: suggestedTarget,
+            createdAt: createdAt,
+            screenshotPath: screenshotPath,
+            lastCopiedAt: lastCopiedAt,
+            sortOrder: sortOrder
+        )
+    }
+
     public func isExpired(
         relativeTo date: Date = Date(),
         ttl: TimeInterval = CaptureCard.ttl

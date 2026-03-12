@@ -112,6 +112,28 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertFalse(model.cards[0].isCopied)
     }
 
+    func testStackPanelCloseWithoutCommitClearsDeferredCopiesWithoutMovingCards() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "Top", createdAt: Date(timeIntervalSinceReferenceDate: 300), sortOrder: 30),
+            CaptureCard(id: UUID(), text: "Middle", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+        _ = model.toggleMultiCopiedCard(cards[0])
+        _ = model.toggleMultiCopiedCard(cards[1])
+
+        let controller = StackPanelController(model: model)
+        controller.close(commitDeferredCopies: false)
+
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+        XCTAssertTrue(model.selectedCardIDs.isEmpty)
+        XCTAssertEqual(model.cards.map(\.id), cards.map(\.id))
+        XCTAssertTrue(model.cards.allSatisfy { !$0.isCopied })
+    }
+
     func testCopyRawReturnsUnformattedTextAndMarksOnlyThatCardCopied() throws {
         let cards = [
             CaptureCard(id: UUID(), text: "Raw body", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
@@ -156,6 +178,7 @@ private final class TestStackRecentScreenshotCoordinator: RecentScreenshotCoordi
     func start() {}
     func stop() {}
     func prepareForCaptureSession() {}
+    func endCaptureSession() {}
     func refreshNow() {}
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? { nil }
     func consumeCurrent() {}

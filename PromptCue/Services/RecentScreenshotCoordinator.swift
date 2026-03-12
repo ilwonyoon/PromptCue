@@ -419,7 +419,11 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         referenceDate: Date
     ) -> Date {
         let baseDate = candidate.attachment.modifiedAt ?? referenceDate
-        return baseDate.addingTimeInterval(maxAge)
+        let fileAgeExpiration = baseDate.addingTimeInterval(maxAge)
+        // Guarantee at least maxAge from detection so screenshots don't
+        // expire moments after appearing in capture mode.
+        let detectionExpiration = referenceDate.addingTimeInterval(maxAge)
+        return max(fileAgeExpiration, detectionExpiration)
     }
 
     private func scheduleSettlePolling() {

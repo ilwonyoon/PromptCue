@@ -56,6 +56,49 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertTrue(model.isCaptureSuggestedTargetAutomatic)
     }
 
+    func testBeginCaptureSessionRefreshesSuggestedTargets() {
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: makeTarget(
+                appName: "Cursor",
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                repo: "Backtick",
+                branch: "main"
+            ),
+            availableTargets: []
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 0)
+
+        model.beginCaptureSession()
+
+        XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 1)
+    }
+
+    func testOpeningSuggestedTargetChooserRefreshesTargetsBeforeShowingChooser() {
+        let automaticTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+        XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 1)
+
+        model.toggleCaptureSuggestedTargetChooser()
+
+        XCTAssertTrue(model.isShowingCaptureSuggestedTargetChooser)
+        XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 2)
+    }
+
     func testSelectingExplicitSuggestedTargetPersistsMetadataOnSubmit() async {
         let automaticTarget = makeTarget(
             appName: "Cursor",
@@ -97,40 +140,25 @@ final class AppModelSuggestedTargetTests: XCTestCase {
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
             windowTitle: "PromptCue — codex",
-            sessionIdentifier: "front-window",
-            terminalTTY: "/dev/ttys003",
-            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
-            repositoryRoot: "/Users/ilwon/dev/PromptCue",
-            repositoryName: "PromptCue",
-            branch: "main",
+            sessionIdentifier: "window-482",
             capturedAt: Date(),
-            confidence: .high
+            confidence: .low
         )
         let matchingAvailableTarget = CaptureSuggestedTarget(
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
             windowTitle: "PromptCue — codex",
             sessionIdentifier: "window-482",
-            terminalTTY: "/dev/ttys003",
-            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
-            repositoryRoot: "/Users/ilwon/dev/PromptCue",
-            repositoryName: "PromptCue",
-            branch: "main",
             capturedAt: Date(),
-            confidence: .high
+            confidence: .low
         )
         let secondTerminalTarget = CaptureSuggestedTarget(
             appName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
             windowTitle: "FocusKnob — codex",
             sessionIdentifier: "window-973",
-            terminalTTY: "/dev/ttys004",
-            currentWorkingDirectory: "/Users/ilwon/dev/FocusKnob",
-            repositoryRoot: "/Users/ilwon/dev/FocusKnob",
-            repositoryName: "FocusKnob",
-            branch: "main",
             capturedAt: Date(),
-            confidence: .high
+            confidence: .low
         )
         let provider = TestSuggestedTargetProvider(
             latestTarget: automaticTarget,
@@ -143,6 +171,36 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         XCTAssertEqual(model.captureSuggestedTargetChoiceCount, 2)
         XCTAssertEqual(model.captureChooserTarget?.canonicalIdentityKey, automaticTarget.canonicalIdentityKey)
+    }
+
+    func testTerminalSafeWindowIdentifiersKeepDuplicateWindowTitlesDistinctInChooser() {
+        let automaticTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "Backtick — codex",
+            sessionIdentifier: "window-101",
+            capturedAt: Date(),
+            confidence: .low
+        )
+        let secondWindowTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "Backtick — codex",
+            sessionIdentifier: "window-202",
+            capturedAt: Date(),
+            confidence: .low
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget, secondWindowTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+
+        XCTAssertEqual(model.captureSuggestedTargetChoiceCount, 2)
+        XCTAssertNotEqual(automaticTarget.canonicalIdentityKey, secondWindowTarget.canonicalIdentityKey)
     }
 
     func testCancelCaptureSuggestedTargetSelectionOnlyHidesChooser() {
@@ -235,6 +293,7 @@ private final class TestSuggestedTargetProvider: SuggestedTargetProviding {
     var onChange: (() -> Void)?
     var latestTarget: CaptureSuggestedTarget?
     var targets: [CaptureSuggestedTarget]
+    private(set) var refreshAvailableSuggestedTargetsCallCount = 0
 
     init(latestTarget: CaptureSuggestedTarget?, availableTargets: [CaptureSuggestedTarget]) {
         self.latestTarget = latestTarget
@@ -261,6 +320,7 @@ private final class TestSuggestedTargetProvider: SuggestedTargetProviding {
     }
 
     func refreshAvailableSuggestedTargets() {
+        refreshAvailableSuggestedTargetsCallCount += 1
         onChange?()
     }
 }

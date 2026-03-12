@@ -74,6 +74,10 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
             }
         }
 
+        if let derivedTitleMetadata = Self.derivedTitleMetadata(from: windowTitle) {
+            return Self.truncate(derivedTitleMetadata.workspaceLabel, maxLength: 28)
+        }
+
         if let windowTitle {
             return Self.truncate(windowTitle, maxLength: 28)
         }
@@ -135,6 +139,7 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     }
 
     public var shortBranchLabel: String? {
+        let branch = branch ?? Self.derivedTitleMetadata(from: windowTitle)?.branch
         guard let branch else {
             return nil
         }
@@ -155,6 +160,11 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
     public var chooserSecondaryLabel: String {
         if let shortBranchLabel {
             return Self.combinedLabel(appName: appName, detail: shortBranchLabel)
+        }
+
+        if let detail = Self.derivedTitleMetadata(from: windowTitle)?.secondaryDetail,
+           detail.localizedCaseInsensitiveCompare(workspaceLabel) != .orderedSame {
+            return Self.combinedLabel(appName: appName, detail: detail)
         }
 
         if let windowTitle, windowTitle != workspaceLabel {
@@ -222,8 +232,138 @@ public struct CaptureSuggestedTarget: Codable, Equatable, Sendable {
         return trimmed
     }
 
+    private struct DerivedTitleMetadata {
+        let workspaceLabel: String
+        let secondaryDetail: String?
+        let branch: String?
+    }
+
+    private static func derivedTitleMetadata(from windowTitle: String?) -> DerivedTitleMetadata? {
+        guard let trimmedTitle = sanitizedOptional(windowTitle) else {
+            return nil
+        }
+
+        if let wrapped = extractWrappedBranchMetadata(from: trimmedTitle) {
+            return wrapped
+        }
+
+        for separator in titleSeparators {
+            guard trimmedTitle.contains(separator) else {
+                continue
+            }
+
+            let parts = trimmedTitle
+                .components(separatedBy: separator)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            guard parts.count >= 2 else {
+                continue
+            }
+
+            let left = parts[0]
+            let right = parts.dropFirst().joined(separator: separator)
+
+            if isLikelyBranchLabel(left), !isLikelyBranchLabel(right) {
+                return DerivedTitleMetadata(
+                    workspaceLabel: right,
+                    secondaryDetail: nil,
+                    branch: left
+                )
+            }
+
+            if isLikelyBranchLabel(right) {
+                return DerivedTitleMetadata(
+                    workspaceLabel: left,
+                    secondaryDetail: nil,
+                    branch: right
+                )
+            }
+
+            if isLikelyGenericTitleComponent(left), !isLikelyGenericTitleComponent(right) {
+                return DerivedTitleMetadata(
+                    workspaceLabel: right,
+                    secondaryDetail: nil,
+                    branch: nil
+                )
+            }
+
+            return DerivedTitleMetadata(
+                workspaceLabel: left,
+                secondaryDetail: right,
+                branch: nil
+            )
+        }
+
+        return nil
+    }
+
+    private static func extractWrappedBranchMetadata(from windowTitle: String) -> DerivedTitleMetadata? {
+        for markers in [(" [", "]"), (" (", ")")] {
+            guard windowTitle.hasSuffix(markers.1),
+                  let range = windowTitle.range(of: markers.0, options: .backwards) else {
+                continue
+            }
+
+            let workspace = windowTitle[..<range.lowerBound]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let branchCandidate = windowTitle[range.upperBound..<windowTitle.index(before: windowTitle.endIndex)]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard !workspace.isEmpty,
+                  !branchCandidate.isEmpty,
+                  isLikelyBranchLabel(branchCandidate) else {
+                continue
+            }
+
+            return DerivedTitleMetadata(
+                workspaceLabel: workspace,
+                secondaryDetail: nil,
+                branch: branchCandidate
+            )
+        }
+
+        return nil
+    }
+
+    private static func isLikelyBranchLabel(_ value: String) -> Bool {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else {
+            return false
+        }
+
+        let lowercaseValue = trimmedValue.lowercased()
+        if commonBranchNames.contains(lowercaseValue) {
+            return true
+        }
+
+        if lowercaseValue.contains("/") {
+            return true
+        }
+
+        return false
+    }
+
+    private static func isLikelyGenericTitleComponent(_ value: String) -> Bool {
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return genericTitleComponents.contains(normalized)
+    }
+
     private static let terminalBundleIdentifiers: Set<String> = [
         "com.apple.Terminal",
         "com.googlecode.iterm2",
+    ]
+
+    private static let titleSeparators = [" — ", " – ", " - ", " · ", " | "]
+    private static let commonBranchNames: Set<String> = [
+        "main", "master", "develop", "development", "dev", "trunk",
+        "staging", "stage", "production", "prod", "release", "qa", "test"
+    ]
+    private static let genericTitleComponents: Set<String> = [
+        "terminal", "iterm2", "iterm", "shell", "zsh", "bash", "fish",
+        "codex", "cursor", "xcode", "vs code", "vscode", "windsurf",
+        "zed", "antigravity", "claude"
     ]
 }

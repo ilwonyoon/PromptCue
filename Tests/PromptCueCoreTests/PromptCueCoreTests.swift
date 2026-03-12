@@ -186,6 +186,36 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func suggestedTargetWorkspaceLabelDerivesProjectNameFromWindowTitleSegments() {
+        let target = makeSuggestedTarget(
+            appName: "Terminal",
+            windowTitle: "Backtick — codex",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "Backtick")
+        #expect(target.chooserSecondaryLabel == "Terminal · codex")
+    }
+
+    @Test
+    func suggestedTargetShortBranchLabelCanDeriveFromWindowTitleWhenExplicitBranchIsMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: "Backtick — main",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "Backtick")
+        #expect(target.shortBranchLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Cursor · main")
+    }
+
+    @Test
     func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
         let terminalTarget = CaptureSuggestedTarget(
             appName: "Terminal",

@@ -460,6 +460,21 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
 - 런타임 동작 변경 없음
 - 저장 프로퍼티 이동 없음
 
+## PR / Merge 가이드
+
+- `main`에 올리기 전 항상 최신 `origin/main`으로 리베이스한다
+- 구조 정리 PR이므로 merge 전략은 `Rebase and merge`를 우선한다
+- PR 본문 첫 줄에 `No intended UX/UI behavior change`를 명시한다
+- PR 본문에 아래 사용자 영향 포인트를 별도 bullet로 적는다
+  - capture mode 중 recent screenshot preview expiration suspend/resume 유지
+  - Settings 분해는 파일 경계 정리만 수행했고 live connector flow에 새 sheet UX를 추가하지 않음
+  - connector guided sheets는 미연결 dead code 제거로 처리됨
+- PR 본문에 실제 검증 명령 4개와 결과를 그대로 적는다
+- reviewer smoke check 항목은 최소 아래 3개를 포함한다
+  - Settings 탭 전환과 값 저장
+  - capture mode 진입 중 recent screenshot slot 유지
+  - connector inline setup / repair / tools reveal
+
 ## 커밋 프로토콜
 
 - 커밋은 추출 슬라이스마다 바로 남긴다.

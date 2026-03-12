@@ -41,6 +41,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
+        model.beginStackSuggestedTargetPresentation()
         primePanelLayout(panel)
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
@@ -86,12 +87,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         guard let panel else {
+            model.endStackSuggestedTargetPresentation()
             isVisible = false
             removeDismissMonitors()
             return
         }
 
         guard panel.isVisible, !isAnimatingClose else {
+            model.endStackSuggestedTargetPresentation()
             isVisible = false
             removeDismissMonitors()
             return
@@ -108,6 +111,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         } completionHandler: { [weak self, weak panel] in
             panel?.orderOut(nil)
             panel?.alphaValue = 1
+            self?.model.endStackSuggestedTargetPresentation()
             self?.isAnimatingClose = false
         }
     }

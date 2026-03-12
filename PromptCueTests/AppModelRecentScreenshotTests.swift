@@ -41,6 +41,26 @@ final class AppModelRecentScreenshotTests: XCTestCase {
         XCTAssertTrue(model.showsRecentScreenshotPlaceholder)
     }
 
+    func testStartDoesNotStartRecentScreenshotCoordinatorUntilCaptureSession() throws {
+        let cardStore = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
+        let attachmentStore = AttachmentStore(baseDirectoryURL: tempDirectoryURL.appendingPathComponent("Attachments"))
+        let coordinator = TestRecentScreenshotCoordinator()
+        let model = AppModel(
+            cardStore: cardStore,
+            attachmentStore: attachmentStore,
+            recentScreenshotCoordinator: coordinator
+        )
+
+        model.start()
+
+        XCTAssertEqual(coordinator.startCallCount, 0)
+
+        model.beginCaptureSession()
+
+        XCTAssertEqual(coordinator.startCallCount, 1)
+        XCTAssertEqual(coordinator.prepareForCaptureSessionCallCount, 1)
+    }
+
     func testSubmitCapturePersistsImageOnlyCardWhenDetectedStateResolvesToAttachment() async throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let attachmentDirectoryURL = tempDirectoryURL.appendingPathComponent("Attachments")
@@ -229,12 +249,17 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
     var nextPreparedState: RecentScreenshotState = .idle
     var resolvedAttachmentURL: URL?
     var resolveDelay: TimeInterval = 0
+    private(set) var startCallCount = 0
+    private(set) var prepareForCaptureSessionCallCount = 0
     private(set) var consumeCurrentCallCount = 0
 
-    func start() {}
+    func start() {
+        startCallCount += 1
+    }
     func stop() {}
 
     func prepareForCaptureSession() {
+        prepareForCaptureSessionCallCount += 1
         state = nextPreparedState
         onStateChange?(state)
     }

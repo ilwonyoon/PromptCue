@@ -73,7 +73,53 @@ final class AppModelSuggestedTargetTests: XCTestCase {
 
         model.beginCaptureSession()
 
+        XCTAssertEqual(provider.startCallCount, 1)
         XCTAssertEqual(provider.refreshAvailableSuggestedTargetsCallCount, 1)
+    }
+
+    func testStartDoesNotStartSuggestedTargetProviderUntilPresentation() {
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: makeTarget(
+                appName: "Cursor",
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                repo: "Backtick",
+                branch: "main"
+            ),
+            availableTargets: []
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+
+        XCTAssertEqual(provider.startCallCount, 0)
+
+        model.beginCaptureSession()
+
+        XCTAssertEqual(provider.startCallCount, 1)
+    }
+
+    func testStackPresentationStartsAndStopsSuggestedTargetProvider() {
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: makeTarget(
+                appName: "Cursor",
+                bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+                repo: "Backtick",
+                branch: "main"
+            ),
+            availableTargets: []
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginStackSuggestedTargetPresentation()
+
+        XCTAssertEqual(provider.startCallCount, 1)
+        XCTAssertEqual(model.automaticSuggestedTarget?.workspaceLabel, "Backtick")
+
+        model.endStackSuggestedTargetPresentation()
+
+        XCTAssertEqual(provider.stopCallCount, 1)
+        XCTAssertNil(model.automaticSuggestedTarget)
     }
 
     func testOpeningSuggestedTargetChooserRefreshesTargetsBeforeShowingChooser() {
@@ -293,6 +339,8 @@ private final class TestSuggestedTargetProvider: SuggestedTargetProviding {
     var onChange: (() -> Void)?
     var latestTarget: CaptureSuggestedTarget?
     var targets: [CaptureSuggestedTarget]
+    private(set) var startCallCount = 0
+    private(set) var stopCallCount = 0
     private(set) var refreshAvailableSuggestedTargetsCallCount = 0
 
     init(latestTarget: CaptureSuggestedTarget?, availableTargets: [CaptureSuggestedTarget]) {
@@ -301,10 +349,13 @@ private final class TestSuggestedTargetProvider: SuggestedTargetProviding {
     }
 
     func start() {
+        startCallCount += 1
         onChange?()
     }
 
-    func stop() {}
+    func stop() {
+        stopCallCount += 1
+    }
 
     func currentFreshSuggestedTarget(relativeTo date: Date, freshness: TimeInterval) -> CaptureSuggestedTarget? {
         guard let latestTarget,

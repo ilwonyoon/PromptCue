@@ -127,8 +127,8 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         }
         detachAuxiliaryPanel(suggestedTargetPanel)
         suggestedTargetPanel?.orderOut(nil)
-        model.endCaptureSession()
         panel?.orderOut(nil)
+        model.endCaptureSession()
         removeDismissMonitors()
         anchoredTopY = nil
         anchoredOriginX = nil

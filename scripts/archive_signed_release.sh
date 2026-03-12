@@ -38,6 +38,7 @@ METADATA_PATH=""
 NOTARY_LOG_PATH=""
 GATEKEEPER_LOG_PATH=""
 CHECKSUM_PATH=""
+TEMP_WORK_ROOT=""
 
 print_usage() {
   cat <<'EOF'
@@ -82,6 +83,14 @@ fail() {
   echo "archive_signed_release: $*" >&2
   exit 1
 }
+
+cleanup_work_root() {
+  if [[ -n "${TEMP_WORK_ROOT}" && -d "${TEMP_WORK_ROOT}" ]]; then
+    rm -rf "${TEMP_WORK_ROOT}"
+  fi
+}
+
+trap cleanup_work_root EXIT
 
 run() {
   printf '+'
@@ -324,8 +333,9 @@ OUTPUT_ROOT="$(absolute_path "${OUTPUT_ROOT}")"
 ensure_clean_worktree
 resolve_release_credentials
 
-DERIVED_DATA_PATH="${OUTPUT_ROOT}/DerivedData"
-SOURCE_PACKAGES_DIR="${OUTPUT_ROOT}/SourcePackages"
+TEMP_WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/promptcue-signed-release.XXXXXX")"
+DERIVED_DATA_PATH="${TEMP_WORK_ROOT}/DerivedData"
+SOURCE_PACKAGES_DIR="${TEMP_WORK_ROOT}/SourcePackages"
 ARCHIVE_PATH="${OUTPUT_ROOT}/PromptCue.xcarchive"
 ARCHIVE_LOG_PATH="${OUTPUT_ROOT}/archive.log"
 VALIDATION_REPORT_PATH="${OUTPUT_ROOT}/release-validation.txt"

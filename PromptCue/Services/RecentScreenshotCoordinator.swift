@@ -28,6 +28,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var settleTimer: Timer?
     private var settleDeadline: Date?
     private var expirationTimer: Timer?
+    private var isExpirationSuspended = false
     private var isStarted = false
     private var scanGeneration: UInt64 = 0
     private var previewGeneration: UInt64 = 0
@@ -88,6 +89,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         settleDeadline = nil
         expirationTimer?.invalidate()
         expirationTimer = nil
+        isExpirationSuspended = false
         scanInFlight = false
         pendingScanReferenceDate = nil
         pendingPreviewCacheRequest = nil
@@ -117,6 +119,17 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
     func refreshNow() {
         refreshState()
+    }
+
+    func suspendExpiration() {
+        isExpirationSuspended = true
+        invalidateExpirationTimer()
+    }
+
+    func resumeExpiration() {
+        isExpirationSuspended = false
+        guard let currentSession else { return }
+        scheduleExpirationIfNeeded(for: currentSession, referenceDate: now())
     }
 
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? {
@@ -235,7 +248,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         let referenceDate = now()
         purgeIgnoredSourceKeys(referenceDate: referenceDate)
 
-        if let currentSession, referenceDate >= currentSession.expiresAt {
+        if !isExpirationSuspended,
+           let currentSession, referenceDate >= currentSession.expiresAt {
             expireCurrentSession(currentSession)
             return
         }
@@ -463,6 +477,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         for session: RecentScreenshotSession,
         referenceDate: Date
     ) {
+        guard !isExpirationSuspended else { return }
+
         if referenceDate >= session.expiresAt {
             expireCurrentSession(session)
             return
@@ -487,6 +503,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     }
 
     private func expireCurrentSessionIfNeeded() {
+        guard !isExpirationSuspended else { return }
+
         guard let currentSession else {
             state = .idle
             return
@@ -644,7 +662,8 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     ) {
         purgeIgnoredSourceKeys(referenceDate: referenceDate)
 
-        if let currentSession, referenceDate >= currentSession.expiresAt {
+        if !isExpirationSuspended,
+           let currentSession, referenceDate >= currentSession.expiresAt {
             expireCurrentSession(currentSession)
             return
         }

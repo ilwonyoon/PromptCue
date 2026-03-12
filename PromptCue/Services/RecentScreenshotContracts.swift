@@ -76,6 +76,8 @@ protocol RecentScreenshotCoordinating: AnyObject {
     func prepareForCaptureSession()
     func endCaptureSession()
     func refreshNow()
+    func suspendExpiration()
+    func resumeExpiration()
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL?
     func consumeCurrent()
     func dismissCurrent()

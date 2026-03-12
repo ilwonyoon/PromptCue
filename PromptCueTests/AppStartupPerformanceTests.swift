@@ -272,4 +272,6 @@ private final class StartupRecentScreenshotCoordinator: RecentScreenshotCoordina
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 }

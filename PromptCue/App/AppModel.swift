@@ -315,6 +315,7 @@ final class AppModel: ObservableObject {
         refreshAvailableSuggestedTargets()
         ensureRecentScreenshotCoordinatorStarted()
         recentScreenshotCoordinator.prepareForCaptureSession()
+        recentScreenshotCoordinator.suspendExpiration()
         syncRecentScreenshotState()
     }
 
@@ -329,6 +330,7 @@ final class AppModel: ObservableObject {
         selectedCaptureSuggestedTargetIndex = 0
         isCaptureSuggestedTargetPresentationActive = false
         refreshSuggestedTargetProviderLifecycle()
+        recentScreenshotCoordinator.resumeExpiration()
         recentScreenshotCoordinator.endCaptureSession()
         syncRecentScreenshotState()
     }

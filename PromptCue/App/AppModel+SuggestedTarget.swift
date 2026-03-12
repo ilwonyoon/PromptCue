@@ -7,7 +7,7 @@ extension AppModel {
             return nil
         }
 
-        suggestedTargetProvider.currentFreshSuggestedTarget(
+        return suggestedTargetProvider.currentFreshSuggestedTarget(
             relativeTo: Date(),
             freshness: AppUIConstants.suggestedTargetFreshness
         )

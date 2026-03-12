@@ -6,3 +6,12 @@
 // Documents/Desktop/Downloads permissions do not churn across rebuilds.
 
 PROMPTCUE_DEV_SIGNING_SHA1 = YOUR_CERTIFICATE_SHA1
+
+// Release uses a separate Developer ID lane. Keep these local-only.
+// PROMPTCUE_RELEASE_SIGNING_IDENTITY can be used instead of the SHA-1 when the
+// full certificate label is more convenient on a given machine.
+
+PROMPTCUE_RELEASE_SIGNING_SHA1 = YOUR_DEVELOPER_ID_APPLICATION_SHA1
+PROMPTCUE_RELEASE_SIGNING_IDENTITY = Developer ID Application: Example Name (TEAMID1234)
+PROMPTCUE_RELEASE_TEAM_ID = TEAMID1234
+PROMPTCUE_RELEASE_NOTARY_PROFILE = backtick-release

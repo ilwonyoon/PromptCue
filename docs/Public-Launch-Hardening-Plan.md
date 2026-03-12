@@ -282,9 +282,9 @@ Make the direct-download lane deterministic and release-capable without changing
 | Move entitlement definitions to one source of truth and split direct/App Store entitlement files | Master | config split | No | direct and MAS lanes no longer share one implicit entitlement shape | Planned |
 | Add release settings for hardened runtime, signing identity, and lane selection | Master | config split | No | Release stops behaving like an unsigned local build | Planned |
 | Replace ad hoc helper bundling with a deterministic release-grade helper build/sign/package path | Master | helper architecture decision | No | helper architecture and signing are inspectable and reproducible | Planned |
-| Add in-repo archive/sign/notarize/staple/package validation | Master | above | Yes | repo can produce or validate a public-launch artifact deterministically | Planned |
-| Expand CI or release automation to validate the Release lane | Master | above | Yes | release failures stop being discovered manually at the end | Planned |
-| Add Release artifact recording for version/build/git SHA/checksum/notarization log | Master | above | Yes | every ship candidate has a reproducible release record | Planned |
+| Add in-repo archive/sign/notarize/staple/package validation | Master | above | Yes | repo can produce or validate a public-launch artifact deterministically | In progress |
+| Expand CI or release automation to validate the Release lane | Master | above | Yes | release failures stop being discovered manually at the end | In progress |
+| Add Release artifact recording for version/build/git SHA/checksum/notarization log | Master | above | Yes | every ship candidate has a reproducible release record | In progress |
 
 ### Configuration Matrix
 
@@ -339,6 +339,10 @@ Ownership:
 ### Direct-Download Release Contract
 
 This contract should be implemented exactly, with script names and env/profile names frozen by `H1`.
+
+Current master-owned script entrypoint:
+
+- `scripts/archive_signed_release.sh`
 
 | Step | Command Shape / Action | Required Output | Blocking |
 | --- | --- | --- | --- |

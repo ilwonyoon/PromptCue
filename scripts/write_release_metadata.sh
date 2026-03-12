@@ -15,6 +15,8 @@ ARTIFACT_PATH=""
 VALIDATION_REPORT=""
 OUT_PATH=""
 VALIDATION_MODE="unsigned-ci"
+NOTARY_LOG=""
+GATEKEEPER_LOG=""
 
 print_usage() {
   cat <<'EOF'
@@ -28,6 +30,8 @@ Options:
   --archive PATH             Path to the .xcarchive
   --artifact PATH            Optional packaged artifact path, such as a zip
   --validation-report PATH   Optional validation report path
+  --notary-log PATH          Optional notarytool JSON log path
+  --gatekeeper-log PATH      Optional Gatekeeper assessment log path
   --out PATH                 Metadata JSON output path
   --validation-mode NAME     Metadata label for the current lane
                              (default: unsigned-ci)
@@ -89,6 +93,16 @@ while [[ $# -gt 0 ]]; do
       VALIDATION_REPORT="$2"
       shift 2
       ;;
+    --notary-log)
+      [[ $# -ge 2 ]] || fail "--notary-log requires a value"
+      NOTARY_LOG="$2"
+      shift 2
+      ;;
+    --gatekeeper-log)
+      [[ $# -ge 2 ]] || fail "--gatekeeper-log requires a value"
+      GATEKEEPER_LOG="$2"
+      shift 2
+      ;;
     --out)
       [[ $# -ge 2 ]] || fail "--out requires a value"
       OUT_PATH="$2"
@@ -121,6 +135,12 @@ if [[ -n "${ARTIFACT_PATH}" ]]; then
 fi
 if [[ -n "${VALIDATION_REPORT}" ]]; then
   VALIDATION_REPORT="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${VALIDATION_REPORT}")"
+fi
+if [[ -n "${NOTARY_LOG}" ]]; then
+  NOTARY_LOG="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${NOTARY_LOG}")"
+fi
+if [[ -n "${GATEKEEPER_LOG}" ]]; then
+  GATEKEEPER_LOG="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${GATEKEEPER_LOG}")"
 fi
 
 APP_INFO_PLIST="${APP_PATH}/Contents/Info.plist"
@@ -167,7 +187,7 @@ export GENERATED_AT_UTC VALIDATION_MODE GIT_SHA GIT_REF GIT_DESCRIBE GIT_DIRTY
 export APP_PATH ARCHIVE_PATH ARTIFACT_PATH VALIDATION_REPORT DISPLAY_NAME BUNDLE_ID
 export MARKETING_VERSION BUILD_VERSION EXECUTABLE_NAME APP_BINARY_PATH APP_BINARY_SHA256
 export HELPER_PATH HELPER_FILE_OUTPUT HELPER_ARCHES HELPER_SHA256 ARTIFACT_SHA256
-export APP_SIGNED HELPER_SIGNED
+export APP_SIGNED HELPER_SIGNED NOTARY_LOG GATEKEEPER_LOG
 
 python3 - "${OUT_PATH}" <<'PY'
 import json
@@ -181,6 +201,17 @@ def maybe(value):
 
 def as_bool(value):
     return value == "true"
+
+def load_json(path):
+    if not path:
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except Exception:
+        return None
+
+notary_payload = load_json(maybe(os.environ.get("NOTARY_LOG")))
 
 payload = {
     "generated_at_utc": os.environ["GENERATED_AT_UTC"],
@@ -217,6 +248,14 @@ payload = {
         "sha256": maybe(os.environ.get("ARTIFACT_SHA256")),
     },
     "validation_report_path": maybe(os.environ.get("VALIDATION_REPORT")),
+    "notarization": {
+        "log_path": maybe(os.environ.get("NOTARY_LOG")),
+        "submission_id": maybe(notary_payload.get("id")) if isinstance(notary_payload, dict) else None,
+        "status": maybe(notary_payload.get("status")) if isinstance(notary_payload, dict) else None,
+    },
+    "gatekeeper": {
+        "log_path": maybe(os.environ.get("GATEKEEPER_LOG")),
+    },
 }
 
 with open(sys.argv[1], "w", encoding="utf-8") as handle:

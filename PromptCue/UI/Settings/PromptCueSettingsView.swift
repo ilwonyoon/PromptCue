@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct PromptCueSettingsView: View {
     let selectedTab: SettingsTab
+    let onSelectTab: ((SettingsTab) -> Void)?
     @ObservedObject private var screenshotSettingsModel: ScreenshotSettingsModel
     @ObservedObject private var exportTailSettingsModel: PromptExportTailSettingsModel
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
@@ -21,9 +22,28 @@ struct PromptCueSettingsView: View {
 
     private let labelColumnWidth: CGFloat = PanelMetrics.settingsLabelColumnWidth
     private let advancedLabelColumnWidth: CGFloat = 92
+    private let settingsSidebarRowHeight: CGFloat = 32
+    private let settingsSidebarCornerRadius: CGFloat = 10
+    private let settingsSidebarItemSpacing: CGFloat = 8
+    private let settingsSidebarItemHorizontalPadding: CGFloat = 12
+    private let settingsSidebarItemVerticalPadding: CGFloat = 4
+    private let settingsSidebarIconSize: CGFloat = 24
+    private let settingsSidebarIconTextSpacing: CGFloat = 4
+    private let settingsSidebarIconCornerRadius: CGFloat = 6
+    private let settingsGroupCornerRadius: CGFloat = 12
+    private let settingsOuterPadding: CGFloat = 20
+    private let settingsGroupInset: CGFloat = 10
+    private let settingsFormRowMinHeight: CGFloat = 44
+    private let settingsFieldCornerRadius: CGFloat = 10
+    private let settingsToolbarTitleFont = Font.system(size: 15, weight: .bold)
+    private let settingsSidebarFont = Font.system(size: 13, weight: .medium)
+    private let settingsRowLabelFont = Font.system(size: 13, weight: .medium)
+    private let settingsSupportingFont = Font.system(size: 11, weight: .regular)
+    private let settingsSupportingStrongFont = Font.system(size: 11, weight: .semibold)
 
     init(
         selectedTab: SettingsTab,
+        onSelectTab: ((SettingsTab) -> Void)? = nil,
         screenshotSettingsModel: ScreenshotSettingsModel,
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
@@ -32,6 +52,7 @@ struct PromptCueSettingsView: View {
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.selectedTab = selectedTab
+        self.onSelectTab = onSelectTab
         self.screenshotSettingsModel = screenshotSettingsModel
         self.exportTailSettingsModel = exportTailSettingsModel
         self.retentionSettingsModel = retentionSettingsModel
@@ -42,6 +63,7 @@ struct PromptCueSettingsView: View {
 
     init() {
         self.selectedTab = .general
+        self.onSelectTab = nil
         self.screenshotSettingsModel = ScreenshotSettingsModel()
         self.exportTailSettingsModel = PromptExportTailSettingsModel()
         self.retentionSettingsModel = CardRetentionSettingsModel()
@@ -51,27 +73,21 @@ struct PromptCueSettingsView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xl) {
-                switch selectedTab {
-                case .general:
-                    generalContent
-                case .capture:
-                    captureContent
-                case .stack:
-                    stackContent
-                case .connectors:
-                    connectorsContent
-                }
-            }
-            .padding(PrimitiveTokens.Space.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 0) {
+            settingsSidebar
+
+            Rectangle()
+                .fill(settingsPaneDividerColor)
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+
+            settingsContentPane
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(
             width: PanelMetrics.settingsPanelWidth,
             height: PanelMetrics.settingsPanelHeight
         )
-        .background(SemanticTokens.Surface.previewBackdropBottom)
         .onAppear {
             screenshotSettingsModel.refresh()
             exportTailSettingsModel.refresh()
@@ -91,14 +107,112 @@ struct PromptCueSettingsView: View {
         }
     }
 
+    private var settingsContentPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.lg) {
+                settingsPageHeader
+                selectedTabContent
+            }
+            .padding(.horizontal, settingsOuterPadding)
+            .padding(.top, settingsOuterPadding)
+            .padding(.bottom, PrimitiveTokens.Space.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(settingsContentBackgroundColor)
+    }
+
+    private var settingsPageHeader: some View {
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
+            Text(selectedTab.title)
+                .font(settingsToolbarTitleFont)
+                .foregroundStyle(settingsPrimaryTextColor)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case .general:
+            generalContent
+        case .capture:
+            captureContent
+        case .stack:
+            stackContent
+        case .connectors:
+            connectorsContent
+        }
+    }
+
+    private var settingsSidebar: some View {
+        VStack(alignment: .leading, spacing: settingsSidebarItemSpacing) {
+            ForEach(SettingsTab.allCases, id: \.self) { tab in
+                settingsSidebarTab(tab)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, PrimitiveTokens.Space.lg)
+        .padding(.horizontal, PrimitiveTokens.Space.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(width: PanelMetrics.settingsSidebarWidth)
+        .background(settingsSidebarBackgroundColor)
+    }
+
+    private func settingsSidebarTab(_ tab: SettingsTab) -> some View {
+        Button {
+            onSelectTab?(tab)
+        } label: {
+            HStack(spacing: settingsSidebarIconTextSpacing) {
+                settingsSidebarIcon(tab)
+
+                Text(tab.title)
+                    .font(settingsSidebarFont)
+                    .foregroundStyle(sidebarTabForeground(tab))
+                    .lineLimit(1)
+            }
+            .frame(minHeight: settingsSidebarRowHeight, alignment: .leading)
+            .padding(.horizontal, settingsSidebarItemHorizontalPadding)
+            .padding(.vertical, settingsSidebarItemVerticalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(sidebarTabBackground(tab))
+            .contentShape(RoundedRectangle(cornerRadius: settingsSidebarCornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func settingsSidebarIcon(_ tab: SettingsTab) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: settingsSidebarIconCornerRadius, style: .continuous)
+                .fill(tab.sidebarIconColor)
+
+            Image(systemName: tab.sidebarIconName)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Color.white)
+        }
+        .frame(width: settingsSidebarIconSize, height: settingsSidebarIconSize)
+    }
+
+    private func sidebarTabForeground(_ tab: SettingsTab) -> Color {
+        tab == selectedTab ? .white : settingsPrimaryTextColor
+    }
+
+    @ViewBuilder
+    private func sidebarTabBackground(_ tab: SettingsTab) -> some View {
+        RoundedRectangle(cornerRadius: settingsSidebarCornerRadius, style: .continuous)
+            .fill(tab == selectedTab ? Color(nsColor: .selectedContentBackgroundColor) : Color.clear)
+    }
+
     @ViewBuilder
     private var generalContent: some View {
         settingsSection(
             title: "Appearance",
             footer: "Choose whether Backtick follows the system theme or forces a specific mode."
         ) {
-            settingsGrid {
-                row("Theme") {
+            settingsRows {
+                settingsFormRow("Theme", showsDivider: false) {
                     Picker(
                         "",
                         selection: binding(
@@ -122,13 +236,19 @@ struct PromptCueSettingsView: View {
             title: "Shortcuts",
             footer: "These shortcuts work globally."
         ) {
-            settingsGrid {
-                row("Quick Capture") {
-                    KeyboardShortcuts.Recorder(for: .quickCapture)
+            settingsRows {
+                settingsFormRow("Quick Capture") {
+                    HStack {
+                        Spacer(minLength: 0)
+                        KeyboardShortcuts.Recorder(for: .quickCapture)
+                    }
                 }
 
-                row("Show Stack") {
-                    KeyboardShortcuts.Recorder(for: .toggleStackPanel)
+                settingsFormRow("Show Stack", showsDivider: false) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        KeyboardShortcuts.Recorder(for: .toggleStackPanel)
+                    }
                 }
             }
         }
@@ -139,8 +259,8 @@ struct PromptCueSettingsView: View {
             title: "iCloud Sync",
             footer: "Sync cards across your Macs via iCloud. Screenshots stay local."
         ) {
-            settingsGrid {
-                row("Sync", verticalAlignment: .top) {
+            settingsRows {
+                settingsFormRow("Sync", verticalAlignment: .top) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         Toggle(
                             "Enable iCloud sync",
@@ -156,7 +276,7 @@ struct PromptCueSettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                row("Status") {
+                settingsFormRow("Status", showsDivider: false) {
                     Text(cloudSyncSettingsModel.syncStatusText)
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(
@@ -176,39 +296,39 @@ struct PromptCueSettingsView: View {
             title: "Screenshots",
             footer: "Auto-attach only checks the screenshot folder you explicitly approve."
         ) {
-            settingsGrid {
-                row("Status") {
+            settingsRows {
+                settingsFormRow("Status") {
                     Text(screenshotStatusTitle)
                         .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
 
-            detailPane(label: "Folder") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    Text(screenshotStatusDetail)
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                settingsFormRow("Folder", verticalAlignment: .top, showsDivider: false) {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                        Text(screenshotStatusDetail)
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: PrimitiveTokens.Space.xs) {
-                        primaryScreenshotButton
+                        HStack(spacing: PrimitiveTokens.Space.xs) {
+                            primaryScreenshotButton
 
-                        if case .connected = screenshotSettingsModel.accessState {
-                            Button("Reveal in Finder") {
-                                screenshotSettingsModel.revealFolderInFinder()
+                            if case .connected = screenshotSettingsModel.accessState {
+                                Button("Reveal in Finder") {
+                                    screenshotSettingsModel.revealFolderInFinder()
+                                }
+
+                                Button("Disconnect") {
+                                    screenshotSettingsModel.clearFolder()
+                                }
                             }
 
-                            Button("Disconnect") {
-                                screenshotSettingsModel.clearFolder()
-                            }
-                        }
-
-                        if case .needsReconnect = screenshotSettingsModel.accessState {
-                            Button("Clear") {
-                                screenshotSettingsModel.clearFolder()
+                            if case .needsReconnect = screenshotSettingsModel.accessState {
+                                Button("Clear") {
+                                    screenshotSettingsModel.clearFolder()
+                                }
                             }
                         }
                     }
@@ -223,8 +343,8 @@ struct PromptCueSettingsView: View {
             title: "Retention",
             footer: "Cards stay until you delete them unless auto-expire is enabled."
         ) {
-            settingsGrid {
-                row("Card Lifetime", verticalAlignment: .top) {
+            settingsRows {
+                settingsFormRow("Card Lifetime", verticalAlignment: .top, showsDivider: false) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         Toggle(
                             "Auto-expire stack cards after 8 hours",
@@ -248,8 +368,8 @@ struct PromptCueSettingsView: View {
             title: "AI Export Tail",
             footer: "Saved cards stay unchanged. The tail is added only when you copy or export."
         ) {
-            settingsGrid {
-                row("Behavior", verticalAlignment: .top) {
+            settingsRows {
+                settingsFormRow("Behavior", verticalAlignment: .top) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         Toggle(
                             "Append AI export tail",
@@ -264,53 +384,45 @@ struct PromptCueSettingsView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-            }
 
-            detailPane(label: "Tail Text") {
-                TextEditor(
-                    text: binding(
-                        get: { exportTailSettingsModel.suffixText },
-                        set: { exportTailSettingsModel.updateSuffixText($0) }
-                    )
-                )
-                .font(PrimitiveTokens.Typography.body)
-                .foregroundStyle(SemanticTokens.Text.primary)
-                .scrollContentBackground(.hidden)
-                .frame(
-                    minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
-                    maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight
-                )
-                .padding(PrimitiveTokens.Space.sm)
-                .background(SemanticTokens.Surface.raisedFill)
-                .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                        .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
-                }
-            }
-
-            detailPane(label: "Preview") {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                    HStack {
-                        Spacer()
-
-                        Button("Reset to Default") {
-                            exportTailSettingsModel.resetToDefault()
-                        }
-                        .controlSize(.small)
-                    }
-
-                    Text(exportTailSettingsModel.previewText)
+                settingsFormRow("Tail Text", verticalAlignment: .top) {
+                    settingsFieldSurface {
+                        TextEditor(
+                            text: binding(
+                                get: { exportTailSettingsModel.suffixText },
+                                set: { exportTailSettingsModel.updateSuffixText($0) }
+                            )
+                        )
                         .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(PrimitiveTokens.Space.sm)
-                        .background(SemanticTokens.Surface.cardFill)
-                        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous)
-                                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .scrollContentBackground(.hidden)
+                        .frame(
+                            minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
+                            maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight
+                        )
+                    }
+                }
+
+                settingsFormRow("Preview", verticalAlignment: .top, showsDivider: false) {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                        HStack {
+                            Spacer()
+
+                            Button("Reset to Default") {
+                                exportTailSettingsModel.resetToDefault()
+                            }
+                            .controlSize(.small)
                         }
+
+                        settingsFieldSurface {
+                            Text(exportTailSettingsModel.previewText)
+                                .font(PrimitiveTokens.Typography.body)
+                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -319,16 +431,20 @@ struct PromptCueSettingsView: View {
     @ViewBuilder
     private var connectorsContent: some View {
         if focusedConnectorClients.isEmpty {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
+            settingsGroupSurface {
                 Text("Connector status is unavailable right now.")
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .font(settingsRowLabelFont)
+                    .foregroundStyle(settingsSecondaryTextColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, settingsGroupInset)
+                    .padding(.vertical, PrimitiveTokens.Space.sm)
             }
         } else {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
-                ForEach(Array(focusedConnectorClients.enumerated()), id: \.element.client) { index, client in
-                    focusedConnectorRow(client, showsDivider: index < focusedConnectorClients.count - 1)
+            settingsGroupSurface {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(focusedConnectorClients.enumerated()), id: \.element.client) { index, client in
+                        focusedConnectorRow(client, showsDivider: index < focusedConnectorClients.count - 1)
+                    }
                 }
             }
         }
@@ -463,10 +579,13 @@ struct PromptCueSettingsView: View {
             }
 
             if showsDivider {
-                Divider()
-                    .overlay(SemanticTokens.Border.subtle)
+                Rectangle()
+                    .fill(settingsRowSeparatorColor)
+                    .frame(height: 1)
             }
         }
+        .padding(.horizontal, settingsGroupInset)
+        .padding(.vertical, PrimitiveTokens.Space.sm)
     }
 
     private func focusedConnectorDetail(for client: MCPConnectorClientStatus) -> String {
@@ -649,12 +768,12 @@ struct PromptCueSettingsView: View {
         VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
             content()
         }
-        .padding(PrimitiveTokens.Space.md)
-        .background(SemanticTokens.Surface.cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous))
+        .padding(PrimitiveTokens.Space.sm)
+        .background(settingsInlinePanelFill)
+        .clipShape(RoundedRectangle(cornerRadius: settingsGroupCornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                .stroke(SemanticTokens.Border.subtle, lineWidth: PrimitiveTokens.Stroke.subtle)
+            RoundedRectangle(cornerRadius: settingsGroupCornerRadius, style: .continuous)
+                .stroke(settingsFormGroupBorder, lineWidth: PrimitiveTokens.Stroke.subtle)
         }
     }
 
@@ -1352,8 +1471,8 @@ struct PromptCueSettingsView: View {
     }
 
     private var sectionDivider: some View {
-        Divider()
-            .overlay(SemanticTokens.Border.subtle)
+        Color.clear
+            .frame(height: 0)
     }
 
     private func settingsSection<Content: View>(
@@ -1361,69 +1480,75 @@ struct PromptCueSettingsView: View {
         footer: String? = nil,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.md) {
-            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
                 Text(title)
-                    .font(PrimitiveTokens.Typography.bodyStrong)
-                    .foregroundStyle(SemanticTokens.Text.primary)
+                    .font(settingsSupportingStrongFont)
+                    .foregroundStyle(settingsSecondaryTextColor)
 
                 if let footer, footer.isEmpty == false {
                     Text(footer)
-                        .font(PrimitiveTokens.Typography.meta)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .font(settingsSupportingFont)
+                        .foregroundStyle(settingsSecondaryTextColor)
                 }
             }
 
-            content()
+            settingsGroupSurface {
+                content()
+            }
         }
     }
 
-    private func settingsGrid<Content: View>(
+    private func settingsRows<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        Grid(
+        VStack(
             alignment: .leading,
-            horizontalSpacing: PrimitiveTokens.Space.md,
-            verticalSpacing: PrimitiveTokens.Space.md
+            spacing: 0
         ) {
             content()
         }
     }
 
-    private func row<Content: View>(
+    private func settingsFormRow<Content: View>(
         _ label: String,
-        verticalAlignment: VerticalAlignment = .firstTextBaseline,
+        verticalAlignment: VerticalAlignment = .center,
+        showsDivider: Bool = true,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        GridRow(alignment: verticalAlignment) {
+        HStack(alignment: verticalAlignment, spacing: PrimitiveTokens.Space.md) {
             Text(label)
-                .font(PrimitiveTokens.Typography.body)
-                .foregroundStyle(SemanticTokens.Text.secondary)
+                .font(settingsRowLabelFont)
+                .foregroundStyle(settingsPrimaryTextColor)
                 .frame(width: labelColumnWidth, alignment: .leading)
 
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(minHeight: settingsFormRowMinHeight, alignment: .leading)
+        .padding(.horizontal, settingsGroupInset)
+        .padding(.vertical, PrimitiveTokens.Space.xs)
+        .overlay(alignment: .bottom) {
+            if showsDivider {
+                Rectangle()
+                    .fill(settingsRowSeparatorColor)
+                    .frame(height: 1)
+            }
+        }
     }
 
-    private func detailPane<Content: View>(
-        label: String,
+    private func settingsFieldSurface<Content: View>(
         @ViewBuilder content: () -> Content
     ) -> some View {
-        Grid(
-            alignment: .leading,
-            horizontalSpacing: PrimitiveTokens.Space.md,
-            verticalSpacing: PrimitiveTokens.Space.xs
-        ) {
-            GridRow(alignment: .top) {
-                Text(label)
-                    .font(PrimitiveTokens.Typography.body)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .frame(width: labelColumnWidth, alignment: .leading)
-
-                content()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+            content()
+        }
+        .padding(PrimitiveTokens.Space.sm)
+        .background(settingsInlinePanelFill)
+        .clipShape(RoundedRectangle(cornerRadius: settingsFieldCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: settingsFieldCornerRadius, style: .continuous)
+                .stroke(settingsFormGroupBorder, lineWidth: PrimitiveTokens.Stroke.subtle)
         }
     }
 
@@ -1502,9 +1627,23 @@ struct PromptCueSettingsView: View {
 
     private func rowNote(_ text: String) -> some View {
         Text(text)
-            .font(PrimitiveTokens.Typography.meta)
-            .foregroundStyle(SemanticTokens.Text.secondary)
+            .font(settingsSupportingFont)
+            .foregroundStyle(settingsSecondaryTextColor)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func settingsGroupSurface<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .background(settingsFormGroupFill)
+        .clipShape(RoundedRectangle(cornerRadius: settingsGroupCornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: settingsGroupCornerRadius, style: .continuous)
+                .stroke(settingsFormGroupBorder, lineWidth: PrimitiveTokens.Stroke.subtle)
+        }
     }
 
     private func binding<Value>(
@@ -1512,6 +1651,110 @@ struct PromptCueSettingsView: View {
         set: @escaping (Value) -> Void
     ) -> Binding<Value> {
         Binding(get: get, set: set)
+    }
+
+    private var settingsPrimaryTextColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.85),
+            dark: NSColor.white.withAlphaComponent(0.88)
+        )
+    }
+
+    private var settingsSecondaryTextColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.5),
+            dark: NSColor.white.withAlphaComponent(0.55)
+        )
+    }
+
+    private var settingsSidebarIconColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.72),
+            dark: NSColor.white.withAlphaComponent(0.72)
+        )
+    }
+
+    private var settingsSidebarPlateFill: Color {
+        adaptiveSettingsColor(
+            light: NSColor(calibratedWhite: 0.96, alpha: 0.68),
+            dark: NSColor(calibratedWhite: 0.16, alpha: 0.76)
+        )
+    }
+
+    private var settingsSidebarPlateBorder: Color {
+        adaptiveSettingsColor(
+            light: NSColor.white.withAlphaComponent(0.44),
+            dark: NSColor.white.withAlphaComponent(0.10)
+        )
+    }
+
+    private var settingsSidebarSelectionFill: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.11),
+            dark: NSColor.white.withAlphaComponent(0.12)
+        )
+    }
+
+    private var settingsPaneDividerColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.05),
+            dark: NSColor.white.withAlphaComponent(0.08)
+        )
+    }
+
+    private var settingsSidebarBackgroundColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor(srgbRed: 225.0 / 255.0, green: 224.0 / 255.0, blue: 223.0 / 255.0, alpha: 1.0),
+            dark: NSColor(srgbRed: 70.0 / 255.0, green: 70.0 / 255.0, blue: 69.0 / 255.0, alpha: 1.0)
+        )
+    }
+
+    private var settingsContentBackgroundColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor(srgbRed: 237.0 / 255.0, green: 237.0 / 255.0, blue: 236.0 / 255.0, alpha: 1.0),
+            dark: NSColor(srgbRed: 43.0 / 255.0, green: 43.0 / 255.0, blue: 41.0 / 255.0, alpha: 1.0)
+        )
+    }
+
+    private var settingsFormGroupFill: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.03),
+            dark: NSColor.white.withAlphaComponent(0.05)
+        )
+    }
+
+    private var settingsInlinePanelFill: Color {
+        adaptiveSettingsColor(
+            light: NSColor.white.withAlphaComponent(0.60),
+            dark: NSColor.white.withAlphaComponent(0.06)
+        )
+    }
+
+    private var settingsFormGroupBorder: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.05),
+            dark: NSColor.white.withAlphaComponent(0.08)
+        )
+    }
+
+    private var settingsRowSeparatorColor: Color {
+        adaptiveSettingsColor(
+            light: NSColor.black.withAlphaComponent(0.05),
+            dark: NSColor.white.withAlphaComponent(0.08)
+        )
+    }
+
+    private func adaptiveSettingsColor(light: NSColor, dark: NSColor) -> Color {
+        Color(
+            nsColor: NSColor(name: nil) { appearance in
+                switch appearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]) {
+                case .darkAqua, .vibrantDark:
+                    return dark
+                default:
+                    return light
+                }
+            }
+        )
     }
 }
 

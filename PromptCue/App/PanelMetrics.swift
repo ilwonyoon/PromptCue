@@ -17,9 +17,10 @@ enum PanelMetrics {
     static let capturePanelVerticalSpacing: CGFloat = 12
     static let capturePanelFallbackVisibleHeight: CGFloat = 240
 
-    static let settingsPanelWidth: CGFloat = 560
-    static let settingsPanelHeight: CGFloat = 620
-    static let settingsLabelColumnWidth: CGFloat = 138
+    static let settingsPanelWidth: CGFloat = 900
+    static let settingsPanelHeight: CGFloat = 760
+    static let settingsSidebarWidth: CGFloat = 240
+    static let settingsLabelColumnWidth: CGFloat = 190
     static let settingsToolbarTabWidth: CGFloat = 84
     static let settingsToolbarTabHeight: CGFloat = 40
     static let settingsExportTailEditorMinHeight: CGFloat = 96

@@ -30,13 +30,13 @@ final class NoopSuggestedTargetProvider: SuggestedTargetProviding {
     func refreshAvailableSuggestedTargets() {}
 }
 
-private struct SupportedSuggestedApp: Equatable {
+struct SupportedSuggestedApp: Equatable {
     let appName: String
     let bundleIdentifier: String
     let sourceKind: CaptureSuggestedTargetSourceKind
 }
 
-private enum SupportedSuggestedApps {
+enum SupportedSuggestedApps {
     static let all: [SupportedSuggestedApp] = [
         SupportedSuggestedApp(appName: "Terminal", bundleIdentifier: "com.apple.Terminal", sourceKind: .terminal),
         SupportedSuggestedApp(appName: "iTerm2", bundleIdentifier: "com.googlecode.iterm2", sourceKind: .terminal),
@@ -69,6 +69,7 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         label: "com.promptcue.recent-suggested-app-target-resolution",
         qos: .utility
     )
+    private var latestResolutionID: UUID?
     private var availableResolutionID: UUID?
 
     func start() {
@@ -89,6 +90,8 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         if let frontmostApplication = NSWorkspace.shared.frontmostApplication {
             updateLatestTarget(from: frontmostApplication)
         }
+
+        refreshAvailableSuggestedTargets()
     }
 
     func stop() {
@@ -140,7 +143,6 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         }
 
         updateLatestTarget(from: application)
-        refreshAvailableSuggestedTargets()
     }
 
     private func updateLatestTarget(from application: NSRunningApplication) {
@@ -150,61 +152,69 @@ final class RecentSuggestedAppTargetTracker: SuggestedTargetProviding {
         }
 
         let capturedAt = Date()
-        let window = frontWindowSnapshot(forProcessIdentifier: application.processIdentifier)
-        latestTarget = CaptureSuggestedTarget(
+        let windowTitle = frontWindowTitle(forProcessIdentifier: application.processIdentifier)
+        let provisionalTarget = CaptureSuggestedTarget(
             appName: supportedApp.appName,
             bundleIdentifier: bundleIdentifier,
-            windowTitle: window?.title,
-            sessionIdentifier: window?.identifier,
+            windowTitle: windowTitle,
             capturedAt: capturedAt,
             confidence: .low
         )
+
+        latestTarget = supportedApp.sourceKind == .terminal ? nil : provisionalTarget
         onChange?()
+        refreshAvailableSuggestedTargets()
+
+        let resolutionID = UUID()
+        latestResolutionID = resolutionID
+
+        resolutionQueue.async { [weak self] in
+            let resolvedTarget = buildDetailedSuggestedTarget(
+                appName: supportedApp.appName,
+                bundleIdentifier: bundleIdentifier,
+                fallbackWindowTitle: windowTitle,
+                capturedAt: capturedAt
+            )
+
+            guard let resolvedTarget else {
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.latestResolutionID == resolutionID else {
+                    return
+                }
+
+                self.latestTarget = resolvedTarget
+                self.onChange?()
+            }
+        }
     }
 
     private func supportedApp(for bundleIdentifier: String) -> SupportedSuggestedApp? {
         SupportedSuggestedApps.app(for: bundleIdentifier)
     }
 
-    private func frontWindowSnapshot(forProcessIdentifier processIdentifier: pid_t) -> SafeWindowSnapshot? {
-        windowSnapshots(forProcessIdentifier: processIdentifier).first
+    private func frontWindowTitle(forProcessIdentifier processIdentifier: pid_t) -> String? {
+        windowTitles(forProcessIdentifier: processIdentifier).first
     }
 }
 
-private struct SuggestedTargetWindowSnapshot {
+struct SuggestedTargetWindowSnapshot {
     let appName: String
     let bundleIdentifier: String
     let windowTitle: String?
     let sessionIdentifier: String?
-}
-
-private struct SafeWindowSnapshot {
-    let identifier: String
-    let title: String?
-}
-
-private func buildSafeSuggestedTarget(
-    appName: String,
-    bundleIdentifier: String,
-    fallbackWindowTitle: String?,
-    sessionIdentifier: String?,
-    capturedAt: Date
-) -> CaptureSuggestedTarget? {
-    return CaptureSuggestedTarget(
-        appName: appName,
-        bundleIdentifier: bundleIdentifier,
-        windowTitle: fallbackWindowTitle,
-        sessionIdentifier: sessionIdentifier,
-        capturedAt: capturedAt,
-        confidence: .low
-    )
+    let tty: String?
 }
 
 private func enumerateAvailableSuggestedTargets(
     latestTarget: CaptureSuggestedTarget?
 ) -> [CaptureSuggestedTarget] {
     let capturedAt = Date()
-    let snapshots = enumerateSafeWindowSnapshots()
+    let snapshots = enumerateTerminalWindowSnapshots()
+        + enumerateITermWindowSnapshots()
+        + enumerateIDEWindowSnapshots()
     var deduplicatedSnapshots: [String: SuggestedTargetWindowSnapshot] = [:]
 
     for snapshot in snapshots {
@@ -212,12 +222,17 @@ private func enumerateAvailableSuggestedTargets(
     }
 
     let targets = deduplicatedSnapshots.values.compactMap { snapshot in
-        buildSafeSuggestedTarget(
+        buildDetailedSuggestedTarget(
             appName: snapshot.appName,
             bundleIdentifier: snapshot.bundleIdentifier,
             fallbackWindowTitle: snapshot.windowTitle,
-            sessionIdentifier: snapshot.sessionIdentifier,
-            capturedAt: capturedAt
+            capturedAt: capturedAt,
+            sessionContext: snapshot.tty.map {
+                TerminalSessionContext(
+                    tty: $0,
+                    sessionIdentifier: snapshot.sessionIdentifier ?? $0
+                )
+            }
         )
     }
 
@@ -255,54 +270,22 @@ private func enumerateAvailableSuggestedTargets(
     }
 }
 
-private func enumerateSafeWindowSnapshots() -> [SuggestedTargetWindowSnapshot] {
-    let runningApplications = NSWorkspace.shared.runningApplications
-    let supportedApplications = runningApplications.compactMap { application -> (NSRunningApplication, SupportedSuggestedApp)? in
-        guard let bundleIdentifier = application.bundleIdentifier,
-              let supportedApp = SupportedSuggestedApps.app(for: bundleIdentifier) else {
-            return nil
-        }
-
-        return (application, supportedApp)
-    }
-
-    return supportedApplications.flatMap { application, supportedApp in
-        let windows = windowSnapshots(forProcessIdentifier: application.processIdentifier)
-        let uniqueWindowIdentifiers = Array(NSOrderedSet(array: windows.map(\.identifier))) as? [String]
-            ?? windows.map(\.identifier)
-
-        if uniqueWindowIdentifiers.isEmpty {
-            return [
-                SuggestedTargetWindowSnapshot(
-                    appName: supportedApp.appName,
-                    bundleIdentifier: supportedApp.bundleIdentifier,
-                    windowTitle: nil,
-                    sessionIdentifier: "\(application.processIdentifier)"
-                )
-            ]
-        }
-
-        let windowsByIdentifier = Dictionary(uniqueKeysWithValues: windows.map { ($0.identifier, $0) })
-        return uniqueWindowIdentifiers.compactMap { identifier in
-            guard let window = windowsByIdentifier[identifier] else {
-                return nil
-            }
-
-            return SuggestedTargetWindowSnapshot(
-                appName: supportedApp.appName,
-                bundleIdentifier: supportedApp.bundleIdentifier,
-                windowTitle: window.title,
-                sessionIdentifier: window.identifier
-            )
-        }
-    }
-}
-
 private func suggestedTargetMatchKey(_ target: CaptureSuggestedTarget) -> String {
     target.canonicalIdentityKey
 }
 
 private func suggestedTargetSnapshotMatchKey(_ snapshot: SuggestedTargetWindowSnapshot) -> String {
+    if SupportedSuggestedApps.app(for: snapshot.bundleIdentifier)?.sourceKind == .terminal {
+        return [
+            snapshot.bundleIdentifier,
+            snapshot.tty
+                ?? snapshot.sessionIdentifier
+                ?? snapshot.windowTitle
+                ?? snapshot.appName,
+        ]
+        .joined(separator: "|")
+    }
+
     return [
         snapshot.bundleIdentifier,
         snapshot.sessionIdentifier ?? "",
@@ -311,35 +294,35 @@ private func suggestedTargetSnapshotMatchKey(_ snapshot: SuggestedTargetWindowSn
     .joined(separator: "|")
 }
 
-private func windowSnapshots(forProcessIdentifier processIdentifier: pid_t) -> [SafeWindowSnapshot] {
-    guard let windowList = CGWindowListCopyWindowInfo(
-        [.optionOnScreenOnly, .excludeDesktopElements],
-        kCGNullWindowID
-    ) as? [[String: Any]] else {
-        return []
+func runCommand(
+    executableURL: URL,
+    arguments: [String]
+) -> String? {
+    let process = Process()
+    process.executableURL = executableURL
+    process.arguments = arguments
+
+    let outputPipe = Pipe()
+    process.standardOutput = outputPipe
+    process.standardError = Pipe()
+
+    do {
+        try process.run()
+    } catch {
+        return nil
     }
 
-    return windowList.compactMap { window in
-        guard let ownerPID = window[kCGWindowOwnerPID as String] as? pid_t,
-              ownerPID == processIdentifier else {
-            return nil
-        }
-
-        if let layer = window[kCGWindowLayer as String] as? Int,
-           layer != 0 {
-            return nil
-        }
-
-        guard let windowNumber = window[kCGWindowNumber as String] as? NSNumber else {
-            return nil
-        }
-
-        let trimmedTitle = (window[kCGWindowName as String] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        return SafeWindowSnapshot(
-            identifier: windowNumber.stringValue,
-            title: trimmedTitle?.isEmpty == true ? nil : trimmedTitle
-        )
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else {
+        return nil
     }
+
+    let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+    guard let output = String(data: data, encoding: .utf8)?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+          !output.isEmpty else {
+        return nil
+    }
+
+    return output
 }

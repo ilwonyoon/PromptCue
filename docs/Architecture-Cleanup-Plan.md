@@ -509,6 +509,15 @@ Track B/C는 병렬 분석 또는 분리 구현 후 순차 통합한다.
 - [x] Phase 1C screenshot 추출
 - [x] Phase 1D cloud sync 추출
 - [x] Phase 1 검증 및 커밋 완료
-- [ ] Phase 2A Track B 완료
+- [x] Phase 2A Track B 완료
 - [ ] Phase 2B Track C 완료
 - [ ] `main` 리베이스 후 Phase 3 착수
+
+현재 검증 메모:
+
+- 2026-03-12: Phase 1 완료 시점에
+  `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test`
+  통과
+- 2026-03-12: Phase 2A는 `xcodegen generate`, `swift test`,
+  `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+  통과

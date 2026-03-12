@@ -157,6 +157,8 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
     func refreshNow() {}
     func consumeCurrent() {}
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 
     func emit(_ nextState: RecentScreenshotState) {
         state = nextState

@@ -85,4 +85,6 @@ private final class TestRetentionRecentScreenshotCoordinator: RecentScreenshotCo
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 }

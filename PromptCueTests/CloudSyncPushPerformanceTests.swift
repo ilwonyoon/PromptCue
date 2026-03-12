@@ -220,4 +220,6 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 }

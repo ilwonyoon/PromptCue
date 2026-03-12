@@ -388,4 +388,6 @@ private final class SilentRecentScreenshotCoordinator: RecentScreenshotCoordinat
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 }

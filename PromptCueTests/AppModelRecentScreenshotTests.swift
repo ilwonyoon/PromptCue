@@ -285,6 +285,8 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
         consumeCurrentCallCount += 1
     }
     func dismissCurrent() {}
+    func suspendExpiration() {}
+    func resumeExpiration() {}
 }
 
 @MainActor

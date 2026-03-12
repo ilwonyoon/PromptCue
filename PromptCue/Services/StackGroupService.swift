@@ -105,6 +105,12 @@ final class StackGroupService {
         }
     }
 
+    private static let mergedDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        return formatter
+    }()
+
     private func buildMergedText(
         title: String,
         notes: [CaptureCard],
@@ -113,7 +119,9 @@ final class StackGroupService {
         var parts: [String] = ["# \(title)"]
 
         for note in notes {
-            parts.append(separator)
+            let shortID = note.id.uuidString.lowercased().prefix(8)
+            let dateStr = Self.mergedDateFormatter.string(from: note.createdAt)
+            parts.append("\(separator) [note:\(shortID) | \(dateStr)]")
             parts.append(note.text)
         }
 

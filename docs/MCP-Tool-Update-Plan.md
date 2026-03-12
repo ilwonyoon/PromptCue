@@ -2,317 +2,134 @@
 
 ## Overview
 
-BacktickMCP 서버에 2개 신규 도구(`classify_notes`, `group_notes`)와 MCP `prompts` capability(5개 템플릿)를 추가한다. 기존 6개 도구는 변경 없음.
+BacktickMCP 서버에 2개 신규 도구 + MCP prompts capability를 추가한다. 기존 6개 도구 변경 없음.
 
-**핵심 제약: active 카드만 처리한다.** copied 카드는 이미 실행된 것이므로 classify/group 대상에서 제외.
+**추가하는 이유**: 기존 CRUD 도구(list/get/create/update/delete/mark_executed)는 개별 노트 조작은 커버하지만, "쌓인 노트를 효율적으로 처리"하는 데 3가지가 빠져있음:
 
-**목표 플로우:**
+1. **한눈에 파악** — 노트가 어떤 프로젝트/세션 기준으로 몇 개씩 있는지 (→ `classify_notes`)
+2. **관련 노트 합치기** — 분절된 노트를 하나의 맥락으로 (→ `group_notes`)
+3. **의도에 맞는 처리** — 같은 노트라도 "진단해" vs "실행해"로 결과가 다름 (→ `prompts`)
 
-```
-노트 쌓임 → classify_notes(scope: "active", 1차 메타데이터 분류)
-         → triage 템플릿으로 의미 기반 2차 분류
-           - 그룹 타입 (implement/investigate/refine/follow-up/decision-needed)
-           - confidence 스코어링 (high/medium/low)
-           - 우선순위 (must_do_now/should_do/later)
-           - execution topology (branch/worktree/commit/merge 가이드)
-         → ⚠️ 사용자 confirm (분류 + topology 결과)
-         → 난이도별 단계적 실행 (아래 참고)
-```
-
-### 안전 설계 원칙
-
-1. **grouping은 항상 제안 (suggestion)** — 사용자가 확인 전까지 확정 아님
-2. **copied는 실행 시작 시에만** — plan/preview/confirm 단계에서는 절대 copied 처리하지 않음 (group_notes의 archiveSources 기본값 = false)
-3. **과한 의도 추론 금지** — 불확실한 노트는 `investigate` 또는 `decision-needed`로 보수적 분류
-4. **confidence gate** — low confidence 그룹은 자동 실행 금지
-5. **sequential checkpoints** — 외부는 auto-run처럼 보여도 내부는 그룹별 validate → next
-6. **source traceability** — 어떤 raw notes로 무엇을 실행했는지 항상 추적 가능
-
-### 상태 전이 (내부)
+**플로우:**
 
 ```
-active → grouped → planned → confirmed → executing → copied
-                                                   ↘ execution_failed (copied 유지, 이벤트 기록)
+노트 쌓임 → classify_notes (리포/세션별 1차 분류)
+         → 에이전트가 triage 템플릿으로 그룹핑 제안
+         → 사용자 확인
+         → group_notes (합치기, 원본은 active 유지)
+         → 의도별 템플릿 (diagnose/execute)으로 처리
+         → 완료 시 mark_notes_executed로 copied 처리
 ```
 
-- preview = copied 아님
-- confirm = copied 아님
-- actual execution start = copied (mark_notes_executed 호출)
-
-### 실행 전략: 난이도별 단계적 처리
-
-한큐에 모든 그룹을 처리하지 않는다. 난이도별로 사용자 확인 구간을 둔다.
-
-```
-[trivial/easy — must_do_now 우선]
-  → group_notes(archiveSources: false) → structured prompt → 실행
-  → mark_notes_executed (실행 시작 시점에 copied)
-  → ⚠️ 사용자 결과 확인
-  → confirm 후 다음 단계
-
-[medium — should_do]
-  → group_notes(archiveSources: false) → structured prompt → 실행
-  → mark_notes_executed
-  → ⚠️ 사용자 결과 확인
-  → confirm 후 다음 단계
-
-[hard/complex — 또는 investigate/decision-needed]
-  → group_notes(archiveSources: false) → plan/diagnose 먼저
-  → ⚠️ 사용자가 계획/진단 결과 검토
-  → confirm 후 실행 → mark_notes_executed
-  → ⚠️ 사용자 결과 확인
-```
-
-### Execution Topology 가이드
-
-triage 결과에 각 그룹별 topology 포함:
-
-| 전략 | 조건 | 예시 |
-|------|------|------|
-| `same-branch` | 아주 작은 후속 수정, 동일 흐름 | typo fix, 같은 기능 내 polish |
-| `separate-branch` | 독립 구현, 리뷰/머지 단위 분리 필요 (기본값) | 기능별 구현 |
-| `separate-worktree` | 병렬 진행, 파일 충돌 가능, 격리 필요 | 고위험 병렬 작업 |
-| `must-serialize` | 선행/후행 의존성 큼 | 구조 변경 후 후속 작업 |
-
-**원칙:**
-- worktree는 high-risk/high-parallel에서만
-- surface overlap 높으면 직렬화 우선
-- Backtick은 Git을 관리하지 않고 topology-aware guidance만 제공
-- 각 그룹에 commit checkpoints 제안 (baseline → implementation → validation)
+**핵심 원칙:**
+- active 카드만 처리 (copied는 이미 실행됨)
+- group_notes는 합치기만, archive는 별도 (archiveSources 기본값 = false)
+- MCP 서버는 데이터 파이프 — 판단은 에이전트 몫
 
 ---
 
 ## Phase 1: `classify_notes` (읽기 전용)
 
-### 1.1 StackReadService에 classifyNotes 추가
+메타데이터 기반 1차 분류. 에이전트의 탐색 비용을 줄여주는 도구.
 
-**파일**: `PromptCue/Services/StackReadService.swift`
-
-```swift
-struct NoteClassification: Equatable {
-    let groupKey: String
-    let repositoryName: String?
-    let branch: String?
-    let appName: String?
-    let sessionIdentifier: String?
-    let noteIDs: [UUID]
-    let previewTexts: [String]  // 각 노트 text 앞 80자
-}
-
-func classifyNotes(scope: StackReadScope, groupBy: String) throws -> [NoteClassification]
-```
-
-**그룹핑 키 로직:**
+**서비스**: `StackReadService.classifyNotes(scope:groupBy:)`
 
 | groupBy | 키 조합 | 용도 |
 |---------|---------|------|
-| `repository` | `repositoryName` + `branch` | 리포/브랜치별 분류 (기본값) |
-| `session` | `sessionIdentifier` | 세션별 분류 |
-| `app` | `bundleIdentifier` + `appName` | 앱별 분류 |
+| `repository` (기본값) | `repositoryName` + `branch` | 리포/브랜치별 |
+| `session` | `sessionIdentifier` | 세션별 |
+| `app` | `bundleIdentifier` + `appName` | 앱별 |
 
-- `suggestedTarget` 없는 노트 → `"uncategorized"` 그룹
-- 그룹 내 순서: `sortOrder` descending
-
-### 1.2 Tool 정의 + Dispatch
-
-**파일**: `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
-
-**Input Schema:**
+**Input:**
 ```json
 {
-  "type": "object",
-  "properties": {
-    "scope": {
-      "type": "string",
-      "enum": ["all", "active", "copied"],
-      "description": "기본값: active. copied는 이미 실행된 노트이므로 일반적으로 active만 사용."
-    },
-    "groupBy": {
-      "type": "string",
-      "enum": ["repository", "session", "app"]
-    }
-  },
-  "additionalProperties": false
+  "scope": "active",
+  "groupBy": "repository"
 }
 ```
-
-**scope 기본값은 `"active"`** — copied 노트는 이미 실행 완료된 것이므로 분류 대상에서 제외하는 것이 기본 동작.
 
 **Output:**
 ```json
 {
   "groupBy": "repository",
   "scope": "active",
-  "groupCount": 3,
-  "totalNotes": 12,
+  "groupCount": 2,
+  "totalNotes": 8,
   "groups": [
     {
       "groupKey": "PromptCue|mcp-tool-update",
       "repositoryName": "PromptCue",
       "branch": "mcp-tool-update",
-      "appName": "Cursor",
       "noteCount": 5,
-      "noteIDs": ["uuid1", "uuid2"],
-      "previewTexts": ["MCP에 classify 도구 추가...", "group tool 스펙 정리..."]
+      "noteIDs": ["uuid1", "uuid2", ...],
+      "previewTexts": ["MCP 파싱 에러...", "classify tool 추가..."]
     }
   ]
 }
 ```
 
-**Edge cases:**
-- 빈 스택 → `groups: []`
-- 모든 노트에 suggestedTarget 없음 → 단일 `"uncategorized"` 그룹
-- 같은 리포 다른 브랜치 → 별도 그룹
-- 같은 리포+브랜치 다른 세션 → `repository` groupBy에서는 같은 그룹, `session`에서는 분리
+**Edge cases:** 빈 스택 → `[]`, suggestedTarget 없음 → `"uncategorized"` 그룹.
 
 ---
 
 ## Phase 2: `group_notes` (쓰기)
 
-### 2.1 StackGroupService 신규 생성
+관련 노트를 하나의 카드로 합침. Stack UI에 정리된 카드를 남기기 위한 도구.
 
-**파일**: `PromptCue/Services/StackGroupService.swift` (NEW)
+**서비스**: `StackGroupService.groupNotes(_:)`
 
-```swift
-struct StackGroupRequest: Equatable, Sendable {
-    let sourceNoteIDs: [UUID]
-    let title: String
-    let separator: String      // 기본값: "---"
-    let archiveSources: Bool   // 기본값: true
-    let sessionID: String?
-}
-
-struct StackGroupResult: Equatable {
-    let groupedNote: CaptureCard
-    let archivedNotes: [CaptureCard]
-    let copyEvents: [CopyEvent]
-}
-
-@MainActor
-final class StackGroupService {
-    private let readService: StackReadService
-    private let writeService: StackWriteService
-    private let executionService: StackExecutionService
-
-    func groupNotes(_ request: StackGroupRequest) throws -> StackGroupResult
-}
-```
-
-**생성되는 카드 텍스트 포맷:**
-```
-# {title}
-
----
-
-{note1.text}
-
----
-
-{note2.text}
-
----
-
-{note3.text}
-```
-
-**동작 순서:**
-1. `readService`로 sourceNoteIDs 전체 로드 — 못 찾으면 에러
-2. 순서 유지 (입력 배열 순), 중복 ID 제거
-3. 첫 번째 suggestedTarget 있는 노트에서 target 상속
-4. `writeService.createNote()`로 합쳐진 카드 생성
-5. `archiveSources == true`면 `executionService.markExecuted()`로 원본 copied 처리
-6. 결과 반환
-
-**Edge cases:**
-- 단일 noteID → 유효, 타이틀 래퍼 카드 생성
-- 빈 text 노트 → separator 사이에 빈 블록
-- 이미 copied인 원본 → 경고 반환 (이미 실행된 노트를 다시 그룹핑하려는 것이므로), 단 처리는 허용
-- 빈 title → 에러
-- 존재하지 않는 ID → 에러
-- copied 노트만 포함된 요청 → 경고 포함하여 진행 (사용자가 의도적으로 할 수 있음)
-
-### 2.2 Package.swift 업데이트
-
-BacktickMCPServer target의 `sources:` 배열에 추가:
-```
-"PromptCue/Services/StackGroupService.swift"
-```
-
-### 2.3 Tool 정의 + Dispatch
-
-**Input Schema:**
+**Input:**
 ```json
 {
-  "type": "object",
-  "properties": {
-    "noteIDs": {
-      "type": "array",
-      "items": { "type": "string", "format": "uuid" },
-      "minItems": 1
-    },
-    "title": { "type": "string" },
-    "separator": { "type": "string" },
-    "archiveSources": { "type": "boolean" },
-    "sessionID": { "type": ["string", "null"] }
-  },
-  "required": ["noteIDs", "title"],
-  "additionalProperties": false
+  "noteIDs": ["uuid1", "uuid2", "uuid3"],
+  "title": "MCP 파싱 에러 수정",
+  "separator": "---",
+  "archiveSources": false
 }
 ```
+
+**archiveSources 기본값 = false.** 합치기 ≠ 실행 완료. 실행 완료 시 별도로 `mark_notes_executed` 호출.
+
+**합쳐진 카드 텍스트 포맷:**
+```
+# MCP 파싱 에러 수정
+
+--- [note:abc123 | 2026-03-12]
+
+JSON-RPC 파싱에서 타입 불일치
+
+--- [note:def456 | 2026-03-12]
+
+tool call argument 검증 빠져있음
+```
+
+각 source note의 ID + 날짜를 separator에 포함해서 traceability 확보.
 
 **Output:**
 ```json
 {
   "groupedNote": { /* 표준 note dictionary */ },
-  "archivedCount": 3,
-  "archivedNotes": [ /* 표준 note dictionaries */ ],
-  "copyEvents": [ /* 표준 copy event dictionaries */ ]
+  "archivedCount": 0,
+  "archivedNotes": [],
+  "copyEvents": []
 }
 ```
+
+**Edge cases:** 단일 noteID → 유효, 빈 title → 에러, 없는 ID → 에러.
 
 ---
 
-## Phase 3: MCP Prompts Capability
+## Phase 3: MCP Prompts Capability (3개 템플릿)
 
-### 3.0 BacktickMCPToolError 추출
+`prompts/list` + `prompts/get` 프로토콜 지원. 에이전트의 의도별 처리 품질을 높이는 도구.
 
-`BacktickMCPServerSession.swift` 하단의 `private struct BacktickMCPToolError`를 별도 파일로 추출:
+### 템플릿 3종
 
-**파일**: `Sources/BacktickMCPServer/BacktickMCPToolError.swift` (NEW)
-
-접근 레벨 `internal`로 변경. 새 파일(MCPPromptRenderer 등)에서 접근 가능하게.
-
-### 3.1 MCPPromptTemplates
-
-**파일**: `Sources/BacktickMCPServer/MCPPromptTemplates.swift` (NEW)
-
-```swift
-struct MCPPromptTemplate: Equatable, Sendable {
-    let name: String
-    let description: String
-    let arguments: [MCPPromptArgument]
-    let bodyTemplate: String
-}
-
-struct MCPPromptArgument: Equatable, Sendable {
-    let name: String
-    let description: String
-    let required: Bool
-}
-
-enum MCPPromptCatalog {
-    static let all: [MCPPromptTemplate] = [triage, diagnose, execute, plan, review]
-    static func template(named: String) -> MCPPromptTemplate?
-}
+**triage** — 노트 분류 + 그룹핑 제안
 ```
+You are an engineering triage assistant.
 
-### 템플릿 5종
-
-**triage** — 분류 + 그룹핑 제안 + 난이도 태깅
-```
-You are a senior engineering triage analyst.
-
-## Notes to classify
+## Notes
 
 {noteText}
 
@@ -322,18 +139,14 @@ Branch: {branch}
 
 ## Instructions
 
-1. Classify each note by function/intent (bug fix, feature, refactor, config, docs, test).
-2. Group related notes that should be addressed together.
+1. Group related notes that should be addressed together.
    - Same intent but different modules = separate groups.
    - User should understand the group just from the title.
-3. For each group provide:
-   - Title (clear, specific to module + problem)
-   - Difficulty: trivial | easy | medium | hard | complex
-   - Scope: single-file | multi-file | cross-module
-4. Suggest execution order (easy first, dependencies respected).
-5. Flag ambiguous notes needing clarification.
+2. For each group: title, intent tag (diagnose/execute/investigate), difficulty (easy/medium/hard).
+3. If a note is ambiguous or exploratory, tag it as investigate — do not promote to execute.
+4. Suggest processing order: easy first, respect dependencies.
 
-Return structured JSON: groups array with title, difficulty, scope, noteIDs, executionOrder, rationale.
+Return JSON: { groups: [{ title, intent, difficulty, noteIDs, rationale }] }
 ```
 
 **diagnose** — 진단 전용, 실행 금지
@@ -352,10 +165,9 @@ Branch: {branch}
 Identify the root cause. Do NOT execute fixes.
 
 ## Constraints
-- Present hypotheses ranked by likelihood
-- For each hypothesis: verification method (log, test, repro steps)
+- Hypotheses ranked by likelihood
+- Each hypothesis: verification method (log, test, repro steps)
 - Distinguish symptoms from causes
-- Note missing information needed to confirm
 ```
 
 **execute** — 구현 실행
@@ -374,205 +186,70 @@ Branch: {branch}
 Implement the changes step by step.
 
 ## Constraints
-- Follow existing code patterns and conventions
-- Make minimal, focused changes
-- Verify each step compiles before proceeding
-- Update tests for affected code
+- Follow existing code patterns
+- Minimal, focused changes
+- Verify each step compiles
 - Do not refactor unrelated code
 ```
 
-**plan** — 설계/아키텍처
-```
-You are a software architect analyzing a design problem.
+### 프로토콜
 
-## Problem
-
-{noteText}
-
-## Context
-Repository: {repositoryName}
-Branch: {branch}
-
-## Goal
-Analyze the design space and recommend an approach.
-
-## Deliverables
-- 2-3 viable approaches with trade-offs
-- Risks and dependencies for each
-- Recommended approach with justification
-- Implementation phases
-- Architectural concerns or breaking changes
-```
-
-**review** — 코드 리뷰
-```
-You are a code reviewer examining changes.
-
-## Changes to Review
-
-{noteText}
-
-## Context
-Repository: {repositoryName}
-Branch: {branch}
-
-## Goal
-Review for correctness, maintainability, and safety.
-
-## Classification
-- CRITICAL: Must fix (bugs, security, data loss)
-- HIGH: Should fix (performance, error handling)
-- MEDIUM: Recommended (style, naming)
-- LOW: Optional (nits)
-```
-
-### 3.2 MCPPromptRenderer
-
-**파일**: `Sources/BacktickMCPServer/MCPPromptRenderer.swift` (NEW)
-
-```swift
-enum MCPPromptRenderer {
-    static func render(
-        template: MCPPromptTemplate,
-        arguments: [String: String]
-    ) throws -> String
-}
-```
-
-**치환 규칙:**
-- `{variableName}` → 해당 argument 값
-- optional 미제공 → `"(not specified)"`
-- required 미제공 → throw error
-- **단일 패스** — argument 값 안의 `{...}`는 재귀 치환하지 않음
-
-### 3.3 프로토콜 통합
-
-**initializeResult capabilities 확장:**
-```swift
-"capabilities": [
-    "tools": ["listChanged": false],
-    "prompts": ["listChanged": false],
-]
-```
-
-**handleObject에 method 추가:**
-```swift
-case "prompts/list":
-    return successResponse(id: id, result: promptsList())
-
-case "prompts/get":
-    // name + arguments 파싱 → MCPPromptRenderer.render → messages 배열 반환
-```
-
-**prompts/get 응답 형태 (MCP spec):**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "description": "...",
-    "messages": [
-      {
-        "role": "user",
-        "content": { "type": "text", "text": "rendered template" }
-      }
-    ]
-  }
-}
-```
+- `prompts/list` → 3개 템플릿 메타데이터 반환
+- `prompts/get` → name + arguments → 렌더링된 텍스트 반환 (MCP messages 형태)
+- 변수: `{noteText}` (필수), `{repositoryName}` (선택), `{branch}` (선택)
+- 단일 패스 치환 (재귀 없음)
 
 ---
 
 ## Phase 4: 테스트
 
-### 파일 변경
+### 통합 테스트 (BacktickMCPServerTests.swift)
 
-| 파일 | 변경 |
-|------|------|
-| `Tests/BacktickMCPServerTests/BacktickMCPServerTests.swift` | 기존 surface 테스트 업데이트 (8 tools), 신규 통합 테스트 추가 |
-| `Tests/BacktickMCPServerTests/MCPPromptRendererTests.swift` | NEW — renderer 단위 테스트 |
-
-### 테스트 케이스
-
-**classify_notes:**
+- 기존 surface 테스트: 8 tools, prompts capability 확인
 - `testClassifyNotesGroupsByRepository` — 같은 리포 2개 + 다른 리포 1개 → 2그룹
-- `testClassifyNotesWithNoSuggestedTarget` — 전부 uncategorized
 - `testClassifyNotesEmptyStack` — 빈 배열
-- `testClassifyNotesGroupBySession` — 세션 기반
-- `testClassifyNotesGroupByApp` — 앱 기반
+- `testGroupNotesCreatesMergedCard` — 합치기 + 원본 active 유지 확인
+- `testGroupNotesMergedTextContainsSourceIDs` — note ID가 merge 포맷에 포함
+- `testGroupNotesInvalidIDReturnsError`
+- `testPromptsListReturnsThreeTemplates`
+- `testPromptsGetDiagnoseRendersTemplate`
 
-**group_notes:**
-- `testGroupNotesCreatesMergedCardAndArchivesSources` — 핵심 플로우
-- `testGroupNotesWithArchiveSourcesFalse` — 원본 유지
-- `testGroupNotesSingleNote` — 단일 노트 래핑
-- `testGroupNotesInvalidIDReturnsError` — 없는 ID
-- `testGroupNotesEmptyTitleReturnsError` — 빈 타이틀
+### Renderer 테스트 (MCPPromptRendererTests.swift) — 이미 완료
 
-**prompts:**
-- `testPromptsListReturnsAllTemplates` — 5개 이름 확인
-- `testPromptsGetTriageRendersTemplate` — 변수 치환 확인
-- `testPromptsGetUnknownNameReturnsError`
-- `testPromptsGetMissingRequiredArgReturnsError`
-
-**renderer:**
-- `testRenderSubstitutesAllVariables`
-- `testRenderUsesDefaultForOptionalMissing`
-- `testRenderThrowsForRequiredMissing`
-- `testRenderDoesNotRecursivelySubstitute`
+- 변수 치환, optional 기본값, required 에러, 재귀 방지 4종
 
 ---
 
-## 구현 순서 (커밋 단위)
+## 코드 변경 (현재 상태 → 필요 변경)
 
-| # | 작업 | 파일 |
-|---|------|------|
-| 1 | BacktickMCPToolError 추출 | `BacktickMCPToolError.swift` (NEW), `BacktickMCPServerSession.swift` |
-| 2 | classifyNotes 서비스 메서드 | `StackReadService.swift` |
-| 3 | classify_notes 도구 정의 + dispatch | `BacktickMCPServerSession.swift` |
-| 4 | StackGroupService 생성 | `StackGroupService.swift` (NEW) |
-| 5 | Package.swift sources 추가 | `Package.swift` |
-| 6 | group_notes 도구 정의 + dispatch | `BacktickMCPServerSession.swift` |
-| 7 | MCPPromptTemplates | `MCPPromptTemplates.swift` (NEW) |
-| 8 | MCPPromptRenderer | `MCPPromptRenderer.swift` (NEW) |
-| 9 | prompts capability + protocol dispatch | `BacktickMCPServerSession.swift` |
-| 10 | 전체 테스트 | `BacktickMCPServerTests.swift`, `MCPPromptRendererTests.swift` (NEW) |
+이미 구현된 것:
+- [x] `classify_notes` 서비스 + 도구 정의
+- [x] `group_notes` 서비스 + 도구 정의 (archiveSources 기본값 false)
+- [x] BacktickMCPToolError 추출
+- [x] MCPPromptRenderer + 테스트
+- [x] prompts/list, prompts/get 프로토콜 dispatch
+- [x] Package.swift 업데이트
 
-## 신규 파일 목록
+**아직 필요한 변경:**
 
-```
-Sources/BacktickMCPServer/BacktickMCPToolError.swift      (NEW)
-Sources/BacktickMCPServer/MCPPromptTemplates.swift         (NEW)
-Sources/BacktickMCPServer/MCPPromptRenderer.swift          (NEW)
-PromptCue/Services/StackGroupService.swift                 (NEW)
-Tests/BacktickMCPServerTests/MCPPromptRendererTests.swift  (NEW)
-```
+| 작업 | 파일 |
+|------|------|
+| triage 템플릿 축소 (topology/confidence/priority 제거) | `MCPPromptTemplates.swift` |
+| plan/review 템플릿 제거 (3종만 유지) | `MCPPromptTemplates.swift` |
+| merge 포맷에 note ID + 날짜 포함 | `StackGroupService.swift` |
+| 통합 테스트 작성 | `BacktickMCPServerTests.swift` |
+| 계획문서 동기화 | `MCP-Tool-Update-Plan.md` (이 파일) |
 
-## 리스크
-
-| 리스크 | 심각도 | 완화 |
-|--------|--------|------|
-| group_notes 부분 실패 (카드 생성 후 archive 실패) | 중간 | merged 카드 ID 반환됨, 호출자가 mark_notes_executed 재시도 가능 |
-| BacktickMCPServerSession.swift 비대화 (~900줄) | 중간 | 도구 핸들러를 extension으로 분리 검토 |
-| MCP prompts 프로토콜 불일치 | 중간 | 클라이언트(Claude Desktop, Cursor) 테스트 |
-| classify_notes 그룹핑 키 충돌 | 낮음 | 복합 키(repo+branch) 사용 |
-
-## 호환성
-
-- **기존 6개 도구**: 스키마, 동작, 응답 형태 변경 없음
-- **tools/list 순서**: 기존 순서 유지, 신규 도구는 끝에 추가
-- **프로토콜 버전**: 변경 없음. `2025-03-26`, `2024-11-05` 모두 동작
-- **DB 스키마**: 변경 없음. group_notes는 기존 CardStore.upsert 사용
-- **CopyEvent**: group_notes의 archive는 기존 `CopyEventVia.agentRun` + `CopyEventActor.mcp` 재사용
+---
 
 ## 성공 기준
 
-- [ ] `swift test` 통과 (BacktickMCPServerTests + MCPPromptRendererTests)
+- [ ] `swift test` 통과
 - [ ] `xcodegen generate` 성공
 - [ ] `xcodebuild build` 성공 (`CODE_SIGNING_ALLOWED=NO`)
 - [ ] tools/list → 8개 도구
 - [ ] classify_notes → 그룹 반환, 원본 변경 없음
-- [ ] group_notes → 합쳐진 카드 + 원본 archived
-- [ ] group_notes(archiveSources: false) → 원본 유지
-- [ ] prompts/list → 5개 템플릿
+- [ ] group_notes → 합쳐진 카드 (note ID 포함), 원본 active 유지
+- [ ] prompts/list → 3개 템플릿
 - [ ] prompts/get → 변수 치환된 렌더링
 - [ ] 기존 테스트 전부 통과

@@ -4,12 +4,25 @@ import SwiftUI
 struct CardStackView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
+    let onBackdropTap: () -> Void
     let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
     @State private var classificationCache: [CaptureCard.ID: ContentClassification] = [:]
+
+    init(
+        model: AppModel,
+        onBackdropTap: @escaping () -> Void = {},
+        onEditCard: @escaping (CaptureCard) -> Void,
+        onDeleteCard: @escaping (CaptureCard) -> Void
+    ) {
+        self.model = model
+        self.onBackdropTap = onBackdropTap
+        self.onEditCard = onEditCard
+        self.onDeleteCard = onDeleteCard
+    }
 
     var body: some View {
         let sections = partitionedCards(from: model.cards)
@@ -292,7 +305,7 @@ struct CardStackView: View {
     }
 
     private var stackBackdrop: some View {
-        StackPanelBackdrop()
+        StackPanelBackdrop(onTap: onBackdropTap)
     }
 
     private var copiedPreviewTextColor: Color {

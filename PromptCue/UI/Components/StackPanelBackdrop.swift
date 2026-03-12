@@ -6,22 +6,26 @@ struct StackPanelBackdrop: View {
     @Environment(\.colorScheme) private var colorScheme
     let densityScale: Double
     let grayscaleBias: Double
+    let onTap: () -> Void
 
     static let defaultDensityScale = StackPanelBackdropRecipe.defaultDensityScale
     static let defaultGrayscaleBias = StackPanelBackdropRecipe.defaultGrayscaleBias
 
     init(
         densityScale: Double = StackPanelBackdrop.defaultDensityScale,
-        grayscaleBias: Double = StackPanelBackdrop.defaultGrayscaleBias
+        grayscaleBias: Double = StackPanelBackdrop.defaultGrayscaleBias,
+        onTap: @escaping () -> Void = {}
     ) {
         self.densityScale = densityScale
         self.grayscaleBias = grayscaleBias
+        self.onTap = onTap
     }
 
     var body: some View {
         backdropLayers
             .mask(StackPanelBackdropRecipe.edgeFadeMask(maskScale: maskScale))
-            .allowsHitTesting(false)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
             .ignoresSafeArea()
     }
 

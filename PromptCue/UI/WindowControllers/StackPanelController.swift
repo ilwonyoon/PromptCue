@@ -187,6 +187,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.contentViewController = NSHostingController(
             rootView: CardStackView(
                 model: model,
+                onBackdropTap: { [weak self] in
+                    self?.close()
+                },
                 onEditCard: { [weak self] card in
                     self?.onEditCard(card)
                 },

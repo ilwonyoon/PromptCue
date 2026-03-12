@@ -17,6 +17,7 @@ ARTIFACT_PATH=""
 ARCHIVE_LOG_PATH=""
 VALIDATION_REPORT_PATH=""
 METADATA_PATH=""
+TEMP_WORK_ROOT=""
 SKIP_XCODEGEN=0
 
 print_usage() {
@@ -42,6 +43,14 @@ fail() {
   echo "archive_release_validation: $*" >&2
   exit 1
 }
+
+cleanup_work_root() {
+  if [[ -n "${TEMP_WORK_ROOT}" && -d "${TEMP_WORK_ROOT}" ]]; then
+    rm -rf "${TEMP_WORK_ROOT}"
+  fi
+}
+
+trap cleanup_work_root EXIT
 
 run() {
   printf '+'
@@ -95,8 +104,9 @@ OUTPUT_ROOT="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "
 
 [[ -e "${PROJECT_PATH}" ]] || fail "project path does not exist: ${PROJECT_PATH}"
 
-DERIVED_DATA_PATH="${OUTPUT_ROOT}/DerivedData"
-SOURCE_PACKAGES_DIR="${OUTPUT_ROOT}/SourcePackages"
+TEMP_WORK_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/promptcue-release-validation.XXXXXX")"
+DERIVED_DATA_PATH="${TEMP_WORK_ROOT}/DerivedData"
+SOURCE_PACKAGES_DIR="${TEMP_WORK_ROOT}/SourcePackages"
 ARCHIVE_PATH="${OUTPUT_ROOT}/PromptCue.xcarchive"
 EXPORTED_APP_PATH="${OUTPUT_ROOT}/Prompt Cue.app"
 ARTIFACT_PATH="${OUTPUT_ROOT}/Prompt Cue.app.zip"

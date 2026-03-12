@@ -10,6 +10,10 @@ on:
 jobs:
   swift-test:
     runs-on: macos-15
+    permissions:
+      contents: read
+    env:
+      RELEASE_VALIDATION_ROOT: ${{ runner.temp }}/release-validation
 
     steps:
       - name: Check out repository
@@ -32,5 +36,20 @@ jobs:
       - name: Build app target
         run: xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug -derivedDataPath /tmp/PromptCueDerivedData CODE_SIGNING_ALLOWED=NO build
 
+      - name: Archive unsigned Release candidate
+        run: scripts/archive_release_validation.sh --output-root "$RELEASE_VALIDATION_ROOT" --skip-xcodegen
+
       - name: Validate UI token usage
         run: python3 scripts/validate_ui_tokens.py
+
+      - name: Upload release validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation
+          if-no-files-found: warn
+          path: |
+            ${{ env.RELEASE_VALIDATION_ROOT }}/archive.log
+            ${{ env.RELEASE_VALIDATION_ROOT }}/release-validation.txt
+            ${{ env.RELEASE_VALIDATION_ROOT }}/release-metadata.json
+            ${{ env.RELEASE_VALIDATION_ROOT }}/PromptCue.xcarchive/Info.plist

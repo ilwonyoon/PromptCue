@@ -187,8 +187,11 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     }
 
     private func handleObserverChange(_ event: RecentScreenshotObservationEvent) {
-        if event.impliesImmediateScreenshotSignal {
-            ensurePendingDetection(referenceDate: now())
+        switch event {
+        case .authorizedDirectoryContentsChanged:
+            break
+        case .authorizedDirectoryConfigurationChanged:
+            resetForAuthorizedDirectoryConfigurationChange()
         }
 
         refreshState()
@@ -236,12 +239,6 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             signalResult.signalCandidate,
             referenceDate: referenceDate
         )
-
-        if signalCandidate == nil,
-           let recentTemporaryContainerDate = signalResult.recentTemporaryContainerDate {
-            ensurePendingDetection(referenceDate: recentTemporaryContainerDate)
-            return
-        }
 
         guard let signalCandidate else {
             return
@@ -515,6 +512,19 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         expirationTimer = nil
     }
 
+    private func resetForAuthorizedDirectoryConfigurationChange() {
+        clearCurrentSessionCache()
+        currentSession = nil
+        pendingPreviewCacheRequest = nil
+        pendingScanReferenceDate = nil
+        scanInFlight = false
+        scanGeneration &+= 1
+        previewGeneration &+= 1
+        ignoredSourceKeys.removeAll()
+        invalidateTimers()
+        state = .idle
+    }
+
     private func publishCurrentSessionState(referenceDate: Date) {
         guard let currentSession else {
             state = .idle
@@ -615,12 +625,6 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         let signalCandidate = filteredCandidate(scanResult.signalCandidate, referenceDate: referenceDate)
         let readableCandidate = filteredCandidate(scanResult.readableCandidate, referenceDate: referenceDate)
-
-        if signalCandidate == nil,
-           readableCandidate == nil,
-           let recentTemporaryContainerDate = scanResult.recentTemporaryContainerDate {
-            ensurePendingDetection(referenceDate: recentTemporaryContainerDate)
-        }
 
         if let signalCandidate {
             let session = ensureSession(for: signalCandidate, referenceDate: referenceDate)

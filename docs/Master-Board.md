@@ -37,6 +37,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Screenshot attachment | In progress | Recent screenshot detection now depends on an explicitly approved folder |
 | Core UI | In progress | Capture and stack views now render real MVP UI |
 | Quality audit | Completed | Findings captured and prioritized for remediation |
+| Public launch hardening lane | In progress | `H0` contract lock is active in `docs/Public-Launch-Hardening-Plan.md`; master-owned `H1` release work may proceed in parallel while runtime `H2-H5` merges stay behind the current `safe-main` gate |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
 | Performance remediation lane | Completed | `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live stack-open trace harness are active in the merge-safe landing candidate; the historical `P5` compositor benchmark remains documented in `docs/Performance-Remediation-Plan.md` |
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
@@ -49,6 +50,21 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1, DS2, and DS3 are implemented, DS4 has started, and DS5 remains pending |
 
 ## Current File Ownership
+
+For `Phase H` public launch hardening, the authoritative ownership model is now the one in `docs/Public-Launch-Hardening-Plan.md`.
+
+`Phase H` worktree map:
+
+- Master:
+  - release-sensitive docs, config, entitlements, scripts, and app entrypoints
+- `services-security`:
+  - screenshot/bookmark/attachment-ingress/privacy-boundary work
+- `core-perf`:
+  - idle polling, startup lifecycle, and wake-up containment work
+- `ui-battery`:
+  - minimal disclosure UI only when a privacy decision requires it, plus runtime smoke support
+
+This `Phase H` map supersedes the older Track A-E naming below for the public launch hardening lane.
 
 - Master only:
   - `/Users/ilwonyoon/Documents/PromptCue/docs/Master-Board.md`

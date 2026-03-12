@@ -6,6 +6,16 @@ struct RecentScreenshotScanResult: Equatable, Sendable {
     let signalCandidate: RecentScreenshotCandidate?
     let readableCandidate: RecentScreenshotCandidate?
     let recentTemporaryContainerDate: Date?
+
+    init(
+        signalCandidate: RecentScreenshotCandidate?,
+        readableCandidate: RecentScreenshotCandidate?,
+        recentTemporaryContainerDate: Date? = nil
+    ) {
+        self.signalCandidate = signalCandidate
+        self.readableCandidate = readableCandidate
+        self.recentTemporaryContainerDate = recentTemporaryContainerDate
+    }
 }
 
 struct RecentScreenshotCandidate: Equatable, Sendable {
@@ -45,6 +55,7 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
     private let fileManager: FileManager
     private let authorizedDirectoryProvider: () -> URL?
     private let temporaryItemsDirectoryProvider: () -> URL
+    private let includeTemporaryItemsScanning: Bool
 
     init(
         fileManager: FileManager = .default,
@@ -55,11 +66,13 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
             FileManager.default.temporaryDirectory
                 .appendingPathComponent("TemporaryItems", isDirectory: true)
                 .standardizedFileURL
-        }
+        },
+        includeTemporaryItemsScanning: Bool = false
     ) {
         self.fileManager = fileManager
         self.authorizedDirectoryProvider = authorizedDirectoryProvider
         self.temporaryItemsDirectoryProvider = temporaryItemsDirectoryProvider
+        self.includeTemporaryItemsScanning = includeTemporaryItemsScanning
     }
 
     func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
@@ -99,18 +112,20 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
             }
         }
 
-        let temporaryScan = newestTemporaryScreenshotMatches(
-            minimumDate: minimumDate,
-            includeReadableCandidates: includeReadableCandidates
-        )
-        recentTemporaryContainerDate = temporaryScan.recentContainerDate
+        if includeTemporaryItemsScanning {
+            let temporaryScan = newestTemporaryScreenshotMatches(
+                minimumDate: minimumDate,
+                includeReadableCandidates: includeReadableCandidates
+            )
+            recentTemporaryContainerDate = temporaryScan.recentContainerDate
 
-        if let signalMatch = temporaryScan.signalMatch {
-            signalCandidates.append(signalMatch)
-        }
+            if let signalMatch = temporaryScan.signalMatch {
+                signalCandidates.append(signalMatch)
+            }
 
-        if let readableMatch = temporaryScan.readableMatch {
-            readableCandidates.append(readableMatch)
+            if let readableMatch = temporaryScan.readableMatch {
+                readableCandidates.append(readableMatch)
+            }
         }
 
         return RecentScreenshotScanResult(

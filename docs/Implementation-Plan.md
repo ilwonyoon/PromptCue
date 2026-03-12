@@ -21,6 +21,7 @@
 - The app target is now wired to `PromptCueCore` for shared pure logic.
 - Current overall status: `Phase 0 complete`, `Phase 1 in progress`, `Phase 2 and Phase 3 started`.
 - A quality audit has now been completed and a remediation lane is active in `docs/Quality-Remediation-Plan.md`.
+- A dedicated public launch hardening lane is now active at `H0` in `docs/Public-Launch-Hardening-Plan.md`.
 - A current-main-aligned design-system boundary proposal now exists in `docs/Design-System-Architecture-Proposal.md`.
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
 - A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.
@@ -37,6 +38,7 @@
 | Phase 3 | Stack and export UX | In progress | Card stack and copy interactions are implemented, smoke testing pending |
 | Phase 4 | Platform and operations hardening | In progress | Settings and screenshot folder access are now implemented |
 | Phase 5 | Polish, validation, and release prep | Pending | Final integration phase |
+| Phase H | Public launch hardening | In progress | `H0` contract lock is active; master-owned `H1` release work may proceed in parallel, while runtime `H2-H5` merges stay behind the current `safe-main` gate |
 | Phase R | Audit remediation and quality closure | In progress | Resolves MVP gaps, privacy model drift, and design-system drift |
 | Phase DS1 | Design-system boundary freeze | Completed in strategy branch | Ownership boundaries are now explicit in docs and code comments |
 | Phase DS2 | Runtime/value ownership split | Completed in strategy branch | Grouped contracts now back runtime callers; `AppUIConstants` is only a compatibility facade |
@@ -63,6 +65,11 @@ That means current work is prioritized in this order:
 3. add `AI Export Tail / Prompt Suffix` as an export-time-only setting and formatter slice
 4. then land `Phase R9` overflow/click expansion intentionally, not piggybacked on performance work
 5. then return to grouped export validation and broader release verification
+
+Public launch hardening positioning for this same queue:
+
+- `H0` and master-owned `H1` may progress now in parallel because they are docs/config/release-lane work
+- runtime `H2-H5` changes do not merge ahead of this `safe-main` slice unless the master agent carves out a narrow hard-blocker patch
 
 All work in this slice should preserve the product model:
 
@@ -108,12 +115,15 @@ Working-with-apps port rule:
 
 The current highest-priority work is tracked in:
 
+- `docs/Public-Launch-Hardening-Plan.md`
 - `docs/Quality-Remediation-Plan.md`
 - `docs/Design-System-Architecture-Proposal.md` for design-system ownership boundaries
 - `docs/Design-System-Execution-Plan.md` for phased design-system execution
 
 That remediation lane is now authoritative for:
 
+- public launch blocker closure across release lane, permissions, battery wake-up risk, and MAS-later compatibility
+- `Phase H` status roll-up, worktree ownership, and launch gates
 - multi-card selection and grouped export closure
 - screenshot attachment ownership and cleanup
 - explicit screenshot folder access and bookmark persistence

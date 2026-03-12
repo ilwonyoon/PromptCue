@@ -6,18 +6,11 @@ enum RecentScreenshotThumbnailState: Equatable, Sendable {
 }
 
 enum RecentScreenshotObservationEvent: Equatable, Sendable {
-    case authorizedDirectoryChanged
-    case temporaryItemsChanged
-    case temporaryScreenshotContainerDetected
-    case temporaryScreenshotContainerChanged
+    case authorizedDirectoryContentsChanged
+    case authorizedDirectoryConfigurationChanged
 
     var impliesImmediateScreenshotSignal: Bool {
-        switch self {
-        case .temporaryScreenshotContainerDetected, .temporaryScreenshotContainerChanged:
-            return true
-        case .authorizedDirectoryChanged, .temporaryItemsChanged:
-            return false
-        }
+        false
     }
 }
 

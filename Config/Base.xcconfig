@@ -2,3 +2,8 @@
 //
 // Machine-specific signing overrides belong in Config/Local.xcconfig,
 // which is gitignored and only included by the DevSigned configuration.
+//
+// Direct-distribution lanes use the unsandboxed entitlement set by default.
+// Config/AppStore.xcconfig overrides this with the MAS compatibility file.
+
+CODE_SIGN_ENTITLEMENTS = PromptCue/PromptCue.entitlements

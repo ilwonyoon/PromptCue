@@ -124,9 +124,9 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 - `Debug`
   - local development
   - verbose logging enabled
-- `Beta`
-  - internal testers
-  - near-production settings
+- `DevSigned`
+  - stable signed local runs
+  - near-production local QA and TCC smoke
 - `Release`
   - signed and notarized distribution build
 - optional `AppStore`
@@ -136,7 +136,7 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 
 - `Config/Base.xcconfig`
 - `Config/Debug.xcconfig`
-- `Config/Beta.xcconfig`
+- `Config/DevSigned.xcconfig`
 - `Config/Release.xcconfig`
 - `Config/AppStore.xcconfig`
 
@@ -146,7 +146,7 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 - app category
 - logging flags
 - update feed URL for direct distribution
-- feature flags for licensing or beta-only diagnostics
+- feature flags for licensing or `DevSigned`-only diagnostics
 
 ## 6. Entitlements And Permission Planning
 

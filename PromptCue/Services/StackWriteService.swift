@@ -54,6 +54,11 @@ final class StackWriteService {
     private let cardStore: CardStore
     private let attachmentStore: any AttachmentStoring
 
+    private struct PreparedScreenshotPath {
+        let path: String?
+        let importedManagedURL: URL?
+    }
+
     init(
         cardStore: CardStore,
         attachmentStore: any AttachmentStoring
@@ -79,19 +84,28 @@ final class StackWriteService {
 
     func createNote(_ request: StackNoteCreateRequest) throws -> CaptureCard {
         let existingCards = try cardStore.load()
+        let preparedScreenshotPath = try prepareScreenshotPath(
+            request.screenshotPath,
+            ownerID: request.id
+        )
         let note = CaptureCard(
             id: request.id,
             text: try normalizedText(
                 rawText: request.text,
-                screenshotPath: request.screenshotPath
+                screenshotPath: preparedScreenshotPath.path
             ),
             suggestedTarget: request.suggestedTarget,
             createdAt: request.createdAt,
-            screenshotPath: request.screenshotPath,
+            screenshotPath: preparedScreenshotPath.path,
             sortOrder: nextTopSortOrder(in: existingCards)
         )
 
-        try cardStore.upsert(note)
+        do {
+            try cardStore.upsert(note)
+        } catch {
+            cleanupImportedAttachment(at: preparedScreenshotPath.importedManagedURL)
+            throw error
+        }
         return note
     }
 
@@ -101,27 +115,41 @@ final class StackWriteService {
             return nil
         }
 
-        let screenshotPath = resolvedValue(
-            current: existingNote.screenshotPath,
+        let preparedScreenshotPath = try resolvedScreenshotPath(
+            for: existingNote,
             update: changes.screenshotPath
         )
         let updatedNote = CaptureCard(
             id: existingNote.id,
             text: try normalizedText(
                 rawText: changes.text ?? existingNote.text,
-                screenshotPath: screenshotPath
+                screenshotPath: preparedScreenshotPath.path
             ),
             suggestedTarget: resolvedValue(
                 current: existingNote.suggestedTarget,
                 update: changes.suggestedTarget
             ),
             createdAt: existingNote.createdAt,
-            screenshotPath: screenshotPath,
+            screenshotPath: preparedScreenshotPath.path,
             lastCopiedAt: existingNote.lastCopiedAt,
             sortOrder: existingNote.sortOrder
         )
 
-        try cardStore.upsert(updatedNote)
+        do {
+            try cardStore.upsert(updatedNote)
+        } catch {
+            cleanupImportedAttachment(at: preparedScreenshotPath.importedManagedURL)
+            throw error
+        }
+
+        if existingNote.screenshotPath != updatedNote.screenshotPath {
+            let remainingCards = existingCards.filter { $0.id != id } + [updatedNote]
+            cleanupManagedAttachments(
+                removedCards: [existingNote],
+                remainingCards: remainingCards
+            )
+        }
+
         return updatedNote
     }
 
@@ -165,6 +193,96 @@ final class StackWriteService {
         return trimmed
     }
 
+    private func resolvedScreenshotPath(
+        for existingNote: CaptureCard,
+        update: StackOptionalUpdate<String>
+    ) throws -> PreparedScreenshotPath {
+        switch update {
+        case .keep:
+            return try prepareScreenshotPath(
+                existingNote.screenshotPath,
+                ownerID: existingNote.id,
+                currentPath: existingNote.screenshotPath
+            )
+        case .clear:
+            return PreparedScreenshotPath(path: nil, importedManagedURL: nil)
+        case .set(let value):
+            return try prepareScreenshotPath(
+                value,
+                ownerID: replacementOwnerID(
+                    preferredOwnerID: existingNote.id,
+                    currentPath: existingNote.screenshotPath
+                ),
+                currentPath: existingNote.screenshotPath
+            )
+        }
+    }
+
+    private func prepareScreenshotPath(
+        _ requestedPath: String?,
+        ownerID: UUID,
+        currentPath: String? = nil
+    ) throws -> PreparedScreenshotPath {
+        guard let requestedPath else {
+            return PreparedScreenshotPath(path: nil, importedManagedURL: nil)
+        }
+
+        let trimmedPath = requestedPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            return PreparedScreenshotPath(path: nil, importedManagedURL: nil)
+        }
+
+        let requestedURL = URL(fileURLWithPath: trimmedPath).standardizedFileURL
+        let currentURL = currentPath.map { URL(fileURLWithPath: $0).standardizedFileURL }
+
+        if let currentURL,
+           currentURL == requestedURL,
+           attachmentStore.isManagedFile(currentURL) {
+            return PreparedScreenshotPath(path: currentURL.path, importedManagedURL: nil)
+        }
+
+        if attachmentStore.isManagedFile(requestedURL) {
+            return PreparedScreenshotPath(path: requestedURL.path, importedManagedURL: nil)
+        }
+
+        let importedURL = try attachmentStore.importScreenshot(
+            from: requestedURL,
+            ownerID: ownerID
+        ).standardizedFileURL
+        return PreparedScreenshotPath(path: importedURL.path, importedManagedURL: importedURL)
+    }
+
+    private func replacementOwnerID(
+        preferredOwnerID: UUID,
+        currentPath: String?
+    ) -> UUID {
+        guard let currentPath else {
+            return preferredOwnerID
+        }
+
+        let currentURL = URL(fileURLWithPath: currentPath).standardizedFileURL
+        guard attachmentStore.isManagedFile(currentURL) else {
+            return preferredOwnerID
+        }
+
+        return UUID()
+    }
+
+    private func cleanupImportedAttachment(at importedManagedURL: URL?) {
+        guard let importedManagedURL else {
+            return
+        }
+
+        do {
+            try attachmentStore.removeManagedFile(at: importedManagedURL)
+        } catch {
+            NSLog(
+                "StackWriteService imported attachment rollback failed: %@",
+                error.localizedDescription
+            )
+        }
+    }
+
     private func cleanupManagedAttachments(
         removedCards: [CaptureCard],
         remainingCards: [CaptureCard]
@@ -183,6 +301,7 @@ final class StackWriteService {
             }
         }
     }
+
 }
 
 private func resolvedValue<Value>(

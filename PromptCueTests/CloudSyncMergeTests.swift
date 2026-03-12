@@ -260,6 +260,22 @@ final class CloudSyncMergeTests: XCTestCase {
         XCTAssertNil(card?.screenshotPath)
     }
 
+    func testRemoteExternalScreenshotPathIsIgnoredWithoutImportedAsset() {
+        let remoteCard = CaptureCard(
+            text: "External path should not survive",
+            createdAt: Date(),
+            screenshotPath: tempDirectoryURL.appendingPathComponent("external.png").path
+        )
+
+        model.applyRemoteChanges([
+            .upsert(remoteCard, screenshotAssetURL: nil)
+        ])
+
+        let card = model.cards.first
+        XCTAssertNotNil(card)
+        XCTAssertNil(card?.screenshotPath)
+    }
+
     func testRemoteApplySkipsAssetImportWhenLocalWinnerAlreadyHasScreenshot() throws {
         let attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
         let localCard = CaptureCard(

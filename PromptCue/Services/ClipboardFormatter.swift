@@ -32,7 +32,7 @@ enum ClipboardFormatter {
         items.append(textItem)
 
         for card in cards {
-            guard let screenshotURL = card.screenshotURL else {
+            guard let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) else {
                 continue
             }
 

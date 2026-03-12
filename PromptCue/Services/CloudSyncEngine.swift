@@ -413,7 +413,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         record["lastCopiedAt"] = card.lastCopiedAt as NSDate?
         record["sortOrder"] = NSNumber(value: card.sortOrder)
 
-        if let screenshotURL = card.screenshotURL,
+        if let screenshotURL = ManagedScreenshotAccess.readableURL(for: card),
            FileManager.default.fileExists(atPath: screenshotURL.path) {
             record["screenshot"] = CKAsset(fileURL: screenshotURL)
         }

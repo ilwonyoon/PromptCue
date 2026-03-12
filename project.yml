@@ -1,16 +1,19 @@
 name: PromptCue
 options:
   bundleIdPrefix: com.promptcue
+  defaultConfig: Debug
   deploymentTarget:
     macOS: "14.0"
 configs:
   Debug: debug
   DevSigned: debug
   Release: release
+  AppStore: release
 configFiles:
   Debug: Config/Debug.xcconfig
   DevSigned: Config/DevSigned.xcconfig
   Release: Config/Release.xcconfig
+  AppStore: Config/AppStore.xcconfig
 settings:
   base:
     SWIFT_VERSION: 5.0
@@ -61,13 +64,6 @@ targets:
         product: GRDB
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
-    entitlements:
-      path: PromptCue/PromptCue.entitlements
-      properties:
-        com.apple.developer.icloud-container-identifiers:
-          - iCloud.com.promptcue.promptcue
-        com.apple.developer.icloud-services:
-          - CloudKit
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue

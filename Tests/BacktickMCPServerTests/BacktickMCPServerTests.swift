@@ -58,6 +58,8 @@ final class BacktickMCPServerTests: XCTestCase {
     func testCreateReadUpdateExecuteAndDeleteNotesThroughJsonRPC() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
+        let externalScreenshotURL = tempDirectoryURL.appendingPathComponent("test-shot.png", isDirectory: false)
+        try Data("png".utf8).write(to: externalScreenshotURL)
 
         let createResponse = try await sendRequest(
             session: session,
@@ -117,12 +119,15 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "id": createdID,
                     "text": "Ship Stack MCP for real",
-                    "screenshotPath": "/tmp/test-shot.png",
+                    "screenshotPath": externalScreenshotURL.path,
                 ],
             ]
         )
         let updatedNote = try notePayload(from: updateResponse)
         XCTAssertEqual(updatedNote["text"] as? String, "Ship Stack MCP for real")
+        let updatedScreenshotPath = try XCTUnwrap(updatedNote["screenshotPath"] as? String)
+        XCTAssertNotEqual(updatedScreenshotPath, externalScreenshotURL.path)
+        XCTAssertTrue(updatedScreenshotPath.hasPrefix(attachmentsURL.path))
 
         let executeResponse = try await sendRequest(
             session: session,

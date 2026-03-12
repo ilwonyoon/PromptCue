@@ -74,6 +74,12 @@ struct LocalImageThumbnail: View {
 
     @MainActor
     private func loadImage(from resolvedURL: URL) async {
+        guard let readableURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) else {
+            loadedURL = resolvedURL
+            image = nil
+            return
+        }
+
         if loadedURL != resolvedURL {
             loadedURL = resolvedURL
             image = Self.imageCache.object(forKey: resolvedURL as NSURL)
@@ -84,9 +90,7 @@ struct LocalImageThumbnail: View {
         }
 
         let imageData = await Task.detached(priority: .userInitiated) { () -> Data? in
-            ScreenshotDirectoryResolver.withAccessIfNeeded(to: resolvedURL) { scopedURL in
-                try? Data(contentsOf: scopedURL)
-            }
+            try? Data(contentsOf: readableURL)
         }.value
 
         guard !Task.isCancelled else {

@@ -62,20 +62,44 @@ final class StackWriteServiceTests: XCTestCase {
     }
 
     func testCreateNoteAllowsScreenshotOnlyFallbackText() throws {
-        let service = makeService()
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let service = makeService(attachmentStore: attachmentStore)
+        let sourceURL = try makeExternalScreenshot(named: "capture.png")
 
         let note = try service.createNote(
             StackNoteCreateRequest(
                 text: "   ",
-                screenshotPath: "/tmp/capture.png"
+                screenshotPath: sourceURL.path
             )
         )
 
         XCTAssertEqual(note.text, "Screenshot attached")
-        XCTAssertEqual(note.screenshotPath, "/tmp/capture.png")
+        let screenshotPath = try XCTUnwrap(note.screenshotPath)
+        XCTAssertNotEqual(screenshotPath, sourceURL.path)
+        XCTAssertTrue(attachmentStore.isManagedFile(URL(fileURLWithPath: screenshotPath)))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: screenshotPath))
+    }
+
+    func testCreateNoteKeepsManagedScreenshotPath() throws {
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let sourceURL = try makeExternalScreenshot(named: "managed-source.png")
+        let managedURL = try attachmentStore.importScreenshot(from: sourceURL, ownerID: UUID())
+        let service = makeService(attachmentStore: attachmentStore)
+
+        let note = try service.createNote(
+            StackNoteCreateRequest(
+                text: "With managed screenshot",
+                screenshotPath: managedURL.path
+            )
+        )
+
+        XCTAssertEqual(note.screenshotPath, managedURL.path)
     }
 
     func testUpdateNotePreservesCopiedStateAndClearsOptionalMetadata() throws {
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let sourceURL = try makeExternalScreenshot(named: "original.png")
+        let managedURL = try attachmentStore.importScreenshot(from: sourceURL, ownerID: UUID())
         let suggestedTarget = CaptureSuggestedTarget(
             appName: "Cursor",
             bundleIdentifier: "com.todesktop.230313mzl4w4u92",
@@ -93,13 +117,13 @@ final class StackWriteServiceTests: XCTestCase {
             text: "Original",
             suggestedTarget: suggestedTarget,
             createdAt: Date(timeIntervalSinceReferenceDate: 200),
-            screenshotPath: "/tmp/original.png",
+            screenshotPath: managedURL.path,
             lastCopiedAt: Date(timeIntervalSinceReferenceDate: 300),
             sortOrder: 77
         )
         try saveCards([note])
 
-        let service = makeService()
+        let service = makeService(attachmentStore: attachmentStore)
         let updated = try XCTUnwrap(
             service.updateNote(
                 id: note.id,
@@ -116,6 +140,86 @@ final class StackWriteServiceTests: XCTestCase {
         XCTAssertNil(updated.screenshotPath)
         XCTAssertEqual(updated.lastCopiedAt, note.lastCopiedAt)
         XCTAssertEqual(updated.sortOrder, note.sortOrder)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: managedURL.path))
+    }
+
+    func testUpdateNoteImportsExternalScreenshotAndCleansReplacedManagedAttachment() throws {
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let originalSourceURL = try makeExternalScreenshot(named: "original.png")
+        let noteID = UUID()
+        let originalManagedURL = try attachmentStore.importScreenshot(from: originalSourceURL, ownerID: noteID)
+        let note = CaptureCard(
+            id: noteID,
+            text: "Original",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            screenshotPath: originalManagedURL.path,
+            sortOrder: 10
+        )
+        try saveCards([note])
+
+        let replacementSourceURL = try makeExternalScreenshot(named: "replacement.jpg")
+        let service = makeService(attachmentStore: attachmentStore)
+        let updated = try XCTUnwrap(
+            service.updateNote(
+                id: noteID,
+                changes: StackNoteUpdate(screenshotPath: .set(replacementSourceURL.path))
+            )
+        )
+
+        let updatedScreenshotPath = try XCTUnwrap(updated.screenshotPath)
+        XCTAssertNotEqual(updatedScreenshotPath, replacementSourceURL.path)
+        XCTAssertTrue(attachmentStore.isManagedFile(URL(fileURLWithPath: updatedScreenshotPath)))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: updatedScreenshotPath))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: originalManagedURL.path))
+    }
+
+    func testUpdateNoteAcceptsManagedScreenshotPathWithoutReimport() throws {
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let sourceURL = try makeExternalScreenshot(named: "shared.png")
+        let managedURL = try attachmentStore.importScreenshot(from: sourceURL, ownerID: UUID())
+        let note = CaptureCard(
+            id: UUID(),
+            text: "Original",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            sortOrder: 10
+        )
+        try saveCards([note])
+
+        let service = makeService(attachmentStore: attachmentStore)
+        let updated = try XCTUnwrap(
+            service.updateNote(
+                id: note.id,
+                changes: StackNoteUpdate(screenshotPath: .set(managedURL.path))
+            )
+        )
+
+        XCTAssertEqual(updated.screenshotPath, managedURL.path)
+    }
+
+    func testUpdateNoteImportsLegacyExternalScreenshotWhenAttachmentIsKept() throws {
+        let sourceURL = try makeExternalScreenshot(named: "legacy.png")
+        let note = CaptureCard(
+            id: UUID(),
+            text: "Original",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            screenshotPath: sourceURL.path,
+            sortOrder: 10
+        )
+        try saveCards([note])
+
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
+        let service = makeService(attachmentStore: attachmentStore)
+        let updated = try XCTUnwrap(
+            service.updateNote(
+                id: note.id,
+                changes: StackNoteUpdate(text: "Updated")
+            )
+        )
+
+        let updatedScreenshotPath = try XCTUnwrap(updated.screenshotPath)
+        XCTAssertNotEqual(updatedScreenshotPath, sourceURL.path)
+        XCTAssertTrue(attachmentStore.isManagedFile(URL(fileURLWithPath: updatedScreenshotPath)))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: updatedScreenshotPath))
     }
 
     func testDeleteNoteRemovesManagedAttachmentWhenUnreferenced() throws {
@@ -208,5 +312,11 @@ final class StackWriteServiceTests: XCTestCase {
 
     private func saveCards(_ cards: [CaptureCard]) throws {
         try CardStore(databaseURL: databaseURL).save(cards)
+    }
+
+    private func makeExternalScreenshot(named filename: String) throws -> URL {
+        let sourceURL = tempDirectoryURL.appendingPathComponent(filename, isDirectory: false)
+        try Data(filename.utf8).write(to: sourceURL)
+        return sourceURL
     }
 }

@@ -3,4 +3,9 @@
 
 // Interactive local runs should be signed by a stable local identity instead
 // of ad hoc signing so macOS TCC keeps recognizing the app across rebuilds.
+//
+// The direct lane still carries iCloud entitlements today, which makes Xcode
+// signing ask for provisioning material that should not gate local QA. Keep
+// Xcode signing off here and let scripts/sign_dev_app.sh re-sign the finished
+// app bundle with a stable local Apple Development identity instead.
 CODE_SIGNING_ALLOWED = NO

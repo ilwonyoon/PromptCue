@@ -5,6 +5,9 @@ enum ScreenshotDirectoryResolver {
     private static let lastKnownPathKey = "com.promptcue.preferredScreenshotDirectoryLastKnownPath"
     private static let legacyPreferredPathKey = "preferredScreenshotDirectoryPath"
     private static let onboardingHandledKey = "com.promptcue.preferredScreenshotDirectoryOnboardingHandled"
+    static let authorizedDirectoryDidChangeNotification = Notification.Name(
+        "com.promptcue.preferredScreenshotDirectoryDidChange"
+    )
 
     static func bootstrapPreferredDirectoryIfNeeded() {
         let defaults = UserDefaults.standard
@@ -55,6 +58,7 @@ enum ScreenshotDirectoryResolver {
         defaults.set(bookmarkData, forKey: bookmarkDataKey)
         defaults.set(standardizedURL.path, forKey: lastKnownPathKey)
         defaults.removeObject(forKey: legacyPreferredPathKey)
+        postAuthorizedDirectoryDidChange()
     }
 
     static func clearAuthorizedDirectory() {
@@ -62,6 +66,7 @@ enum ScreenshotDirectoryResolver {
         defaults.removeObject(forKey: bookmarkDataKey)
         defaults.removeObject(forKey: lastKnownPathKey)
         defaults.removeObject(forKey: legacyPreferredPathKey)
+        postAuthorizedDirectoryDidChange()
     }
 
     static func withAuthorizedDirectory<Result>(_ body: (URL) throws -> Result) rethrows -> Result? {
@@ -200,7 +205,10 @@ enum ScreenshotDirectoryResolver {
             }
 
             if isStale {
-                refreshBookmarkIfPossible(for: resolvedURL)
+                if refreshBookmarkIfPossible(for: resolvedURL) {
+                    return .connected(resolvedURL)
+                }
+
                 return .needsReconnect(resolvedURL)
             }
 
@@ -210,7 +218,7 @@ enum ScreenshotDirectoryResolver {
         }
     }
 
-    private static func refreshBookmarkIfPossible(for url: URL) {
+    private static func refreshBookmarkIfPossible(for url: URL) -> Bool {
         let started = url.startAccessingSecurityScopedResource()
         defer {
             if started { url.stopAccessingSecurityScopedResource() }
@@ -221,10 +229,18 @@ enum ScreenshotDirectoryResolver {
             includingResourceValuesForKeys: nil,
             relativeTo: nil
         ) else {
-            return
+            return false
         }
 
-        UserDefaults.standard.set(freshData, forKey: bookmarkDataKey)
+        let defaults = UserDefaults.standard
+        defaults.set(freshData, forKey: bookmarkDataKey)
+        defaults.set(url.standardizedFileURL.path, forKey: lastKnownPathKey)
+        postAuthorizedDirectoryDidChange()
+        return true
+    }
+
+    private static func postAuthorizedDirectoryDidChange() {
+        NotificationCenter.default.post(name: authorizedDirectoryDidChangeNotification, object: nil)
     }
 
     private static func directoryExists(at url: URL) -> Bool {

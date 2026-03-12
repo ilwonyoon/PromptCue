@@ -845,16 +845,14 @@ final class AppModel: ObservableObject {
             }
 
             let migratedPath: String?
-            if FileManager.default.fileExists(atPath: screenshotURL.path) {
-                do {
-                    migratedPath = try ScreenshotDirectoryResolver.withAccessIfNeeded(to: screenshotURL) { scopedURL in
-                        try attachmentStore.importScreenshot(from: scopedURL, ownerID: card.id).path
-                    }
-                } catch {
-                    logStorageFailure("Legacy screenshot migration failed", error: error)
-                    migratedPath = nil
-                }
-            } else {
+            do {
+                migratedPath = try ScreenshotAttachmentPersistencePolicy.prepareForPersistence(
+                    storedPath: screenshotURL.path,
+                    ownerID: card.id,
+                    attachmentStore: attachmentStore
+                ).storedPath
+            } catch {
+                logStorageFailure("Legacy screenshot migration failed", error: error)
                 migratedPath = nil
             }
 
@@ -1110,14 +1108,19 @@ extension AppModel: CloudSyncDelegate {
         remote: CaptureCard,
         assetURL: URL?
     ) -> CaptureCard {
+        let remoteManagedScreenshotPath = ScreenshotAttachmentPersistencePolicy.managedStoredPath(
+            from: remote.screenshotPath,
+            attachmentStore: attachmentStore
+        )
+
         guard let local else {
             return card(
                 remote,
                 replacingScreenshotPath: importRemoteScreenshotPathIfNeeded(
                     for: remote,
                     assetURL: assetURL,
-                    shouldImport: remote.screenshotPath == nil
-                ) ?? remote.screenshotPath
+                    shouldImport: remoteManagedScreenshotPath == nil
+                ) ?? remoteManagedScreenshotPath
             )
         }
 
@@ -1136,7 +1139,8 @@ extension AppModel: CloudSyncDelegate {
             local: local,
             remote: remote,
             winner: winner,
-            importedRemoteScreenshotPath: importedRemoteScreenshotPath
+            importedRemoteScreenshotPath: importedRemoteScreenshotPath,
+            remoteManagedScreenshotPath: remoteManagedScreenshotPath
         )
     }
 
@@ -1158,7 +1162,10 @@ extension AppModel: CloudSyncDelegate {
         winner: RemoteMergeWinner,
         assetURL: URL?
     ) -> Bool {
-        guard remote.screenshotPath == nil,
+        guard ScreenshotAttachmentPersistencePolicy.managedStoredPath(
+            from: remote.screenshotPath,
+            attachmentStore: attachmentStore
+        ) == nil,
               let assetURL,
               FileManager.default.fileExists(atPath: assetURL.path)
         else {
@@ -1190,21 +1197,22 @@ extension AppModel: CloudSyncDelegate {
         local: CaptureCard,
         remote: CaptureCard,
         winner: RemoteMergeWinner,
-        importedRemoteScreenshotPath: String?
+        importedRemoteScreenshotPath: String?,
+        remoteManagedScreenshotPath: String?
     ) -> CaptureCard {
         switch winner {
         case .local:
             return card(
                 local,
                 replacingScreenshotPath: local.screenshotPath
-                    ?? remote.screenshotPath
+                    ?? remoteManagedScreenshotPath
                     ?? importedRemoteScreenshotPath
             )
         case .remote:
             return card(
                 remote,
                 replacingScreenshotPath: importedRemoteScreenshotPath
-                    ?? remote.screenshotPath
+                    ?? remoteManagedScreenshotPath
                     ?? local.screenshotPath
             )
         }

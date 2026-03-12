@@ -38,10 +38,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let observer = TestRecentScreenshotObserver()
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: {
-                self.tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-            }
+            authorizedDirectoryProvider: { screenshotsURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -58,7 +55,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.00.00.png")
         try Data().write(to: screenshotURL)
-        observer.signalChange(.authorizedDirectoryChanged)
+        observer.signalChange(.authorizedDirectoryContentsChanged)
         waitForCondition("detected state after zero-byte screenshot") {
             if case .detected = coordinator.state {
                 return true
@@ -72,7 +69,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         }
 
         try Data("png".utf8).write(to: screenshotURL)
-        observer.signalChange(.authorizedDirectoryChanged)
+        observer.signalChange(.authorizedDirectoryContentsChanged)
         waitForCondition("preview-ready state after screenshot becomes readable") {
             if case .previewReady = coordinator.state {
                 return true
@@ -109,10 +106,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let observer = TestRecentScreenshotObserver()
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: {
-                self.tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-            }
+            authorizedDirectoryProvider: { screenshotsURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -145,19 +139,36 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: previewCacheURL), Data("png".utf8))
     }
 
-    func testResolveCurrentCaptureAttachmentWaitsForDetectedScreenshotToBecomeReadable() async throws {
-        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+    func testLocatorIgnoresTemporaryItemsByDefault() throws {
         let temporaryItemsURL = tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
         let childDirectoryURL = temporaryItemsURL
-            .appendingPathComponent("NSIRD_screencaptureui_resolve", isDirectory: true)
-        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+            .appendingPathComponent("NSIRD_screencaptureui_123", isDirectory: true)
         try FileManager.default.createDirectory(
-            at: screenshotsURL,
+            at: childDirectoryURL,
             withIntermediateDirectories: true,
             attributes: nil
         )
+
+        let screenshotURL = childDirectoryURL.appendingPathComponent("Screenshot 2026-03-07 at 10.09.00.png")
+        try Data("png".utf8).write(to: screenshotURL)
+
+        let locator = RecentScreenshotLocator(
+            fileManager: .default,
+            authorizedDirectoryProvider: { nil },
+            temporaryItemsDirectoryProvider: { temporaryItemsURL }
+        )
+        let result = locator.locateRecentScreenshot(now: Date(), maxAge: 30)
+
+        XCTAssertNil(result.signalCandidate)
+        XCTAssertNil(result.readableCandidate)
+        XCTAssertNil(result.recentTemporaryContainerDate)
+    }
+
+    func testResolveCurrentCaptureAttachmentWaitsForDetectedScreenshotToBecomeReadable() async throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
         try FileManager.default.createDirectory(
-            at: childDirectoryURL,
+            at: screenshotsURL,
             withIntermediateDirectories: true,
             attributes: nil
         )
@@ -165,8 +176,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let observer = TestRecentScreenshotObserver()
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: { temporaryItemsURL }
+            authorizedDirectoryProvider: { screenshotsURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -179,10 +189,8 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         coordinator.start()
 
-        let filename = "Screenshot 2026-03-07 at 10.09.00.png"
-        let temporaryScreenshotURL = childDirectoryURL.appendingPathComponent(filename)
-        let finalScreenshotURL = screenshotsURL.appendingPathComponent(filename)
-        try Data().write(to: temporaryScreenshotURL)
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.09.00.png")
+        try Data().write(to: screenshotURL)
         coordinator.prepareForCaptureSession()
         await waitForConditionAsync("detected state before resolve") {
             if case .detected = coordinator.state {
@@ -198,7 +206,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         Task {
             try? await Task.sleep(nanoseconds: 120_000_000)
-            try? Data("png".utf8).write(to: finalScreenshotURL)
+            try? Data("png".utf8).write(to: screenshotURL)
         }
 
         let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.6)
@@ -208,29 +216,30 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(resolvedURL)), Data("png".utf8))
     }
 
-    func testPrepareForCaptureSessionPromotesTempSignalToFinalPreviewAcrossPathChange() throws {
-        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
-        let temporaryItemsURL = tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-        let childDirectoryURL = temporaryItemsURL
-            .appendingPathComponent("NSIRD_screencaptureui_123", isDirectory: true)
+    func testAuthorizedDirectoryConfigurationChangeRebindsCoordinatorToNewFolder() throws {
+        let firstScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-A", isDirectory: true)
+        let secondScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-B", isDirectory: true)
         let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
-
         try FileManager.default.createDirectory(
-            at: screenshotsURL,
+            at: firstScreenshotsURL,
             withIntermediateDirectories: true,
             attributes: nil
         )
         try FileManager.default.createDirectory(
-            at: childDirectoryURL,
+            at: secondScreenshotsURL,
             withIntermediateDirectories: true,
             attributes: nil
         )
 
-        let observer = TestRecentScreenshotObserver()
+        let notificationCenter = NotificationCenter()
+        var monitoredDirectoryURL = firstScreenshotsURL
+        let observer = RecentScreenshotDirectoryObserver(
+            authorizedDirectoryProvider: { monitoredDirectoryURL },
+            notificationCenter: notificationCenter
+        )
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: { temporaryItemsURL }
+            authorizedDirectoryProvider: { monitoredDirectoryURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -242,29 +251,13 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
 
         coordinator.start()
+        let screenshotURL = secondScreenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.12.35 PM.png")
+        try Data("png".utf8).write(to: screenshotURL)
 
-        let filename = "Screenshot 2026-03-07 at 10.12.35 PM.png"
-        let temporaryScreenshotURL = childDirectoryURL.appendingPathComponent(filename)
-        try Data().write(to: temporaryScreenshotURL)
+        monitoredDirectoryURL = secondScreenshotsURL
+        notificationCenter.post(name: ScreenshotDirectoryResolver.authorizedDirectoryDidChangeNotification, object: nil)
 
-        coordinator.prepareForCaptureSession()
-        waitForCondition("detected state for zero-byte temporary screenshot") {
-            if case .detected = coordinator.state {
-                return true
-            }
-
-            return false
-        }
-
-        guard case .detected(let sessionID, _) = coordinator.state else {
-            return XCTFail("Expected detected state for zero-byte temporary screenshot")
-        }
-
-        let finalScreenshotURL = screenshotsURL.appendingPathComponent(filename)
-        try Data("png".utf8).write(to: finalScreenshotURL)
-
-        coordinator.prepareForCaptureSession()
-        waitForCondition("preview-ready state after final screenshot becomes readable") {
+        waitForCondition("preview-ready state after authorized directory rebind") {
             if case .previewReady = coordinator.state {
                 return true
             }
@@ -272,53 +265,12 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
             return false
         }
 
-        guard case .previewReady(let previewSessionID, let previewCacheURL, .ready) = coordinator.state else {
-            return XCTFail("Expected preview-ready state after final screenshot becomes readable")
+        guard case .previewReady(_, let previewCacheURL, .ready) = coordinator.state else {
+            return XCTFail("Expected preview-ready state after authorized directory rebind")
         }
 
-        XCTAssertEqual(previewSessionID, sessionID)
         XCTAssertTrue(previewCacheURL.path.hasPrefix(cacheURL.path))
         XCTAssertEqual(try Data(contentsOf: previewCacheURL), Data("png".utf8))
-    }
-
-    func testPrepareForCaptureSessionDetectsRecentTemporaryContainerWithoutImageFile() throws {
-        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
-        let temporaryItemsURL = tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-        let childDirectoryURL = temporaryItemsURL
-            .appendingPathComponent("NSIRD_screencaptureui_early", isDirectory: true)
-        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
-
-        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: childDirectoryURL, withIntermediateDirectories: true)
-
-        let observer = TestRecentScreenshotObserver()
-        let locator = RecentScreenshotLocator(
-            fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: { temporaryItemsURL }
-        )
-        let coordinator = RecentScreenshotCoordinator(
-            observer: observer,
-            locator: locator,
-            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
-            clipboardProvider: NilClipboardImageProvider(),
-            maxAge: 30,
-            settleGrace: 0.4
-        )
-
-        coordinator.start()
-        coordinator.prepareForCaptureSession()
-        waitForCondition("detected state from recent temporary screenshot container") {
-            if case .detected = coordinator.state {
-                return true
-            }
-
-            return false
-        }
-
-        guard case .detected = coordinator.state else {
-            return XCTFail("Expected detected state from recent temporary screenshot container")
-        }
     }
 
     func testPrepareForCaptureSessionShowsDetectedImmediatelyBeforeAsyncReadablePromotion() async throws {
@@ -340,13 +292,11 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
         let signalResult = RecentScreenshotScanResult(
             signalCandidate: candidate,
-            readableCandidate: nil,
-            recentTemporaryContainerDate: nil
+            readableCandidate: nil
         )
         let fullResult = RecentScreenshotScanResult(
             signalCandidate: candidate,
-            readableCandidate: candidate,
-            recentTemporaryContainerDate: nil
+            readableCandidate: candidate
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: TestRecentScreenshotObserver(),
@@ -387,10 +337,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         let observer = TestRecentScreenshotObserver()
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: {
-                self.tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-            }
+            authorizedDirectoryProvider: { screenshotsURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -405,7 +352,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.05.00.png")
         try Data("png".utf8).write(to: screenshotURL)
-        observer.signalChange(.authorizedDirectoryChanged)
+        observer.signalChange(.authorizedDirectoryContentsChanged)
         waitForCondition("preview-ready state before dismissal") {
             if case .previewReady = coordinator.state {
                 return true
@@ -421,27 +368,27 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         coordinator.dismissCurrent()
         XCTAssertEqual(coordinator.state, .idle)
 
-        observer.signalChange(.authorizedDirectoryChanged)
+        observer.signalChange(.authorizedDirectoryContentsChanged)
         drainMainQueue(seconds: 0.1)
         XCTAssertEqual(coordinator.state, .idle)
     }
 
-    func testTemporaryContainerDetectionCreatesImmediateDetectedPlaceholderBeforeReadableFileExists() throws {
-        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+    func testAuthorizedDirectoryConfigurationChangeDropsPendingDetectedStateImmediately() throws {
+        let firstScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-A", isDirectory: true)
+        let secondScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-B", isDirectory: true)
         let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: screenshotsURL,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
+        try FileManager.default.createDirectory(at: firstScreenshotsURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondScreenshotsURL, withIntermediateDirectories: true)
 
-        let observer = TestRecentScreenshotObserver()
+        let notificationCenter = NotificationCenter()
+        var monitoredDirectoryURL = firstScreenshotsURL
+        let observer = RecentScreenshotDirectoryObserver(
+            authorizedDirectoryProvider: { monitoredDirectoryURL },
+            notificationCenter: notificationCenter
+        )
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: {
-                self.tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-            }
+            authorizedDirectoryProvider: { monitoredDirectoryURL }
         )
         let coordinator = RecentScreenshotCoordinator(
             observer: observer,
@@ -453,8 +400,11 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
 
         coordinator.start()
-        observer.signalChange(.temporaryScreenshotContainerDetected)
-        waitForCondition("immediate detected state after screenshot container signal") {
+
+        let firstScreenshotURL = firstScreenshotsURL.appendingPathComponent("Screenshot 2026-03-07 at 10.00.00.png")
+        try Data().write(to: firstScreenshotURL)
+        coordinator.prepareForCaptureSession()
+        waitForCondition("detected state from zero-byte screenshot in first folder") {
             if case .detected = coordinator.state {
                 return true
             }
@@ -463,114 +413,20 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         }
 
         guard case .detected = coordinator.state else {
-            return XCTFail("Expected immediate detected state after screenshot container signal")
+            return XCTFail("Expected detected state from first folder before rebind")
         }
-    }
 
-    func testTemporaryAndFinalScreenshotPathsReuseSameSessionID() throws {
-        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
-        let temporaryItemsURL = tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-        let childDirectoryURL = temporaryItemsURL.appendingPathComponent(
-            "NSIRD_screencaptureui_123",
-            isDirectory: true
-        )
-        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
-        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: childDirectoryURL, withIntermediateDirectories: true)
-
-        let observer = TestRecentScreenshotObserver()
-        let locator = RecentScreenshotLocator(
-            fileManager: .default,
-            authorizedDirectoryProvider: { screenshotsURL },
-            temporaryItemsDirectoryProvider: { temporaryItemsURL }
-        )
-        let coordinator = RecentScreenshotCoordinator(
-            observer: observer,
-            locator: locator,
-            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
-            clipboardProvider: NilClipboardImageProvider(),
-            maxAge: 30,
-            settleGrace: 0.4
-        )
-
-        coordinator.start()
-
-        let filename = "Screenshot 2026-03-07 at 10.00.00.png"
-        let tempScreenshotURL = childDirectoryURL.appendingPathComponent(filename)
-        let finalScreenshotURL = screenshotsURL.appendingPathComponent(filename)
-
-        try Data().write(to: tempScreenshotURL)
-        observer.signalChange(.temporaryScreenshotContainerChanged)
-        waitForCondition("detected state from temporary screenshot") {
-            if case .detected = coordinator.state {
+        monitoredDirectoryURL = secondScreenshotsURL
+        notificationCenter.post(name: ScreenshotDirectoryResolver.authorizedDirectoryDidChangeNotification, object: nil)
+        waitForCondition("idle state after authorized directory rebind", timeout: 1) {
+            if case .idle = coordinator.state {
                 return true
             }
 
             return false
         }
 
-        guard case .detected(let detectedSessionID, _) = coordinator.state else {
-            return XCTFail("Expected detected state from temporary screenshot")
-        }
-
-        try Data("png".utf8).write(to: finalScreenshotURL)
-        observer.signalChange(.authorizedDirectoryChanged)
-        waitForCondition("preview-ready state after final screenshot write", timeout: 1) {
-            if case .previewReady = coordinator.state {
-                return true
-            }
-
-            return false
-        }
-
-        guard case .previewReady(let previewSessionID, let previewCacheURL, .ready) = coordinator.state else {
-            return XCTFail("Expected preview-ready state after final screenshot write")
-        }
-
-        XCTAssertEqual(previewSessionID, detectedSessionID)
-        XCTAssertTrue(previewCacheURL.path.hasPrefix(cacheURL.path))
-    }
-
-    func testTemporaryItemsObserverEmitsAfterChildFolderRegistration() throws {
-        let temporaryItemsURL = tempDirectoryURL.appendingPathComponent("TemporaryItems", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: temporaryItemsURL,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-
-        let observer = RecentScreenshotDirectoryObserver(
-            fileManager: .default,
-            authorizedDirectoryProvider: { nil },
-            temporaryItemsDirectoryProvider: { temporaryItemsURL }
-        )
-
-        let fileEvent = expectation(description: "File event inside child NSIRD folder")
-        var observedRootEvent = false
-        observer.onChange = { [fileEvent] _ in
-            if observedRootEvent {
-                fileEvent.fulfill()
-            } else {
-                observedRootEvent = true
-            }
-        }
-
-        observer.start()
-
-        let childDirectoryURL = temporaryItemsURL
-            .appendingPathComponent("NSIRD_screencaptureui_123", isDirectory: true)
-        try FileManager.default.createDirectory(
-            at: childDirectoryURL,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        drainMainQueue(seconds: 0.3)
-
-        let screenshotURL = childDirectoryURL.appendingPathComponent("Screenshot.png")
-        try Data("png".utf8).write(to: screenshotURL)
-
-        wait(for: [fileEvent], timeout: 2)
-        observer.stop()
+        XCTAssertEqual(coordinator.state, .idle)
     }
 
     private func drainMainQueue(seconds: TimeInterval = 0.05) {

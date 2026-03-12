@@ -94,6 +94,12 @@ final class AppDelegateCloudSyncTests: XCTestCase {
         )
         XCTAssertEqual(registrar.unregisterCount, 2)
     }
+
+    func testDefaultInitializerConstructsDelegateForApplicationAdaptor() {
+        let delegate = AppDelegate()
+
+        XCTAssertNotNil(delegate)
+    }
 }
 
 @MainActor

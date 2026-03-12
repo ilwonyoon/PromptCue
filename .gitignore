@@ -9,3 +9,4 @@ DerivedData/
 .claude/
 .env.local
 /Config/Local.xcconfig
+.mcp.json

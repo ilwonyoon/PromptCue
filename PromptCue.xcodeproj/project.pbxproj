@@ -13,6 +13,7 @@
 		034EEA85DF75D7FEEBD30876 /* SettingsDetailGroupRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADC602C76285308D6221EEE0 /* SettingsDetailGroupRow.swift */; };
 		0902195B84CD5FC12B925979 /* CopiedStackRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 555610D30704EB582FD86953 /* CopiedStackRecipe.swift */; };
 		0E5795F3A40B6410EA4E1BF2 /* CardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A461FEECE4CB884E435CC0 /* CardStore.swift */; };
+		0F8273920083953728432E40 /* AppModel+Screenshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D1139D998AFDDD7305D1F4 /* AppModel+Screenshot.swift */; };
 		10913724FB5D1DCCA740E324 /* ScreenshotDirectoryObserverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 531B52F266F2281C9C2C2FED /* ScreenshotDirectoryObserverTests.swift */; };
 		13195ED782BB3CC9B9698822 /* SearchFieldSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */; };
 		15B0CE14628AAE363F0CF6CE /* CapturePreviewImagePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */; };
@@ -298,6 +299,7 @@
 		F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		F50F3545344096FAFA3E2BFE /* AppUIConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIConstants.swift; sourceTree = "<group>"; };
 		F792E0662541E86F69E0A48A /* PromptCue.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PromptCue.entitlements; sourceTree = "<group>"; };
+		F7D1139D998AFDDD7305D1F4 /* AppModel+Screenshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+Screenshot.swift"; sourceTree = "<group>"; };
 		FA398C36FD577AAFA26C7F9F /* RecentScreenshotCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotCoordinator.swift; sourceTree = "<group>"; };
 		FE106606E5FFD57A136A5ED9 /* PanelBackdropFamily.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelBackdropFamily.swift; sourceTree = "<group>"; };
 		FEBCB8BBEBAA5498AFF55F28 /* CardRetentionSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsModel.swift; sourceTree = "<group>"; };
@@ -471,6 +473,7 @@
 				74A3C1459F488509BEDE3CAA /* AppEnvironment.swift */,
 				3578175AAD479D3659D72CE5 /* AppModel.swift */,
 				AD35F1DF1ED186EBBBD1C2B6 /* AppModel+CaptureSession.swift */,
+				F7D1139D998AFDDD7305D1F4 /* AppModel+Screenshot.swift */,
 				945D589446CDFF95D9C89EB8 /* AppModel+SuggestedTarget.swift */,
 				65959EE4923F0AA0EDE928EA /* AppTiming.swift */,
 				F50F3545344096FAFA3E2BFE /* AppUIConstants.swift */,
@@ -821,6 +824,7 @@
 				820836A9AF96F1C02339F619 /* AppDelegate.swift in Sources */,
 				FA658A8F7A1E04F3A1E0E1F3 /* AppEnvironment.swift in Sources */,
 				E3D201122EC23DEC05FFBF61 /* AppModel+CaptureSession.swift in Sources */,
+				0F8273920083953728432E40 /* AppModel+Screenshot.swift in Sources */,
 				77540629F1134B2BC367C558 /* AppModel+SuggestedTarget.swift in Sources */,
 				B9485BF7E8009D0B8B229E77 /* AppModel.swift in Sources */,
 				AECF2241F99F7F5BCC151E21 /* AppTiming.swift in Sources */,

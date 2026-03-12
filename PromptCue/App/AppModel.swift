@@ -67,7 +67,7 @@ final class AppModel: ObservableObject {
 
     @Published var cards: [CaptureCard] = []
     @Published var storageErrorMessage: String?
-    @Published private(set) var recentScreenshotState: RecentScreenshotState = .idle
+    @Published var recentScreenshotState: RecentScreenshotState = .idle
     @Published var draftText = ""
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
     @Published var availableSuggestedTargets: [CaptureSuggestedTarget] = []
@@ -89,7 +89,7 @@ final class AppModel: ObservableObject {
     private var cleanupTimer: Timer?
     var captureSubmissionTask: Task<Bool, Never>?
     var hasStartedSuggestedTargetProvider = false
-    private var hasStartedRecentScreenshotCoordinator = false
+    var hasStartedRecentScreenshotCoordinator = false
     var isCaptureSuggestedTargetPresentationActive = false
     var isStackSuggestedTargetPresentationActive = false
     private var retentionSettingsObserver: NSObjectProtocol?
@@ -152,33 +152,6 @@ final class AppModel: ObservableObject {
 
     var isEditingCaptureCard: Bool {
         editingCaptureCardID != nil
-    }
-
-    var showsRecentScreenshotSlot: Bool {
-        switch recentScreenshotState {
-        case .detected, .previewReady:
-            return true
-        case .idle, .expired, .consumed:
-            return false
-        }
-    }
-
-    var showsRecentScreenshotPlaceholder: Bool {
-        switch recentScreenshotState {
-        case .detected, .previewReady(_, _, .loading):
-            return true
-        case .idle, .previewReady(_, _, .ready), .expired, .consumed:
-            return false
-        }
-    }
-
-    var recentScreenshotPreviewURL: URL? {
-        switch recentScreenshotState {
-        case .previewReady(_, let cacheURL, .ready):
-            return cacheURL
-        case .idle, .detected, .previewReady(_, _, .loading), .expired, .consumed:
-            return nil
-        }
     }
 
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
@@ -262,27 +235,6 @@ final class AppModel: ObservableObject {
         }
 
         performNonCriticalStartupMaintenance()
-    }
-
-    func refreshPendingScreenshot() {
-        if hasSeededCaptureSession {
-            draftRecentScreenshotStateOverride = nil
-        }
-        ensureRecentScreenshotCoordinatorStarted()
-        recentScreenshotCoordinator.prepareForCaptureSession()
-        recentScreenshotCoordinator.suspendExpiration()
-        syncRecentScreenshotState()
-    }
-
-    func dismissPendingScreenshot() {
-        if draftRecentScreenshotStateOverride != nil {
-            draftRecentScreenshotStateOverride = .idle
-            syncRecentScreenshotState()
-            return
-        }
-
-        recentScreenshotCoordinator.dismissCurrent()
-        syncRecentScreenshotState()
     }
 
     func toggleSelection(for card: CaptureCard) {
@@ -629,16 +581,6 @@ final class AppModel: ObservableObject {
         cleanupTimer?.tolerance = min(cleanupInterval * 0.25, 15)
     }
 
-    func ensureRecentScreenshotCoordinatorStarted() {
-        guard !hasStartedRecentScreenshotCoordinator else {
-            return
-        }
-
-        recentScreenshotCoordinator.start()
-        hasStartedRecentScreenshotCoordinator = true
-        applyRecentScreenshotState(recentScreenshotCoordinator.state)
-    }
-
     func ensureSuggestedTargetProviderStarted() {
         guard !hasStartedSuggestedTargetProvider else {
             return
@@ -706,14 +648,6 @@ final class AppModel: ObservableObject {
             .max() ?? 0
 
         return maximum + 1
-    }
-
-    func syncRecentScreenshotState() {
-        applyRecentScreenshotState(draftRecentScreenshotStateOverride ?? recentScreenshotCoordinator.state)
-    }
-
-    private func applyRecentScreenshotState(_ state: RecentScreenshotState) {
-        recentScreenshotState = state
     }
 
     // MARK: - Cloud Sync

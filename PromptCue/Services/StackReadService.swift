@@ -18,6 +18,22 @@ enum StackReadScope {
     }
 }
 
+enum StackClassifyGroupBy: String {
+    case repository
+    case session
+    case app
+}
+
+struct NoteClassification: Equatable {
+    let groupKey: String
+    let repositoryName: String?
+    let branch: String?
+    let appName: String?
+    let sessionIdentifier: String?
+    let noteIDs: [UUID]
+    let previewTexts: [String]
+}
+
 struct StackNoteDetail: Equatable {
     let note: CaptureCard
     let copyEvents: [CopyEvent]
@@ -56,6 +72,31 @@ final class StackReadService {
         try listNotes().first(where: { $0.id == id })
     }
 
+    func classifyNotes(
+        scope: StackReadScope = .active,
+        groupBy: StackClassifyGroupBy = .repository
+    ) throws -> [NoteClassification] {
+        let notes = try listNotes(scope: scope)
+        let grouped = Dictionary(grouping: notes) { note -> String in
+            classificationKey(for: note, groupBy: groupBy)
+        }
+
+        return grouped
+            .map { key, cards in
+                let firstTarget = cards.first(where: { $0.suggestedTarget != nil })?.suggestedTarget
+                return NoteClassification(
+                    groupKey: key,
+                    repositoryName: firstTarget?.repositoryName,
+                    branch: firstTarget?.branch,
+                    appName: firstTarget?.appName,
+                    sessionIdentifier: firstTarget?.sessionIdentifier,
+                    noteIDs: cards.map(\.id),
+                    previewTexts: cards.map { String($0.text.prefix(80)) }
+                )
+            }
+            .sorted { $0.noteIDs.count > $1.noteIDs.count }
+    }
+
     func noteDetail(id: UUID) throws -> StackNoteDetail? {
         guard let note = try note(id: id) else {
             return nil
@@ -65,5 +106,25 @@ final class StackReadService {
             note: note,
             copyEvents: try copyEventStore.loadCopyEvents(for: id)
         )
+    }
+
+    private func classificationKey(
+        for note: CaptureCard,
+        groupBy: StackClassifyGroupBy
+    ) -> String {
+        guard let target = note.suggestedTarget else {
+            return "uncategorized"
+        }
+
+        switch groupBy {
+        case .repository:
+            let repo = target.repositoryName ?? "unknown-repo"
+            let branch = target.branch ?? "no-branch"
+            return "\(repo)|\(branch)"
+        case .session:
+            return target.sessionIdentifier ?? "no-session"
+        case .app:
+            return "\(target.bundleIdentifier)|\(target.appName)"
+        }
     }
 }

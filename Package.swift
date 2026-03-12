@@ -76,6 +76,7 @@ let package = Package(
                 "PromptCue/Services/CopyEventStore.swift",
                 "PromptCue/Services/PromptCueDatabase.swift",
                 "PromptCue/Services/StackExecutionService.swift",
+                "PromptCue/Services/StackGroupService.swift",
                 "PromptCue/Services/StackReadService.swift",
                 "PromptCue/Services/StackWriteService.swift",
                 "Sources/BacktickMCPServer",

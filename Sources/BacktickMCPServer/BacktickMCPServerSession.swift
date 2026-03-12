@@ -6,6 +6,7 @@ final class BacktickMCPServerSession {
     private let readService: StackReadService
     private let writeService: StackWriteService
     private let executionService: StackExecutionService
+    private let groupService: StackGroupService
 
     private static let supportedProtocolVersions = [
         "2025-03-26",
@@ -34,6 +35,11 @@ final class BacktickMCPServerSession {
         executionService = StackExecutionService(
             fileManager: fileManager,
             databaseURL: databaseURL
+        )
+        groupService = StackGroupService(
+            readService: readService,
+            writeService: writeService,
+            executionService: executionService
         )
     }
 
@@ -285,6 +291,62 @@ final class BacktickMCPServerSession {
                     "additionalProperties": false,
                 ],
             ],
+            [
+                "name": "classify_notes",
+                "description": "Group active Stack notes by metadata (repository, session, or app). Read-only.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "scope": [
+                            "type": "string",
+                            "enum": ["all", "active", "copied"],
+                            "description": "Filter scope. Default: active (copied notes are already executed).",
+                        ],
+                        "groupBy": [
+                            "type": "string",
+                            "enum": ["repository", "session", "app"],
+                            "description": "Dimension to group by. Default: repository.",
+                        ],
+                    ],
+                    "additionalProperties": false,
+                ],
+            ],
+            [
+                "name": "group_notes",
+                "description": "Merge multiple Stack notes into one card with a rationale title. Optionally archives source notes as copied.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "noteIDs": [
+                            "type": "array",
+                            "items": [
+                                "type": "string",
+                                "format": "uuid",
+                            ],
+                            "minItems": 1,
+                            "description": "IDs of source notes to merge, in desired order.",
+                        ],
+                        "title": [
+                            "type": "string",
+                            "description": "Rationale or summary title for the grouped note.",
+                        ],
+                        "separator": [
+                            "type": "string",
+                            "description": "Text separator between source notes. Default: ---",
+                        ],
+                        "archiveSources": [
+                            "type": "boolean",
+                            "description": "Mark source notes as executed (copied). Default: true.",
+                        ],
+                        "sessionID": [
+                            "type": ["string", "null"],
+                            "description": "Optional session identifier for archive copy events.",
+                        ],
+                    ],
+                    "required": ["noteIDs", "title"],
+                    "additionalProperties": false,
+                ],
+            ],
         ]
     }
 
@@ -331,6 +393,10 @@ final class BacktickMCPServerSession {
                 value = try deleteNote(arguments: arguments)
             case "mark_notes_executed":
                 value = try markNotesExecuted(arguments: arguments)
+            case "classify_notes":
+                value = try classifyNotes(arguments: arguments)
+            case "group_notes":
+                value = try groupNotes(arguments: arguments)
             default:
                 return toolErrorResult("Unsupported tool \(name)")
             }
@@ -417,6 +483,69 @@ final class BacktickMCPServerSession {
             "notes": result.notes.map(noteDictionary),
             "copyEvents": result.copyEvents.map(copyEventDictionary),
         ]
+    }
+
+    private func classifyNotes(arguments: [String: Any]) throws -> [String: Any] {
+        let scope = try parseScope(arguments["scope"] ?? "active")
+        let groupBy = try parseGroupBy(arguments["groupBy"])
+        let classifications = try readService.classifyNotes(scope: scope, groupBy: groupBy)
+
+        return [
+            "groupBy": groupBy.rawValue,
+            "scope": scope.serializedValue,
+            "groupCount": classifications.count,
+            "totalNotes": classifications.reduce(0) { $0 + $1.noteIDs.count },
+            "groups": classifications.map { classification in
+                [
+                    "groupKey": classification.groupKey,
+                    "repositoryName": classification.repositoryName ?? NSNull(),
+                    "branch": classification.branch ?? NSNull(),
+                    "appName": classification.appName ?? NSNull(),
+                    "sessionIdentifier": classification.sessionIdentifier ?? NSNull(),
+                    "noteCount": classification.noteIDs.count,
+                    "noteIDs": classification.noteIDs.map { $0.uuidString.lowercased() },
+                    "previewTexts": classification.previewTexts,
+                ] as [String: Any]
+            },
+        ]
+    }
+
+    private func groupNotes(arguments: [String: Any]) throws -> [String: Any] {
+        let noteIDs = try requiredUUIDArray(arguments, key: "noteIDs")
+        let title = try requiredString(arguments, key: "title")
+        let separatorRaw = try parseOptionalString(arguments["separator"])
+        let separator = separatorRaw ?? "---"
+        let archiveSources = (arguments["archiveSources"] as? Bool) ?? true
+        let sessionID = try parseOptionalString(arguments["sessionID"])
+
+        let result = try groupService.groupNotes(
+            StackGroupRequest(
+                sourceNoteIDs: noteIDs,
+                title: title,
+                separator: separator,
+                archiveSources: archiveSources,
+                sessionID: sessionID
+            )
+        )
+
+        return [
+            "groupedNote": noteDictionary(result.groupedNote),
+            "archivedCount": result.archivedNotes.count,
+            "archivedNotes": result.archivedNotes.map(noteDictionary),
+            "copyEvents": result.copyEvents.map(copyEventDictionary),
+        ]
+    }
+
+    private func parseGroupBy(_ value: Any?) throws -> StackClassifyGroupBy {
+        guard let rawValue = value as? String else {
+            return .repository
+        }
+
+        guard let groupBy = StackClassifyGroupBy(rawValue: rawValue) else {
+            throw BacktickMCPToolError(message: "groupBy must be one of repository, session, app")
+        }
+
+        return groupBy
     }
 
     private func noteDictionary(_ note: CaptureCard) -> [String: Any] {

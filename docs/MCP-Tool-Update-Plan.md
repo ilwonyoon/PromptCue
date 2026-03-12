@@ -4,10 +4,12 @@
 
 BacktickMCP 서버에 2개 신규 도구(`classify_notes`, `group_notes`)와 MCP `prompts` capability(5개 템플릿)를 추가한다. 기존 6개 도구는 변경 없음.
 
+**핵심 제약: active 카드만 처리한다.** copied 카드는 이미 실행된 것이므로 classify/group 대상에서 제외.
+
 **목표 플로우:**
 
 ```
-노트 쌓임 → classify_notes(1차 메타데이터 분류)
+노트 쌓임 → classify_notes(scope: "active", 1차 메타데이터 분류)
          → LLM이 triage 템플릿으로 의미 기반 2차 분류 + 난이도 태깅
          → 사용자 confirm (분류 결과)
          → 난이도별 단계적 실행 (아래 참고)
@@ -86,7 +88,8 @@ func classifyNotes(scope: StackReadScope, groupBy: String) throws -> [NoteClassi
   "properties": {
     "scope": {
       "type": "string",
-      "enum": ["all", "active", "copied"]
+      "enum": ["all", "active", "copied"],
+      "description": "기본값: active. copied는 이미 실행된 노트이므로 일반적으로 active만 사용."
     },
     "groupBy": {
       "type": "string",
@@ -96,6 +99,8 @@ func classifyNotes(scope: StackReadScope, groupBy: String) throws -> [NoteClassi
   "additionalProperties": false
 }
 ```
+
+**scope 기본값은 `"active"`** — copied 노트는 이미 실행 완료된 것이므로 분류 대상에서 제외하는 것이 기본 동작.
 
 **Output:**
 ```json
@@ -185,9 +190,10 @@ final class StackGroupService {
 **Edge cases:**
 - 단일 noteID → 유효, 타이틀 래퍼 카드 생성
 - 빈 text 노트 → separator 사이에 빈 블록
-- 이미 copied인 원본 → 텍스트 포함, re-archive는 멱등
+- 이미 copied인 원본 → 경고 반환 (이미 실행된 노트를 다시 그룹핑하려는 것이므로), 단 처리는 허용
 - 빈 title → 에러
 - 존재하지 않는 ID → 에러
+- copied 노트만 포함된 요청 → 경고 포함하여 진행 (사용자가 의도적으로 할 수 있음)
 
 ### 2.2 Package.swift 업데이트
 

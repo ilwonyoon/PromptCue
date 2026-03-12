@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Brand Context
+
+- User-facing product name: **Backtick**
+- Code-level names (`PromptCue`, `PromptCueCore`) are temporary technical identifiers, not product-direction cues
+- Interaction model: Capture = frictionless dump, Stack = execution queue, AI compression happens in Stack not Capture
+
 ## Build & Test Commands
 
 ```bash
@@ -11,17 +17,32 @@ xcodegen generate
 # Run pure-logic package tests (fast, no Xcode required)
 swift test
 
+# Run a single core test (by name filter)
+swift test --filter PromptCueCoreTests.ContentClassifierTests
+
 # Build app target (no signing)
 xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build
 
 # Run app-target tests
 xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test
 
+# Run a single app-target test (by class or method)
+xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO test -only-testing:PromptCueTests/CardStoreTests
+
+# Run BacktickMCP server tests
+swift test --filter BacktickMCPServerTests
+
 # Validate design tokens
 python3 scripts/validate_ui_tokens.py
 ```
 
 **Minimum verification for any change:** `swift test` + `xcodegen generate`. Add `xcodebuild build` when touching app-target code.
+
+### Build Configurations
+
+- **Debug** — used for tests (`CODE_SIGNING_ALLOWED=NO`)
+- **DevSigned** — used for `run` scheme (local dev signing via `scripts/sign_dev_app.sh`)
+- **Release** — production builds
 
 ### QA Environment Flags
 
@@ -35,12 +56,13 @@ PROMPTCUE_LOG_EDITOR_METRICS=1         # log editor metrics to stderr
 
 ## Architecture
 
-Prompt Cue is a macOS menu-bar utility (LSUIElement) for capturing and organizing prompt snippets. Built with SwiftUI views hosted in AppKit NSPanels.
+Backtick (PromptCue) is a macOS menu-bar utility (LSUIElement) for capturing and organizing prompt snippets. Built with SwiftUI views hosted in AppKit NSPanels.
 
-### Two-target structure
+### Three-target structure
 
 - **`Sources/PromptCueCore/`** — Pure Swift package (swift-tools-version 6.0). Domain models (`CaptureCard`, `CaptureDraft`), formatting, ordering logic. No AppKit/SwiftUI. Tested via `swift test` (`Tests/PromptCueCoreTests/`).
 - **`PromptCue/`** — macOS app target. Services, UI, window controllers. Tested via xcodebuild (`PromptCueTests/`).
+- **`Sources/BacktickMCP/` + `Sources/BacktickMCPServer/`** — MCP server executable exposing the Stack database via JSON-RPC 2.0 (list/get/create/update/delete notes, mark executed). Bundled into the app by post-build script (`scripts/build_backtick_mcp_helper.sh`). Tested via `swift test --filter BacktickMCPServerTests`.
 
 Move logic to `PromptCueCore` early if it has no platform dependency.
 
@@ -84,9 +106,19 @@ SQLite via GRDB at `~/Library/Application Support/PromptCue/PromptCue.sqlite`. D
 - **Deployment target**: macOS 14.0
 - **Default shortcuts**: `Cmd + backtick` = Quick Capture, `Cmd + 2` = Toggle Stack
 
+### Key scripts
+
+| Script | Purpose |
+|---|---|
+| `scripts/build_backtick_mcp_helper.sh` | Post-build: compile and bundle BacktickMCP into app |
+| `scripts/sign_dev_app.sh` | Post-build: apply dev code signing for local runs |
+| `scripts/validate_ui_tokens.py` | Verify token system consistency |
+| `scripts/qa_capture_input.sh` | Simulate capture panel input for QA |
+
 ## Critical Rules
 
 1. Run `xcodegen generate` after changing `project.yml` — never hand-edit `.pbxproj`
 2. File ownership: `AppCoordinator.swift`, `AppDelegate.swift`, `PromptCueApp.swift`, `project.yml`, `docs/Master-Board.md` require master review before editing
 3. UI subtraction test: if a capture UI element can be removed and capture still works, remove it
 4. All UI values must flow through `PrimitiveTokens` → `SemanticTokens` — no hardcoded colors, spacing, radius, fonts, or shadows
+5. See `AGENTS.md` for multi-agent coordination rules, file ownership guidance, and planning discipline

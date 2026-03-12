@@ -36,7 +36,6 @@ let package = Package(
             ],
             path: ".",
             exclude: [
-                ".build",
                 ".github",
                 ".swiftpm",
                 "AGENTS.md",

@@ -682,6 +682,15 @@ final class AppModel: ObservableObject {
         return syncStagedMultiCopyClipboard()
     }
 
+    @discardableResult
+    func copyRaw(card: CaptureCard) -> String {
+        let payload = ClipboardFormatter.rawString(for: card)
+        ClipboardFormatter.copyRawToPasteboard(card: card)
+        markCopied(orderedIDs: [card.id])
+        exitMultiSelectMode()
+        return payload
+    }
+
     func commitDeferredCopies() {
         let deferredCopiedIDs = stagedCopiedCardIDs
         guard !deferredCopiedIDs.isEmpty else {

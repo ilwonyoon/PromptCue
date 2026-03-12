@@ -112,6 +112,27 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertFalse(model.cards[0].isCopied)
     }
 
+    func testCopyRawReturnsUnformattedTextAndMarksOnlyThatCardCopied() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "Raw body", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Other", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+        _ = model.toggleMultiCopiedCard(cards[1])
+
+        let payload = model.copyRaw(card: cards[0])
+
+        XCTAssertEqual(payload, "Raw body")
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+
+        let copiedIDs = model.cards.filter(\.isCopied).map(\.id)
+        XCTAssertEqual(copiedIDs, [cards[0].id])
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),

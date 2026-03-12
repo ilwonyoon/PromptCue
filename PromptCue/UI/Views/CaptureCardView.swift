@@ -13,6 +13,7 @@ struct CaptureCardView: View {
     let selectionMode: Bool
     let isExpanded: Bool
     let onCopy: () -> Void
+    let onCopyRaw: () -> Void
     let onToggleSelection: () -> Void
     let onCmdClick: () -> Void
     let onToggleExpansion: () -> Void
@@ -49,6 +50,7 @@ struct CaptureCardView: View {
         selectionMode: Bool,
         isExpanded: Bool,
         onCopy: @escaping () -> Void,
+        onCopyRaw: @escaping () -> Void = {},
         onToggleSelection: @escaping () -> Void,
         onCmdClick: @escaping () -> Void = {},
         onToggleExpansion: @escaping () -> Void,
@@ -65,6 +67,7 @@ struct CaptureCardView: View {
         self.selectionMode = selectionMode
         self.isExpanded = isExpanded
         self.onCopy = onCopy
+        self.onCopyRaw = onCopyRaw
         self.onToggleSelection = onToggleSelection
         self.onCmdClick = onCmdClick
         self.onToggleExpansion = onToggleExpansion
@@ -172,6 +175,9 @@ struct CaptureCardView: View {
             .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .contentShape(Rectangle())
+        .contextMenu {
+            Button("Copy Raw", action: onCopyRaw)
+        }
         .onTapGesture {
             if isCommandClickEvent {
                 onCmdClick()

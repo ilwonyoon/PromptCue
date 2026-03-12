@@ -113,6 +113,9 @@ struct CardStackView: View {
                 onCopy: {
                     _ = model.toggleMultiCopiedCard(card)
                 },
+                onCopyRaw: {
+                    _ = model.copyRaw(card: card)
+                },
                 onToggleSelection: {
                     _ = model.toggleMultiCopiedCard(card)
                 },

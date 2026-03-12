@@ -7,7 +7,10 @@ final class DesignSystemWindowController: NSObject, NSWindowDelegate {
 
     func show() {
         let window = window ?? makeWindow()
+        window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
         NSApp.activate(ignoringOtherApps: true)
     }
 

@@ -404,13 +404,16 @@ struct PromptCueSettingsView: View {
                 }
 
                 SettingsLongFormGroupRow("Tail Text") {
-                    SettingsInlinePanel(contentPadding: 0) {
-                        SettingsMultilineTextEditor(
+                    SettingsInlinePanel {
+                        TextEditor(
                             text: binding(
                                 get: { exportTailSettingsModel.suffixText },
                                 set: { exportTailSettingsModel.updateSuffixText($0) }
                             )
                         )
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .scrollContentBackground(.hidden)
                         .frame(
                             minHeight: PanelMetrics.settingsExportTailEditorMinHeight,
                             maxHeight: PanelMetrics.settingsExportTailEditorMaxHeight

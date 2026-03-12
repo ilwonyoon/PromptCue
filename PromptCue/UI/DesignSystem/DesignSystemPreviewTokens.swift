@@ -13,6 +13,7 @@ enum DesignSystemPreviewTokens {
     static let previewFieldMinHeight: CGFloat = 126
     static let previewWallpaperHeight: CGFloat = 280
     static let previewSettingsHeight: CGFloat = 200
+    static let previewSettingsSimulationHeight: CGFloat = 640
     static let inventoryCardMinHeight: CGFloat = 168
     static let glassOrbLarge: CGFloat = 320
     static let glassOrbMedium: CGFloat = 220

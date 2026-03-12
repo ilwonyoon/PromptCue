@@ -158,6 +158,7 @@ struct DesignSystemPreviewView: View {
                     componentInventorySection
                     glassSection
                     liveGallerySection
+                    settingsSimulationSection
                     foundationsSection
                 }
                 .padding(PrimitiveTokens.Space.xl)
@@ -434,6 +435,16 @@ struct DesignSystemPreviewView: View {
                         .frame(height: DesignSystemPreviewTokens.previewSettingsHeight)
                 }
             }
+        }
+    }
+
+    private var settingsSimulationSection: some View {
+        sectionBlock(
+            title: "Settings Simulation",
+            subtitle: "Preview-only mock layouts for the settings refactor. Validate one group = one left rail + one right rail before touching the live settings surface."
+        ) {
+            SettingsSimulationView()
+                .frame(height: DesignSystemPreviewTokens.previewSettingsSimulationHeight)
         }
     }
 

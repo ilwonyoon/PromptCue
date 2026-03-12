@@ -1010,6 +1010,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
         openConfigPath(status.homeConfig.path)
     }
 
+    func openProjectConfig(for client: MCPConnectorClient) {
+        guard let projectConfig = inspection.status(for: client).projectConfig else {
+            return
+        }
+
+        openConfigPath(projectConfig.path)
+    }
+
+    func openHomeConfig(for client: MCPConnectorClient) {
+        openConfigPath(inspection.status(for: client).homeConfig.path)
+    }
+
     func automationExample(for client: MCPConnectorClient) -> String? {
         switch client {
         case .claudeCode:

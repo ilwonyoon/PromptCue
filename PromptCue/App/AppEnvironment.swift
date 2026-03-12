@@ -24,7 +24,7 @@ struct AppEnvironment {
     }
 
     var shouldOpenDesignSystemOnStart: Bool {
-        boolFlag("PROMPTCUE_OPEN_DESIGN_SYSTEM")
+        boolFlag("PROMPTCUE_OPEN_DESIGN_SYSTEM") || hasArgument("--open-design-system")
     }
 
     var shouldOpenStackOnStart: Bool {
@@ -55,6 +55,10 @@ struct AppEnvironment {
 
     private func boolFlag(_ key: String) -> Bool {
         values[key] == "1"
+    }
+
+    private func hasArgument(_ flag: String) -> Bool {
+        arguments.contains(flag)
     }
 
     private var startupSettingsTabValue: String? {

@@ -23,7 +23,7 @@ enum AppStartupMode {
     case deferredMaintenance
 }
 
-private enum CaptureSuggestedTargetChoice: Equatable {
+enum CaptureSuggestedTargetChoice: Equatable {
     case automatic(CaptureSuggestedTarget)
     case explicit(CaptureSuggestedTarget)
 
@@ -70,9 +70,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var recentScreenshotState: RecentScreenshotState = .idle
     @Published var draftText = ""
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
-    @Published private(set) var availableSuggestedTargets: [CaptureSuggestedTarget] = []
+    @Published var availableSuggestedTargets: [CaptureSuggestedTarget] = []
     @Published var isShowingCaptureSuggestedTargetChooser = false
-    @Published private(set) var selectedCaptureSuggestedTargetIndex = 0
+    @Published var selectedCaptureSuggestedTargetIndex = 0
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isMultiSelectMode = false
     @Published private(set) var stagedCopiedCardIDs: [UUID] = []
@@ -82,23 +82,23 @@ final class AppModel: ObservableObject {
     private let cardStore: CardStore
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
-    private let suggestedTargetProvider: any SuggestedTargetProviding
+    let suggestedTargetProvider: any SuggestedTargetProviding
     private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
     private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     private var captureSubmissionTask: Task<Bool, Never>?
-    private var hasStartedSuggestedTargetProvider = false
+    var hasStartedSuggestedTargetProvider = false
     private var hasStartedRecentScreenshotCoordinator = false
     private var isCaptureSuggestedTargetPresentationActive = false
-    private var isStackSuggestedTargetPresentationActive = false
+    var isStackSuggestedTargetPresentationActive = false
     private var retentionSettingsObserver: NSObjectProtocol?
     private var syncToggleObserver: NSObjectProtocol?
     private var deferredStartupMaintenanceTask: Task<Void, Never>?
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
     private var remoteApplyTask: Task<Void, Never>?
     private var pendingRemoteChanges: [SyncChange] = []
-    private var draftSuggestedTargetOverride: CaptureSuggestedTarget?
+    var draftSuggestedTargetOverride: CaptureSuggestedTarget?
     private var draftRecentScreenshotStateOverride: RecentScreenshotState?
     private var isSeedingCaptureFromCopiedCard = false
 
@@ -150,59 +150,8 @@ final class AppModel: ObservableObject {
         return stagedCopiedCardIDs.compactMap { cardsByID[$0] }
     }
 
-    var automaticSuggestedTarget: CaptureSuggestedTarget? {
-        guard hasStartedSuggestedTargetProvider else {
-            return nil
-        }
-
-        return suggestedTargetProvider.currentFreshSuggestedTarget(
-            relativeTo: Date(),
-            freshness: AppUIConstants.suggestedTargetFreshness
-        )
-    }
-
-    var effectiveCaptureSuggestedTarget: CaptureSuggestedTarget? {
-        draftSuggestedTargetOverride ?? automaticSuggestedTarget
-    }
-
-    var isCaptureSuggestedTargetAutomatic: Bool {
-        draftSuggestedTargetOverride == nil
-    }
-
-    var canChooseSuggestedTarget: Bool {
-        effectiveCaptureSuggestedTarget != nil || !availableSuggestedTargets.isEmpty
-    }
-
-    var captureChooserTarget: CaptureSuggestedTarget? {
-        effectiveCaptureSuggestedTarget ?? availableSuggestedTargets.first
-    }
-
     var isEditingCaptureCard: Bool {
         editingCaptureCardID != nil
-    }
-
-    var captureSuggestedTargetChoiceCount: Int {
-        captureSuggestedTargetChoices.count
-    }
-
-    var highlightedCaptureSuggestedTarget: CaptureSuggestedTarget? {
-        let choices = captureSuggestedTargetChoices
-        guard !choices.isEmpty else {
-            return nil
-        }
-
-        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        return choices[clampedIndex].target
-    }
-
-    var isAutomaticCaptureSuggestedTargetHighlighted: Bool {
-        let choices = captureSuggestedTargetChoices
-        guard !choices.isEmpty else {
-            return false
-        }
-
-        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        return choices[clampedIndex].isAutomatic
     }
 
     var showsRecentScreenshotSlot: Bool {
@@ -355,16 +304,6 @@ final class AppModel: ObservableObject {
         syncRecentScreenshotState()
     }
 
-    func beginStackSuggestedTargetPresentation() {
-        isStackSuggestedTargetPresentationActive = true
-        refreshSuggestedTargetProviderLifecycle()
-    }
-
-    func endStackSuggestedTargetPresentation() {
-        isStackSuggestedTargetPresentationActive = false
-        refreshSuggestedTargetProviderLifecycle()
-    }
-
     func refreshPendingScreenshot() {
         if hasSeededCaptureSession {
             draftRecentScreenshotStateOverride = nil
@@ -395,108 +334,6 @@ final class AppModel: ObservableObject {
         prepareDraftMetricsForPresentation()
         syncCaptureSuggestedTargetSelection()
         syncRecentScreenshotState()
-    }
-
-    func refreshAvailableSuggestedTargets() {
-        ensureSuggestedTargetProviderStarted()
-        suggestedTargetProvider.refreshAvailableSuggestedTargets()
-        syncAvailableSuggestedTargets()
-    }
-
-    func chooseDraftSuggestedTarget(_ target: CaptureSuggestedTarget) {
-        draftSuggestedTargetOverride = target
-        isShowingCaptureSuggestedTargetChooser = false
-        syncCaptureSuggestedTargetSelection()
-    }
-
-    func clearDraftSuggestedTargetOverride() {
-        draftSuggestedTargetOverride = nil
-        isShowingCaptureSuggestedTargetChooser = false
-        syncCaptureSuggestedTargetSelection()
-    }
-
-    func toggleCaptureSuggestedTargetChooser() {
-        if !isShowingCaptureSuggestedTargetChooser {
-            refreshAvailableSuggestedTargets()
-            syncCaptureSuggestedTargetSelection()
-        }
-
-        isShowingCaptureSuggestedTargetChooser.toggle()
-    }
-
-    func hideCaptureSuggestedTargetChooser() {
-        isShowingCaptureSuggestedTargetChooser = false
-    }
-
-    @discardableResult
-    func moveCaptureSuggestedTargetSelection(by offset: Int) -> Bool {
-        let choices = captureSuggestedTargetChoices
-        guard isShowingCaptureSuggestedTargetChooser, !choices.isEmpty else {
-            return false
-        }
-
-        let count = choices.count
-        let current = max(0, min(selectedCaptureSuggestedTargetIndex, count - 1))
-        selectedCaptureSuggestedTargetIndex = (current + offset + count) % count
-        return true
-    }
-
-    @discardableResult
-    func highlightCaptureSuggestedTarget(_ target: CaptureSuggestedTarget) -> Bool {
-        guard isShowingCaptureSuggestedTargetChooser else {
-            return false
-        }
-
-        let choices = captureSuggestedTargetChoices
-        guard let matchingIndex = choices.firstIndex(where: { !$0.isAutomatic && $0.target == target }) else {
-            return false
-        }
-
-        selectedCaptureSuggestedTargetIndex = matchingIndex
-        return true
-    }
-
-    @discardableResult
-    func highlightAutomaticCaptureSuggestedTarget() -> Bool {
-        guard isShowingCaptureSuggestedTargetChooser else {
-            return false
-        }
-
-        let choices = captureSuggestedTargetChoices
-        guard let matchingIndex = choices.firstIndex(where: \.isAutomatic) else {
-            return false
-        }
-
-        selectedCaptureSuggestedTargetIndex = matchingIndex
-        return true
-    }
-
-    @discardableResult
-    func completeCaptureSuggestedTargetSelection() -> Bool {
-        let choices = captureSuggestedTargetChoices
-        guard isShowingCaptureSuggestedTargetChooser, !choices.isEmpty else {
-            return false
-        }
-
-        let selectedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        switch choices[selectedIndex] {
-        case .automatic:
-            clearDraftSuggestedTargetOverride()
-        case .explicit(let target):
-            chooseDraftSuggestedTarget(target)
-        }
-
-        return true
-    }
-
-    @discardableResult
-    func cancelCaptureSuggestedTargetSelection() -> Bool {
-        guard isShowingCaptureSuggestedTargetChooser else {
-            return false
-        }
-
-        hideCaptureSuggestedTargetChooser()
-        return true
     }
 
     func beginCaptureSubmission(onSuccess: @escaping @MainActor () -> Void = {}) {
@@ -1064,7 +901,7 @@ final class AppModel: ObservableObject {
         applyRecentScreenshotState(recentScreenshotCoordinator.state)
     }
 
-    private func ensureSuggestedTargetProviderStarted() {
+    func ensureSuggestedTargetProviderStarted() {
         guard !hasStartedSuggestedTargetProvider else {
             return
         }
@@ -1074,7 +911,7 @@ final class AppModel: ObservableObject {
         syncAvailableSuggestedTargets()
     }
 
-    private func refreshSuggestedTargetProviderLifecycle() {
+    func refreshSuggestedTargetProviderLifecycle() {
         guard isCaptureSuggestedTargetPresentationActive || isStackSuggestedTargetPresentationActive else {
             stopSuggestedTargetProvider()
             return
@@ -1083,7 +920,7 @@ final class AppModel: ObservableObject {
         ensureSuggestedTargetProviderStarted()
     }
 
-    private func stopSuggestedTargetProvider() {
+    func stopSuggestedTargetProvider() {
         guard hasStartedSuggestedTargetProvider else {
             availableSuggestedTargets = []
             syncCaptureSuggestedTargetSelection()
@@ -1131,62 +968,6 @@ final class AppModel: ObservableObject {
             .max() ?? 0
 
         return maximum + 1
-    }
-
-    private func syncAvailableSuggestedTargets() {
-        availableSuggestedTargets = suggestedTargetProvider.availableSuggestedTargets()
-        syncCaptureSuggestedTargetSelection()
-    }
-
-    private var captureSuggestedTargetChoices: [CaptureSuggestedTargetChoice] {
-        var choices: [CaptureSuggestedTargetChoice] = []
-
-        if let automaticSuggestedTarget {
-            choices.append(.automatic(automaticSuggestedTarget))
-        }
-
-        let filteredTargets: [CaptureSuggestedTarget]
-        if let automaticSuggestedTarget {
-            filteredTargets = availableSuggestedTargets.filter {
-                $0.canonicalIdentityKey != automaticSuggestedTarget.canonicalIdentityKey
-            }
-        } else {
-            filteredTargets = availableSuggestedTargets
-        }
-
-        let deduplicatedTargets = filteredTargets.reduce(into: [CaptureSuggestedTarget]()) { result, target in
-            if result.contains(where: { $0.canonicalIdentityKey == target.canonicalIdentityKey }) == false {
-                result.append(target)
-            }
-        }
-
-        choices.append(contentsOf: deduplicatedTargets.map(CaptureSuggestedTargetChoice.explicit))
-        return choices
-    }
-
-    private func syncCaptureSuggestedTargetSelection() {
-        let choices = captureSuggestedTargetChoices
-        guard !choices.isEmpty else {
-            selectedCaptureSuggestedTargetIndex = 0
-            return
-        }
-
-        if draftSuggestedTargetOverride == nil,
-           automaticSuggestedTarget != nil {
-            selectedCaptureSuggestedTargetIndex = 0
-            return
-        }
-
-        if let draftSuggestedTargetOverride,
-           let matchingIndex = choices.firstIndex(where: { choice in
-               !choice.isAutomatic
-                   && choice.target.canonicalIdentityKey == draftSuggestedTargetOverride.canonicalIdentityKey
-           }) {
-            selectedCaptureSuggestedTargetIndex = matchingIndex
-            return
-        }
-
-        selectedCaptureSuggestedTargetIndex = min(selectedCaptureSuggestedTargetIndex, choices.count - 1)
     }
 
     private func syncRecentScreenshotState() {

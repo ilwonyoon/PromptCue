@@ -101,6 +101,9 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 ### Direct Distribution Requirements
 
 - `Developer ID Application` certificate
+- release machine or CI must provide `PROMPTCUE_RELEASE_SIGNING_SHA1` or `PROMPTCUE_RELEASE_SIGNING_IDENTITY`
+- release machine or CI must provide `PROMPTCUE_RELEASE_TEAM_ID` and `PROMPTCUE_RELEASE_NOTARY_PROFILE`
+- `security find-identity -v -p codesigning` must show a valid `Developer ID Application` identity before the signed lane is considered runnable
 - notarization credentials
   - App Store Connect API key is preferred over app-specific password
 - code signing verification built into release scripts

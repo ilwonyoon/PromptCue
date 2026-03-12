@@ -49,7 +49,7 @@ Historical `Beta` wording in older docs is superseded by `DevSigned` for current
 | `H3` | Completed | idle wake-up and startup containment landed without changing visible capture/stack UI patterns |
 | `H4` | Completed | suggested-target tracking is contained to safe window signals and no longer depends on surprise automation |
 | `H5` | Completed | sync default-off runtime gating now covers remote notifications and CloudKit engine startup/teardown |
-| `H6` | Planned | final launch gate after `H1-H5` land |
+| `H6` | In progress | consolidated verification runner exists; final notarized ship-candidate closure is blocked on local Developer ID + notary credentials |
 
 ## Execution Position Relative To Current Main Slice
 
@@ -340,9 +340,10 @@ Ownership:
 
 This contract should be implemented exactly, with script names and env/profile names frozen by `H1`.
 
-Current master-owned script entrypoint:
+Current master-owned script entrypoints:
 
 - `scripts/archive_signed_release.sh`
+- `scripts/run_h6_verification.sh`
 
 | Step | Command Shape / Action | Required Output | Blocking |
 | --- | --- | --- | --- |
@@ -486,13 +487,21 @@ Prove that hardening landed without harming the approved product surface.
 
 | Task | Owner | Dependency | Parallelizable | Exit Criteria | Status |
 | --- | --- | --- | --- | --- | --- |
-| Add automated coverage for lifecycle/privacy policy code by app-target tests or `PromptCueCore` extraction | Master | `H0` | No | reviewed risk areas are no longer covered only by manual smoke | Planned |
-| Re-run package, app, and project generation verification | Master | `H1-H5` | No | automated baseline stays green | Planned |
-| Run bundled helper smoke from a temp directory with no source checkout present | Master | `H1` | Yes | shipped helper behavior is independent of repo layout | Planned |
-| Run the release artifact inspection checklist | Master | `H1` | Yes | signing/notarization/Gatekeeper failures are caught before upload | Planned |
+| Add automated coverage for lifecycle/privacy policy code by app-target tests or `PromptCueCore` extraction | Master | `H0` | No | reviewed risk areas are no longer covered only by manual smoke | Completed |
+| Re-run package, app, and project generation verification | Master | `H1-H5` | No | automated baseline stays green | In progress |
+| Run bundled helper smoke from a temp directory with no source checkout present | Master | `H1` | Yes | shipped helper behavior is independent of repo layout | In progress |
+| Run the release artifact inspection checklist | Master | `H1` | Yes | signing/notarization/Gatekeeper failures are caught before upload | In progress |
 | Run TCC smoke for normal launch, capture open, screenshot folder connect, and any surviving suggested-target path | Master + `ui-battery` | `H2-H4` | Yes | no surprise permission prompts remain in default flows | Planned |
-| Run idle-energy and wake-up smoke on a signed local build | Master + `core-perf` | `H3` | Yes | idle utility behavior is acceptable for public launch | Planned |
-| Record remaining launch risks, rollback plan, and deliberately deferred behavior-sensitive items | Master | all phases | No | launch decision is explicit rather than implicit | Planned |
+| Run idle-energy and wake-up smoke on a signed local build | Master + `core-perf` | `H3` | Yes | idle utility behavior is acceptable for public launch | Blocked by local release credentials |
+| Record remaining launch risks, rollback plan, and deliberately deferred behavior-sensitive items | Master | all phases | No | launch decision is explicit rather than implicit | In progress |
+
+### Current H6 Execution Status
+
+As of March 12, 2026:
+
+- `scripts/run_h6_verification.sh` is the consolidated H6 entrypoint for `xcodegen`, `swift test`, Debug/Release/DevSigned builds, targeted app-target policy coverage, unsigned archive validation, helper smoke, and signed-lane escalation when credentials exist.
+- `scripts/archive_signed_release.sh` now fails fast with a clear release-machine error when no valid `Developer ID Application` identity is available or when the release notary profile is not configured in `Config/Local.xcconfig`.
+- On the current machine, the remaining signed/notarized H6 exit criteria are blocked by missing local release credentials rather than missing repo automation.
 
 ### Exit Criteria
 
@@ -504,6 +513,7 @@ Prove that hardening landed without harming the approved product surface.
 
 Minimum automated verification for this lane:
 
+- `scripts/run_h6_verification.sh`
 - `swift test`
 - `xcodegen generate`
 - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`

@@ -44,11 +44,11 @@ Historical `Beta` wording in older docs is superseded by `DevSigned` for current
 | Phase | Status | Notes |
 | --- | --- | --- |
 | `H0` | In progress | contract lock is active in docs; architecture policy for the shipped helper is the last material open decision |
-| `H1` | Ready after `H0` | master-owned release/config/artifact work can begin in parallel now |
-| `H2` | Planned | runtime merge waits for `H0` and the current `safe-main` slice to stay green |
-| `H3` | Planned | startup and idle-lifecycle work follows the `H2` screenshot contract and `H5` sync gating contract |
-| `H4` | Planned | this is containment of already-landed non-goal automation code, not expansion of a v1 feature |
-| `H5` | Planned | this is containment of already-landed non-goal sync capability surface, not expansion of v1 scope |
+| `H1` | In progress | deterministic release/archive/sign/notarize lane is in repo; final notarized run still depends on local Developer ID + notary credentials |
+| `H2` | Completed | screenshot folder/bookmark/app-managed attachment contract is enforced |
+| `H3` | Completed | idle wake-up and startup containment landed without changing visible capture/stack UI patterns |
+| `H4` | Completed | suggested-target tracking is contained to safe window signals and no longer depends on surprise automation |
+| `H5` | Completed | sync default-off runtime gating now covers remote notifications and CloudKit engine startup/teardown |
 | `H6` | Planned | final launch gate after `H1-H5` land |
 
 ## Execution Position Relative To Current Main Slice
@@ -465,10 +465,10 @@ Contain already-landed non-goal sync capability surface so the default local-onl
 | Task | Owner | Dependency | Parallelizable | Exit Criteria | Status |
 | --- | --- | --- | --- | --- | --- |
 | Freeze the v1 sync stance as containment-only, not feature expansion | Master | `H0` | No | docs treat sync as default-off/local-only in this lane | Completed |
-| Gate remote-notification registration to actual sync enablement | Master + `services-security` | `H1` | No | default launch does not register for remote notifications | Planned |
-| Gate CloudKit engine construction and startup to actual sync enablement | `services-security` + Master wiring | `H1` | No | default launch performs no CloudKit work | Planned |
-| Verify sync enabled/disabled transitions still work if the existing setting remains reachable | `services-security` | above | Yes | contained opt-in path remains functional or is explicitly deferred | Planned |
-| Document direct-lane versus App Store lane capability expectations | Master | `H1` | Yes | capability decisions are explicit in docs and config | Planned |
+| Gate remote-notification registration to actual sync enablement | Master + `services-security` | `H1` | No | default launch does not register for remote notifications | Completed |
+| Gate CloudKit engine construction and startup to actual sync enablement | `services-security` + Master wiring | `H1` | No | default launch performs no CloudKit work | Completed |
+| Verify sync enabled/disabled transitions still work if the existing setting remains reachable | `services-security` | above | Yes | contained opt-in path remains functional or is explicitly deferred | Completed |
+| Document direct-lane versus App Store lane capability expectations | Master | `H1` | Yes | capability decisions are explicit in docs and config | Completed |
 
 ### Exit Criteria
 

@@ -6,6 +6,7 @@ protocol CloudSyncControlling: AnyObject {
     var delegate: CloudSyncDelegate? { get set }
 
     func setup() async
+    func stop()
     func fetchRemoteChanges()
     func handleRemoteNotification()
     func pushLocalChange(card: CaptureCard)

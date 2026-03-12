@@ -50,12 +50,30 @@ targets:
       - path: PromptCue
     postBuildScripts:
       - name: Bundle BacktickMCP Helper
-        basedOnDependencyAnalysis: false
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/Package.swift
+          - $(SRCROOT)/Package.resolved
+          - $(SRCROOT)/scripts/build_backtick_mcp_helper.sh
+          - $(SRCROOT)/scripts/verify_backtick_mcp_helper.sh
+          - $(SRCROOT)/Sources/BacktickMCP
+          - $(SRCROOT)/Sources/BacktickMCPServer
+          - $(SRCROOT)/Sources/PromptCueCore
+          - $(SRCROOT)/PromptCue/Services
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/BacktickMCP
         script: |
           /bin/sh "${SRCROOT}/scripts/build_backtick_mcp_helper.sh"
       - path: scripts/sign_dev_app.sh
         name: Sign Dev App
-        basedOnDependencyAnalysis: false
+        basedOnDependencyAnalysis: true
+        inputFiles:
+          - $(SRCROOT)/scripts/sign_dev_app.sh
+          - $(SRCROOT)/Config/Local.xcconfig
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/MacOS/$(PRODUCT_NAME)
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/BacktickMCP
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/_CodeSignature/CodeResources
         showEnvVars: false
     dependencies:
       - package: PromptCueCore

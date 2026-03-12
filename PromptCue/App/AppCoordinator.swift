@@ -2,7 +2,7 @@ import AppKit
 import KeyboardShortcuts
 
 @MainActor
-final class AppCoordinator {
+final class AppCoordinator: AppLifecycleCoordinating {
     let model = AppModel()
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
@@ -92,6 +92,10 @@ final class AppCoordinator {
         hotKeyCenter.unregisterAll()
         model.stop()
         statusItem = nil
+    }
+
+    func handleCloudRemoteNotification() {
+        model.handleCloudRemoteNotification()
     }
 
     private func configureStatusItem() {

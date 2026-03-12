@@ -104,6 +104,11 @@ final class CloudSyncEngine: CloudSyncControlling {
         }
     }
 
+    func stop() {
+        stopNetworkMonitor()
+        isFetching = false
+    }
+
     private func checkAccountStatus() async -> CloudSyncAccountStatus {
         do {
             let status = try await container.accountStatus()

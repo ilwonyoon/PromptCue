@@ -26,10 +26,10 @@ final class CloudSyncSettingsTests: XCTestCase {
         super.tearDown()
     }
 
-    func testSyncDefaultsToEnabled() {
+    func testSyncDefaultsToDisabled() {
         let enabled = CloudSyncPreferences.load(defaults: defaults)
 
-        XCTAssertTrue(enabled)
+        XCTAssertFalse(enabled)
     }
 
     func testSyncPreferencePersistsDisabledState() {

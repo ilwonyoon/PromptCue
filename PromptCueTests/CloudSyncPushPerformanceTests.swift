@@ -171,6 +171,7 @@ private final class BenchmarkCloudSyncEngine: CloudSyncControlling {
     private var sink = 0
 
     func setup() async {}
+    func stop() {}
     func fetchRemoteChanges() {}
     func handleRemoteNotification() {}
 

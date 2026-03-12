@@ -22,7 +22,7 @@ enum CloudSyncPreferences {
 
 @MainActor
 final class CloudSyncSettingsModel: ObservableObject {
-    @Published var isSyncEnabled = true
+    @Published var isSyncEnabled = false
     @Published private(set) var lastSyncedAt: Date?
     @Published private(set) var syncError: String?
     @Published var accountStatus: CloudSyncAccountStatus = .unknown

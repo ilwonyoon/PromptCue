@@ -82,6 +82,7 @@ final class AppModel: ObservableObject {
     private let attachmentStore: AttachmentStoring
     private let recentScreenshotCoordinator: RecentScreenshotCoordinating
     private let suggestedTargetProvider: any SuggestedTargetProviding
+    private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
     private var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
@@ -104,6 +105,7 @@ final class AppModel: ObservableObject {
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil,
+        cloudSyncEngineFactory: @escaping @MainActor () -> any CloudSyncControlling = { CloudSyncEngine() },
         cleanupInterval: TimeInterval = 60
     ) {
         self.cardStore = cardStore
@@ -111,6 +113,7 @@ final class AppModel: ObservableObject {
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
         self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
+        self.cloudSyncEngineFactory = cloudSyncEngineFactory
         self.cleanupInterval = cleanupInterval
         self.suggestedTargetProvider.onChange = { [weak self] in
             Task { @MainActor [weak self] in
@@ -223,6 +226,7 @@ final class AppModel: ObservableObject {
     }
 
     func start(startupMode: AppStartupMode = .immediateMaintenance) {
+        ensureCloudSyncToggleObserver()
         retentionSettingsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
@@ -282,7 +286,7 @@ final class AppModel: ObservableObject {
             NotificationCenter.default.removeObserver(syncToggleObserver)
         }
         syncToggleObserver = nil
-        cloudSyncEngine?.delegate = nil
+        stopCloudSyncEngine()
     }
 
     func reloadCards(runNonCriticalMaintenance: Bool = true) {
@@ -1105,7 +1109,11 @@ final class AppModel: ObservableObject {
 
     // MARK: - Cloud Sync
 
-    private func startCloudSync(initialFetchMode: CloudSyncInitialFetchMode = .immediate) {
+    private func ensureCloudSyncToggleObserver() {
+        guard syncToggleObserver == nil else {
+            return
+        }
+
         syncToggleObserver = NotificationCenter.default.addObserver(
             forName: .cloudSyncEnabledChanged,
             object: nil,
@@ -1116,6 +1124,15 @@ final class AppModel: ObservableObject {
                 self?.setSyncEnabled(enabled)
             }
         }
+    }
+
+    private func stopCloudSyncEngine() {
+        cloudSyncEngine?.delegate = nil
+        cloudSyncEngine?.stop()
+        cloudSyncEngine = nil
+    }
+
+    private func startCloudSync(initialFetchMode: CloudSyncInitialFetchMode = .immediate) {
 
         guard let cloudSyncEngine else { return }
         cloudSyncEngine.delegate = self
@@ -1139,12 +1156,11 @@ final class AppModel: ObservableObject {
 
     func setSyncEnabled(_ enabled: Bool) {
         if enabled, cloudSyncEngine == nil {
-            let engine = CloudSyncEngine()
+            let engine = cloudSyncEngineFactory()
             cloudSyncEngine = engine
             startCloudSync(initialFetchMode: .immediate)
         } else if !enabled {
-            cloudSyncEngine?.delegate = nil
-            cloudSyncEngine = nil
+            stopCloudSyncEngine()
             deferredCloudSyncFetchTask?.cancel()
             deferredCloudSyncFetchTask = nil
         }

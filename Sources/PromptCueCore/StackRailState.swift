@@ -12,7 +12,7 @@ public enum StackRailFilter: String, CaseIterable, Codable, Equatable, Sendable 
         case .onStage:
             return "On Stage"
         case .offstage:
-            return "Offstage"
+            return "Off Stage"
         }
     }
 }
@@ -36,17 +36,17 @@ public struct StackRailState: Equatable, Sendable {
     }
 
     public var summaryLabel: String {
-        "\(activeCount) on stage · \(copiedCount) offstage"
+        "\(activeCount) On Stage · \(copiedCount) Off Stage"
     }
 
     public var headerTitle: String {
         switch filter {
         case .all:
-            return "On Stage \(activeCount) · Offstage \(copiedCount)"
+            return "On Stage \(activeCount) · Off Stage \(copiedCount)"
         case .onStage:
             return "On Stage \(activeCount)"
         case .offstage:
-            return "Offstage \(copiedCount)"
+            return "Off Stage \(copiedCount)"
         }
     }
 

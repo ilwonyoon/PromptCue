@@ -11,7 +11,6 @@ extension AppModel {
         prepareDraftMetricsForPresentation()
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         isCaptureSuggestedTargetPresentationActive = true
         refreshSuggestedTargetProviderLifecycle()
         refreshAvailableSuggestedTargets()
@@ -37,7 +36,6 @@ extension AppModel {
         }
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         isCaptureSuggestedTargetPresentationActive = false
         refreshSuggestedTargetProviderLifecycle()
         recentScreenshotCoordinator.resumeExpiration()
@@ -53,7 +51,6 @@ extension AppModel {
         draftSuggestedTargetOverride = card.suggestedTarget
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         if let screenshotURL = card.screenshotURL {
             draftRecentScreenshotStateOverride = .previewReady(
                 sessionID: UUID(),
@@ -186,7 +183,6 @@ extension AppModel {
         isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         if attachment != nil {
             recentScreenshotCoordinator.consumeCurrent()
         }
@@ -204,7 +200,6 @@ extension AppModel {
         isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         syncRecentScreenshotState()
     }
 
@@ -335,7 +330,6 @@ extension AppModel {
         isSeedingCaptureFromCopiedCard = false
         isShowingCaptureSuggestedTargetChooser = false
         selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         syncRecentScreenshotState()
         cloudSyncEngine?.pushLocalChange(card: updatedCard)
         return true

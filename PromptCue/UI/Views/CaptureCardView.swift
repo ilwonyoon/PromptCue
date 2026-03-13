@@ -81,14 +81,18 @@ struct CaptureCardView: View {
 
     var body: some View {
         let visibleInlineText = card.visibleInlineText
-        let displayConfiguration = InteractiveDetectedTextView.displayConfiguration(
+        let styledText = InteractiveDetectedTextView.styledText(
             text: visibleInlineText,
-            classification: classification
+            classification: classification,
+            baseColor: actionStyle.bodyColor,
+            highlightedRanges: card.visibleInlineTagRanges
         )
+        let displayConfiguration = styledText.displayConfiguration
         let overflowMetrics = StackCardOverflowPolicy.metrics(
-            for: displayConfiguration.text,
+            for: styledText.measurementText,
             cacheIdentity: card.id,
             layoutVariant: displayConfiguration.layoutVariant,
+            styleSignature: styledText.cacheSignature,
             availableWidth: textContentWidth
         )
 
@@ -106,12 +110,7 @@ struct CaptureCardView: View {
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    InteractiveDetectedTextView(
-                        text: visibleInlineText,
-                        classification: classification,
-                        baseColor: actionStyle.bodyColor,
-                        highlightedRanges: card.visibleInlineTagRanges
-                    )
+                    InteractiveDetectedTextView(styledText: styledText)
                     .frame(
                         height: displayConfiguration.prefersSingleLine
                             ? nil

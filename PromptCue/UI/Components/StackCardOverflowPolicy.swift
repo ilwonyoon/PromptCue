@@ -85,6 +85,7 @@ enum StackCardOverflowPolicy {
         let cacheKey = identityCacheKey(
             cacheIdentity: cacheIdentity,
             layoutVariant: layoutVariant,
+            styleSignature: 0,
             width: normalizedWidth
         )
         if let cached = metricsCache.object(forKey: cacheKey) {
@@ -96,12 +97,66 @@ enum StackCardOverflowPolicy {
         return metrics
     }
 
+    static func metrics(
+        for measurementText: NSAttributedString,
+        cacheIdentity: UUID,
+        layoutVariant: Int = 0,
+        styleSignature: UInt64 = 0,
+        availableWidth: CGFloat = cardTextWidth
+    ) -> Metrics {
+        let normalizedWidth = max(availableWidth, 1)
+        let cacheKey = identityCacheKey(
+            cacheIdentity: cacheIdentity,
+            layoutVariant: layoutVariant,
+            styleSignature: styleSignature,
+            width: normalizedWidth
+        )
+        if let cached = metricsCache.object(forKey: cacheKey) {
+            return cached.metrics
+        }
+
+        let metrics = uncachedMetrics(for: measurementText, availableWidth: normalizedWidth)
+        metricsCache.setObject(MetricsBox(metrics), forKey: cacheKey, cost: measurementText.length)
+        return metrics
+    }
+
     static func uncachedMetrics(
         for text: String,
         availableWidth: CGFloat = cardTextWidth
     ) -> Metrics {
         let normalizedWidth = max(availableWidth, 1)
-        let measuredHeight = measureTextHeight(text: text, width: normalizedWidth)
+        let measuredHeight = measureTextHeight(
+            measurementText: NSAttributedString(
+                string: text,
+                attributes: [
+                    .font: bodyFont,
+                    .paragraphStyle: paragraphStyle,
+                ]
+            ),
+            width: normalizedWidth
+        )
+        return metrics(
+            measuredHeight: measuredHeight,
+            availableWidth: normalizedWidth
+        )
+    }
+
+    static func uncachedMetrics(
+        for measurementText: NSAttributedString,
+        availableWidth: CGFloat = cardTextWidth
+    ) -> Metrics {
+        let normalizedWidth = max(availableWidth, 1)
+        let measuredHeight = measureTextHeight(measurementText: measurementText, width: normalizedWidth)
+        return metrics(
+            measuredHeight: measuredHeight,
+            availableWidth: normalizedWidth
+        )
+    }
+
+    private static func metrics(
+        measuredHeight: CGFloat,
+        availableWidth: CGFloat
+    ) -> Metrics {
         let totalLineCount = max(1, Int(ceil((measuredHeight + bodyLineSpacing) / bodyLineAdvance)))
 
         let restingVisibleTextHeight = min(measuredHeight, restingMaxVisibleHeight)
@@ -153,16 +208,8 @@ enum StackCardOverflowPolicy {
         max(1, Int(floor((height + bodyLineSpacing) / bodyLineAdvance)))
     }
 
-    private static func measureTextHeight(text: String, width: CGFloat) -> CGFloat {
-        let attributedString = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: bodyFont,
-                .paragraphStyle: paragraphStyle,
-            ]
-        )
-
-        let boundingRect = attributedString.boundingRect(
+    private static func measureTextHeight(measurementText: NSAttributedString, width: CGFloat) -> CGFloat {
+        let boundingRect = measurementText.boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
@@ -178,10 +225,13 @@ enum StackCardOverflowPolicy {
     private static func identityCacheKey(
         cacheIdentity: UUID,
         layoutVariant: Int,
+        styleSignature: UInt64,
         width: CGFloat
     ) -> NSString {
         let normalizedWidth = Int((width * 10).rounded())
-        return NSString(string: "\(normalizedWidth):\(cacheIdentity.uuidString):\(layoutVariant)")
+        return NSString(
+            string: "\(normalizedWidth):\(cacheIdentity.uuidString):\(layoutVariant):\(styleSignature)"
+        )
     }
 
     private static func stableTextHash(_ text: String) -> UInt64 {

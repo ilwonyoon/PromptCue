@@ -1,4 +1,6 @@
 import CoreGraphics
+import Foundation
+import PromptCueCore
 import XCTest
 @testable import Prompt_Cue
 
@@ -42,5 +44,69 @@ final class StackCardOverflowPolicyTests: XCTestCase {
             StackCardOverflowPolicy.overflowLabel(hiddenLineCount: metrics.hiddenCollapsedCopiedLineCount),
             "+\(metrics.hiddenCollapsedCopiedLineCount) lines"
         )
+    }
+
+    func testAttributedMeasurementRespectsStyledFontChanges() {
+        let text = "tag tag tag tag tag tag tag tag tag tag tag tag"
+        let plainText = NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.body),
+            ]
+        )
+        let emphasizedText = NSMutableAttributedString(attributedString: plainText)
+        emphasizedText.addAttribute(
+            .font,
+            value: NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.body + 2, weight: .medium),
+            range: NSRange(location: 0, length: 11)
+        )
+
+        let plainMetrics = StackCardOverflowPolicy.metrics(
+            for: plainText,
+            cacheIdentity: UUID(),
+            styleSignature: 1,
+            availableWidth: 110
+        )
+        let emphasizedMetrics = StackCardOverflowPolicy.metrics(
+            for: emphasizedText,
+            cacheIdentity: UUID(),
+            styleSignature: 2,
+            availableWidth: 110
+        )
+
+        XCTAssertGreaterThanOrEqual(emphasizedMetrics.fullTextHeight, plainMetrics.fullTextHeight)
+        XCTAssertGreaterThanOrEqual(emphasizedMetrics.totalLineCount, plainMetrics.totalLineCount)
+    }
+
+    func testTaggedInlineDisplayUsesStyledMeasurementForCopiedSummaryWidths() {
+        let card = CaptureCard(
+            text: "Ship the stack header rail",
+            tags: [
+                CaptureTag(rawValue: "stack")!,
+                CaptureTag(rawValue: "launch")!,
+            ],
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: Date(),
+            sortOrder: 10
+        )
+
+        let styledText = InteractiveDetectedTextView.styledText(
+            text: card.visibleInlineText,
+            classification: .plain,
+            baseColor: .primary,
+            highlightedRanges: card.visibleInlineTagRanges
+        )
+        let metrics = StackCardOverflowPolicy.metrics(
+            for: styledText.measurementText,
+            cacheIdentity: card.id,
+            layoutVariant: styledText.displayConfiguration.layoutVariant,
+            styleSignature: styledText.cacheSignature,
+            availableWidth: PanelMetrics.stackCardColumnWidth - (PrimitiveTokens.Size.notificationCardPadding * 2)
+        )
+
+        XCTAssertEqual(styledText.displayConfiguration.text, "#stack #launch Ship the stack header rail")
+        XCTAssertFalse(styledText.measurementText.string.isEmpty)
+        XCTAssertGreaterThan(metrics.totalLineCount, 0)
     }
 }

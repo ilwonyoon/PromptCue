@@ -313,9 +313,18 @@ struct CardStackView: View {
             return nil
         }
 
+        let styledText = InteractiveDetectedTextView.styledText(
+            text: firstCopiedCard.visibleInlineText,
+            classification: resolveClassification(for: firstCopiedCard),
+            baseColor: copiedPreviewTextColor,
+            highlightedRanges: firstCopiedCard.visibleInlineTagRanges
+        )
+
         return StackCardOverflowPolicy.metrics(
-            for: firstCopiedCard.text,
+            for: styledText.measurementText,
             cacheIdentity: firstCopiedCard.id,
+            layoutVariant: styledText.displayConfiguration.layoutVariant,
+            styleSignature: styledText.cacheSignature,
             availableWidth: collapsedCopiedSummaryTextWidth
         )
     }

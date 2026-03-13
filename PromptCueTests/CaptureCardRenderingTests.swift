@@ -117,6 +117,38 @@ final class CaptureCardRenderingTests: XCTestCase {
         XCTAssertGreaterThan(expandedView.fittingSize.height, collapsedView.fittingSize.height)
     }
 
+    func testTaggedCardRendersWithStyledMeasurementContract() {
+        let card = CaptureCard(
+            text: "Polish the stack rail before launch",
+            tags: [
+                CaptureTag(rawValue: "stack")!,
+                CaptureTag(rawValue: "launch")!,
+            ],
+            createdAt: Date(),
+            screenshotPath: nil,
+            lastCopiedAt: nil,
+            sortOrder: 103
+        )
+
+        let view = NSHostingView(
+            rootView: CaptureCardView(
+                card: card,
+                isSelected: false,
+                selectionMode: false,
+                isExpanded: false,
+                onCopy: {},
+                onToggleSelection: {},
+                onToggleExpansion: {},
+                onDelete: {}
+            )
+            .environment(\.colorScheme, .light)
+        )
+        view.frame = NSRect(x: 0, y: 0, width: 360, height: 400)
+        view.layoutSubtreeIfNeeded()
+
+        XCTAssertGreaterThan(view.fittingSize.height, 0)
+    }
+
     func testSecretClassificationUsesMaskedLayoutHeight() throws {
         let text = "sk-ant-api03-plsA-whwgZpvfyNc8M1s9ZcBzMbb83HB1f-HAv5nXS1yvLJqlEG7zLJyMksg4KYkoQ3UNhj0_qeMYWPyhNwG7Q-9O_6gAAA"
         let card = CaptureCard(

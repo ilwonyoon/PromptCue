@@ -154,9 +154,7 @@ struct CaptureCardView: View {
                             : "Copies this cue to the clipboard"
                     )
                     .onHover { hovered in
-                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                            isCopyHovered = hovered
-                        }
+                        isCopyHovered = hovered
                     }
 
                     iconButton(
@@ -168,9 +166,7 @@ struct CaptureCardView: View {
                     .accessibilityLabel("Delete cue")
                     .accessibilityHint("Permanently removes this cue")
                     .onHover { hovered in
-                        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                            isDeleteHovered = hovered
-                        }
+                        isDeleteHovered = hovered
                     }
                 }
                 .frame(width: actionColumnWidth, alignment: .topTrailing)
@@ -202,17 +198,8 @@ struct CaptureCardView: View {
                 performPrimaryAction()
             }
         }
-        .onContinuousHover { phase in
-            let hovered: Bool
-            switch phase {
-            case .active:
-                hovered = true
-            case .ended:
-                hovered = false
-            }
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                isCardHovered = hovered
-            }
+        .onHover { hovered in
+            isCardHovered = hovered
         }
     }
 
@@ -264,9 +251,7 @@ struct CaptureCardView: View {
         .buttonStyle(.plain)
         .contentShape(Rectangle())
         .onHover { hovered in
-            withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
-                isOverflowAffordanceHovered = hovered
-            }
+            isOverflowAffordanceHovered = hovered
         }
         .accessibilityLabel(label)
         .accessibilityHint(isExpanded ? "Collapse this cue" : "Show more of this cue")
@@ -291,12 +276,12 @@ struct CaptureCardView: View {
             return
         }
 
-        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.quick)) {
+        withAnimation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick)) {
             isShowingCopyFeedback = true
         }
 
         onCopy()
-        DispatchQueue.main.asyncAfter(deadline: .now() + PrimitiveTokens.Motion.quick) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + PrimitiveTokens.Motion.hoverQuick) {
             isShowingCopyFeedback = false
         }
     }

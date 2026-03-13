@@ -81,6 +81,9 @@ enum PrimitiveTokens {
     enum Motion {
         static let quick: Double = 0.14
         static let standard: Double = 0.2
+        static let hoverQuick: Double = 0.1
+        static let stackOpen: Double = 0.18
+        static let stackClose: Double = 0.12
     }
 
     enum Shadow {

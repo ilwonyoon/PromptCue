@@ -360,16 +360,11 @@ struct CardStackView: View {
             }
             .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
             .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
-            .animation(.easeOut(duration: PrimitiveTokens.Motion.quick), value: isCopiedStackHovered)
+            .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         }
         .buttonStyle(.plain)
-        .onContinuousHover { phase in
-            switch phase {
-            case .active:
-                isCopiedStackHovered = true
-            case .ended:
-                isCopiedStackHovered = false
-            }
+        .onHover { hovered in
+            isCopiedStackHovered = hovered
         }
         .accessibilityLabel("Offstage cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")

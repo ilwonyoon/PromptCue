@@ -15,11 +15,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             guard let environmentValue,
                   let mode = PresentationMode(rawValue: environmentValue)
             else {
-                // Default to immediate presentation. The remaining intermittent
-                // blink comes from the offscreen -> onscreen window-frame
-                // animation itself, so the production path avoids window-level
-                // choreography and shows the panel in its final frame.
-                self = .immediate
+                // Default to a visible fade-only entrance. It keeps the stack
+                // perceptible on open without reintroducing the heavier
+                // offscreen frame animation path.
+                self = .fadeOnly
                 return
             }
 
@@ -158,7 +157,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             guard let panel else { return }
             PerformanceTrace.markStackOpenPhase("animation_dispatch")
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = PrimitiveTokens.Motion.standard
+                context.duration = PrimitiveTokens.Motion.stackOpen
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
 
                 if presentationMode.animatesAlpha {
@@ -209,7 +208,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         isAnimatingClose = true
 
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = PrimitiveTokens.Motion.quick
+            context.duration = PrimitiveTokens.Motion.stackClose
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().setFrame(offscreenPanelFrame(for: panel.frame.size), display: true)
         } completionHandler: { [weak self, weak panel] in

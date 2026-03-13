@@ -44,6 +44,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
 | Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host |
+| Inline tag contract hardening | In progress | prototype interaction is landed, but live diagnosis confirmed polluted structured tags from mixed-script input; `Phase R7C` now locks canonical slug tags before broader MCP-facing rollout |
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and click expansion | In progress | long cards need capped resting height, `+N lines` affordance, click-to-expand, and stable copied-stack behavior |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
@@ -118,6 +119,13 @@ Current MCP direction is narrower than the old plan:
 
 - build MCP over `Stack` storage directly
 - do not keep board or work-item experiments alive
+
+Current MCP-facing tag rule:
+
+- Stack notes may carry lightweight structured tags to improve downstream AI classification
+- those tags must come from the canonical storage contract, not from arbitrary `#...` body text
+- polluted mixed-script tag strings are a data-integrity issue, not a presentation issue
+- fix storage and parsing first, then let Capture and Stack reconstruct inline display from the cleaned structured tags
 
 Carry forward:
 

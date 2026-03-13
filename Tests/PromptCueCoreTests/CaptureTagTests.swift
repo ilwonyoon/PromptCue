@@ -16,6 +16,8 @@ struct CaptureTagTests {
         #expect(CaptureTag(rawValue: "#123") == nil)
         #expect(CaptureTag(rawValue: "#bug fix") == nil)
         #expect(CaptureTag(rawValue: "#") == nil)
+        #expect(CaptureTag(rawValue: "#한글") == nil)
+        #expect(CaptureTag(rawValue: "#ㅠㅕbug") == nil)
     }
 
     @Test
@@ -95,6 +97,15 @@ struct CaptureTagTests {
     }
 
     @Test
+    func parseCommittedPrefixLeavesMixedScriptPrefixInBody() {
+        let result = CaptureTagText.parseCommittedPrefix(in: "#ㅠㅕbug Fix capture")
+
+        #expect(result.tags.isEmpty)
+        #expect(result.bodyText == "#ㅠㅕbug Fix capture")
+        #expect(result.bodyStartUTF16Offset == 0)
+    }
+
+    @Test
     func completionContextFindsLeadingTagPrefix() {
         let text = "#bug #bu"
         let result = CaptureTagText.completionContext(
@@ -105,6 +116,13 @@ struct CaptureTagTests {
         #expect(result?.rawToken == "#bu")
         #expect(result?.normalizedPrefix == "bu")
         #expect(result?.replacementRange == NSRange(location: 5, length: 3))
+    }
+
+    @Test
+    func decodeJSONArrayFiltersInvalidAndMixedScriptTags() {
+        let decoded = CaptureTag.decodeJSONArray(#"["bug","ㅠㅕbug","mcp"]"#)
+
+        #expect(decoded.map(\.name) == ["bug", "mcp"])
     }
 
     @Test

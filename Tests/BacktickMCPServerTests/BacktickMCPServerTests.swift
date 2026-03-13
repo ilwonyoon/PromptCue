@@ -183,6 +183,27 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(deletePayload["deleted"] as? Bool, true)
     }
 
+    func testCreateNoteRejectsMixedScriptTags() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Should fail",
+                    "tags": ["bug", "ㅠㅕbug"],
+                ],
+            ]
+        )
+        let payload = try toolErrorPayload(from: response)
+
+        XCTAssertEqual(payload["error"] as? String, "tags must contain valid tag names")
+    }
+
     func testClassifyNotesGroupsByRepository() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
@@ -548,6 +569,16 @@ final class BacktickMCPServerTests: XCTestCase {
     private func notePayload(from response: [String: Any]) throws -> [String: Any] {
         let payload = try toolPayload(from: response)
         return try XCTUnwrap(payload["note"] as? [String: Any])
+    }
+
+    private func toolErrorPayload(from response: [String: Any]) throws -> [String: Any] {
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, true)
+        let content = try XCTUnwrap(result["content"] as? [[String: Any]])
+        let text = try XCTUnwrap(content.first?["text"] as? String)
+        let payloadData = try XCTUnwrap(text.data(using: .utf8))
+        let payload = try JSONSerialization.jsonObject(with: payloadData)
+        return try XCTUnwrap(payload as? [String: Any])
     }
 
     private func notesPayload(from response: [String: Any]) throws -> [[String: Any]] {

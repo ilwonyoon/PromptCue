@@ -63,12 +63,44 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
         return tags.filter { seen.insert($0).inserted }
     }
 
-    private static func isLeadingScalar(_ scalar: UnicodeScalar) -> Bool {
-        CharacterSet.letters.contains(scalar)
+    public static func canonicalize(rawValues: [String]) -> [CaptureTag] {
+        deduplicatePreservingOrder(rawValues.compactMap(CaptureTag.init(rawValue:)))
     }
 
-    private static func isBodyScalar(_ scalar: UnicodeScalar) -> Bool {
-        CharacterSet.alphanumerics.contains(scalar)
+    public static func encodeJSONArray(_ tags: [CaptureTag]) -> String? {
+        let canonicalTags = deduplicatePreservingOrder(tags)
+        guard !canonicalTags.isEmpty,
+              let data = try? JSONEncoder().encode(canonicalTags) else {
+            return nil
+        }
+
+        return String(data: data, encoding: .utf8)
+    }
+
+    public static func decodeJSONArray(_ json: String?) -> [CaptureTag] {
+        guard let json,
+              let data = json.data(using: .utf8) else {
+            return []
+        }
+
+        if let rawValues = try? JSONDecoder().decode([String].self, from: data) {
+            return canonicalize(rawValues: rawValues)
+        }
+
+        if let tags = try? JSONDecoder().decode([CaptureTag].self, from: data) {
+            return deduplicatePreservingOrder(tags)
+        }
+
+        return []
+    }
+
+    fileprivate static func isLeadingScalar(_ scalar: UnicodeScalar) -> Bool {
+        scalar.value >= 97 && scalar.value <= 122
+    }
+
+    fileprivate static func isBodyScalar(_ scalar: UnicodeScalar) -> Bool {
+        isLeadingScalar(scalar)
+            || (scalar.value >= 48 && scalar.value <= 57)
             || scalar.value == 95
             || scalar.value == 45
     }
@@ -311,7 +343,7 @@ public enum CaptureTagText {
 
         let normalized = trimmed.lowercased()
         guard let firstScalar = normalized.unicodeScalars.first,
-              CharacterSet.letters.contains(firstScalar),
+              CaptureTag.isLeadingScalar(firstScalar),
               normalized.unicodeScalars.dropFirst().allSatisfy(isTagBodyScalar) else {
             return nil
         }
@@ -332,8 +364,6 @@ public enum CaptureTagText {
     }
 
     private static func isTagBodyScalar(_ scalar: UnicodeScalar) -> Bool {
-        CharacterSet.alphanumerics.contains(scalar)
-            || scalar.value == 95
-            || scalar.value == 45
+        CaptureTag.isBodyScalar(scalar)
     }
 }

@@ -223,6 +223,71 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertEqual(loadedCards.first?.sortOrder, createdAt.timeIntervalSinceReferenceDate)
         XCTAssertTrue(cardColumns.contains("sortOrder"))
         XCTAssertTrue(cardColumns.contains("suggestedTargetJSON"))
+        XCTAssertTrue(cardColumns.contains("tagsJSON"))
+    }
+
+    func testPromptCueDatabaseMigrationCanonicalizesPollutedTagsJSON() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let legacyCardID = UUID()
+        let createdAt = Date(timeIntervalSinceReferenceDate: 250)
+        let legacyQueue = try DatabaseQueue(path: databaseURL.path)
+
+        try legacyQueue.write { db in
+            try db.create(table: "grdb_migrations") { table in
+                table.column("identifier", .text).notNull().primaryKey()
+            }
+            try db.execute(
+                sql: """
+                INSERT INTO grdb_migrations (identifier) VALUES (?), (?), (?), (?), (?)
+                """,
+                arguments: [
+                    "createCards",
+                    "addLastCopiedAt",
+                    "addSortOrder",
+                    "addSuggestedTargetJSON",
+                    "addTagsJSON",
+                ]
+            )
+            try db.create(table: "cards") { table in
+                table.column("id", .text).notNull().primaryKey()
+                table.column("text", .text).notNull()
+                table.column("createdAt", .datetime).notNull()
+                table.column("screenshotPath", .text)
+                table.column("lastCopiedAt", .datetime)
+                table.column("sortOrder", .double).notNull()
+                table.column("suggestedTargetJSON", .text)
+                table.column("tagsJSON", .text)
+            }
+            try db.execute(
+                sql: """
+                INSERT INTO cards (id, text, createdAt, sortOrder, tagsJSON)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    legacyCardID.uuidString,
+                    "Legacy polluted tags",
+                    createdAt,
+                    createdAt.timeIntervalSinceReferenceDate,
+                    #"["bug","ㅠㅕbug","mcp"]"#,
+                ]
+            )
+        }
+
+        let database = PromptCueDatabase(databaseURL: databaseURL)
+        let store = CardStore(database: database)
+
+        let loadedCards = try store.load()
+        let normalizedTagsJSON = try XCTUnwrap(database.dbQueue).read { db in
+            try String?.fetchOne(
+                db,
+                sql: "SELECT tagsJSON FROM cards WHERE id = ?",
+                arguments: [legacyCardID.uuidString]
+            )
+        }
+
+        XCTAssertEqual(loadedCards.count, 1)
+        XCTAssertEqual(loadedCards.first?.tags.map(\.name), ["bug", "mcp"])
+        XCTAssertEqual(normalizedTagsJSON, #"["bug","mcp"]"#)
     }
 
     func testCardStoreAndCopyEventStoreShareDatabaseWhenBootstrappedSeparately() throws {

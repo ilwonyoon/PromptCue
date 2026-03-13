@@ -466,7 +466,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         return CaptureCard(
             id: uuid,
             text: text,
-            tags: ((record["tags"] as? [String]) ?? []).compactMap(CaptureTag.init(rawValue:)),
+            tags: CaptureTag.canonicalize(rawValues: (record["tags"] as? [String]) ?? []),
             createdAt: createdAt,
             screenshotPath: nil,
             lastCopiedAt: record["lastCopiedAt"] as? Date,

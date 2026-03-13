@@ -204,10 +204,12 @@ struct CardStackView: View {
                         }
                     }
                     .padding(.horizontal, PrimitiveTokens.Space.sm)
-                    .padding(.vertical, PrimitiveTokens.Space.xs)
+                    .padding(.vertical, PrimitiveTokens.Space.sm)
+                    .frame(minHeight: 36, alignment: .center)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(filterRowBackground(for: filter))
                     .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -303,7 +305,7 @@ struct CardStackView: View {
     private func copiedSectionHeader(copiedCards: [CaptureCard], isExpanded: Bool, isCollapsible: Bool) -> some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
             HStack(alignment: .firstTextBaseline, spacing: PrimitiveTokens.Space.xs) {
-                Text("Offstage")
+                Text("Off Stage")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(SemanticTokens.Text.secondary)
 
@@ -319,7 +321,7 @@ struct CardStackView: View {
                 isCollapsible: isCollapsible
             )
         }
-        .accessibilityLabel("Offstage section, \(copiedCards.count) cues")
+        .accessibilityLabel("Off Stage section, \(copiedCards.count) cues")
     }
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
@@ -367,7 +369,7 @@ struct CardStackView: View {
         .onTapGesture {
             isCopiedStackExpanded = true
         }
-        .accessibilityLabel("Offstage cues, \(copiedCards.count) items")
+        .accessibilityLabel("Off Stage cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
     }
 
@@ -418,38 +420,46 @@ struct CardStackView: View {
         isExpanded: Bool,
         isCollapsible: Bool
     ) -> some View {
-        HStack(spacing: PrimitiveTokens.Space.xxxs) {
-            if isConfirmingOffstageDelete {
-                Button("Cancel") {
-                    isConfirmingOffstageDelete = false
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(SemanticTokens.Text.secondary)
-                .frame(height: 16)
+        HStack(spacing: 16) {
+            HStack(spacing: PrimitiveTokens.Space.xs) {
+                if isConfirmingOffstageDelete {
+                    Button {
+                        isConfirmingOffstageDelete = false
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .frame(height: 16)
+                    }
+                    .buttonStyle(.plain)
 
-                Button("Delete all") {
-                    model.deleteOffstageCards()
-                    isConfirmingOffstageDelete = false
+                    Button {
+                        model.deleteOffstageCards()
+                        isConfirmingOffstageDelete = false
+                    } label: {
+                        Text("Delete all")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(nsColor: .systemRed))
+                            .frame(height: 16)
+                    }
+                    .buttonStyle(.plain)
+                } else if !copiedCards.isEmpty {
+                    Button {
+                        isConfirmingOffstageDelete = true
+                    } label: {
+                        Text("Delete all")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .frame(height: 16)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color(nsColor: .systemRed))
-                .frame(height: 16)
-            } else if !copiedCards.isEmpty {
-                Button("Delete all") {
-                    isConfirmingOffstageDelete = true
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(SemanticTokens.Text.secondary)
-                .frame(height: 16)
             }
 
             if isCollapsible {
                 StackRailControlButton(
                     systemName: "chevron.down",
-                    accessibilityLabel: isExpanded ? "Collapse offstage cues" : "Expand offstage cues",
+                    accessibilityLabel: isExpanded ? "Collapse off stage cues" : "Expand off stage cues",
                     glyphSize: 12,
                     controlSize: 20,
                     isActive: isExpanded,

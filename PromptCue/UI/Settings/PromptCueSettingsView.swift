@@ -1711,7 +1711,7 @@ struct PromptCueSettingsView: View {
 
     private func rowNote(_ text: String) -> some View {
         Text(text)
-            .font(SettingsTokens.Typography.supportingStrong)
+            .font(SettingsTokens.Typography.supporting)
             .foregroundStyle(SettingsSemanticTokens.Text.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }

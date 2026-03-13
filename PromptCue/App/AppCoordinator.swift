@@ -3,7 +3,7 @@ import KeyboardShortcuts
 import PromptCueCore
 
 @MainActor
-final class AppCoordinator: NSObject, AppLifecycleCoordinating {
+final class AppCoordinator: NSObject, AppLifecycleCoordinating, NSMenuDelegate {
     let model: AppModel
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
@@ -34,6 +34,16 @@ final class AppCoordinator: NSObject, AppLifecycleCoordinating {
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
     private var licenseManagementObserver: NSObjectProtocol?
+    #if DEBUG
+    private var qaAccessOverrideMenuItems: [NSMenuItem] = []
+    private static let qaAccessOverrideOptions: [(title: String, value: String)] = [
+        ("Live", "live"),
+        ("Trial", "trial"),
+        ("Expired", "expired"),
+        ("Rollback", "rollback"),
+        ("Licensed", "licensed")
+    ]
+    #endif
 
     override init() {
         model = AppModel(captureAccessController: licensingSettingsModel)
@@ -140,6 +150,7 @@ final class AppCoordinator: NSObject, AppLifecycleCoordinating {
 
     func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
+        menu.delegate = self
         let quickCaptureItem = NSMenuItem(title: "Quick Capture", action: #selector(handleQuickCapture), keyEquivalent: "")
         quickCaptureItem.setShortcut(for: .quickCapture)
         quickCaptureItem.target = self
@@ -151,6 +162,25 @@ final class AppCoordinator: NSObject, AppLifecycleCoordinating {
         menu.addItem(toggleStackItem)
 
         menu.addItem(.separator())
+        #if DEBUG
+        let qaAccessOverrideItem = NSMenuItem(title: "QA Access Override", action: nil, keyEquivalent: "")
+        let qaAccessOverrideMenu = NSMenu(title: "QA Access Override")
+        qaAccessOverrideMenuItems = Self.qaAccessOverrideOptions.map { option in
+            let item = NSMenuItem(
+                title: option.title,
+                action: #selector(handleQAAccessOverrideSelection(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = option.value
+            qaAccessOverrideMenu.addItem(item)
+            return item
+        }
+        qaAccessOverrideItem.submenu = qaAccessOverrideMenu
+        menu.addItem(qaAccessOverrideItem)
+        menu.addItem(.separator())
+        updateQAAccessOverrideMenuItemStates()
+        #endif
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ",")
         settingsItem.target = self
@@ -191,6 +221,28 @@ final class AppCoordinator: NSObject, AppLifecycleCoordinating {
     @objc private func handleQuit() {
         NSApp.terminate(nil)
     }
+
+    #if DEBUG
+    @objc private func handleQAAccessOverrideSelection(_ sender: NSMenuItem) {
+        guard let selectionValue = sender.representedObject as? String else {
+            return
+        }
+
+        licensingSettingsModel.setQAAccessStateOverrideSelectionValue(selectionValue)
+        updateQAAccessOverrideMenuItemStates()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        updateQAAccessOverrideMenuItemStates()
+    }
+
+    private func updateQAAccessOverrideMenuItemStates() {
+        let selectedValue = licensingSettingsModel.qaAccessStateOverrideSelectionValue
+        qaAccessOverrideMenuItems.forEach { item in
+            item.state = (item.representedObject as? String) == selectedValue ? .on : .off
+        }
+    }
+    #endif
 
     private func showCapturePanel() {
         pendingStackToggleTask?.cancel()

@@ -87,6 +87,7 @@
 		8B1D4C1E0A134FDFEBA87A45 /* CaptureAccessControlling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C87B547D091FFE01094AA8 /* CaptureAccessControlling.swift */; };
 		8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = 72E63F66D51437F9424F0BB5 /* PromptCueCore */; };
 		8CE5F57D2E4721760E7A48E3 /* CloudSyncSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */; };
+		913A95442BA99B13146D8B51 /* AppCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37FF05963D30F4E35FAADF25 /* AppCoordinatorTests.swift */; };
 		922DAAD0016948F15D73E08F /* SettingsTwoColumnGroupRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 959A9B3ACC15EC62A640A95A /* SettingsTwoColumnGroupRow.swift */; };
 		99E47620285AD3D897387B66 /* CaptureEditorRuntimeHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19509EEED1658575B46ED8F4 /* CaptureEditorRuntimeHostView.swift */; };
 		9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ACEFD4C812481A89D90B251 /* PromptCueApp.swift */; };
@@ -204,6 +205,7 @@
 		358114AA1F69A493530DB5A7 /* AppModel+CaptureTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CaptureTags.swift"; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
 		35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsTests.swift; sourceTree = "<group>"; };
+		37FF05963D30F4E35FAADF25 /* AppCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorTests.swift; sourceTree = "<group>"; };
 		3823DFD1C47FC69FFB8F69A9 /* CardRetentionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsTests.swift; sourceTree = "<group>"; };
 		3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedScreenshotAccess.swift; sourceTree = "<group>"; };
 		38433C3A956E2CF40F702E06 /* LicensingStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicensingStateStore.swift; sourceTree = "<group>"; };
@@ -560,6 +562,7 @@
 		AF83515198E7EA1B81754D52 /* PromptCueTests */ = {
 			isa = PBXGroup;
 			children = (
+				37FF05963D30F4E35FAADF25 /* AppCoordinatorTests.swift */,
 				B7725BE080119E0BE4B98883 /* AppDelegateCloudSyncTests.swift */,
 				6847C4F07F9A4481224AD862 /* AppEnvironmentTests.swift */,
 				704D4D9C68EDE16302085CDD /* AppModelCloudSyncLifecycleTests.swift */,
@@ -824,6 +827,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				913A95442BA99B13146D8B51 /* AppCoordinatorTests.swift in Sources */,
 				F865250BDAC517625A471DE3 /* AppDelegateCloudSyncTests.swift in Sources */,
 				A6719F175822EA41E30EADA5 /* AppEnvironmentTests.swift in Sources */,
 				9CDF82CF6CC501C83643FD29 /* AppModelCloudSyncLifecycleTests.swift in Sources */,

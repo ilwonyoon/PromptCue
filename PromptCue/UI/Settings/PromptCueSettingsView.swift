@@ -372,6 +372,38 @@ struct PromptCueSettingsView: View {
             }
         }
 
+        #if DEBUG
+        SettingsSection(
+            title: "QA Access Override",
+            footer: "Debug-only runtime licensing override. This changes the active UX immediately without mutating the saved Keychain trial or license state."
+        ) {
+            SettingsRows {
+                SettingsTwoColumnGroupRow(
+                    "State",
+                    showsDivider: false,
+                    contentAlignment: .trailing
+                ) {
+                    Picker(
+                        "",
+                        selection: binding(
+                            get: { licensingSettingsModel.qaAccessStateOverrideSelectionValue },
+                            set: { licensingSettingsModel.setQAAccessStateOverrideSelectionValue($0) }
+                        )
+                    ) {
+                        Text("Live").tag("live")
+                        Text("Trial").tag("trial")
+                        Text("Expired").tag("expired")
+                        Text("Rollback").tag("rollback")
+                        Text("Licensed").tag("licensed")
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(maxWidth: 180, alignment: .trailing)
+                }
+            }
+        }
+        #endif
+
         SettingsSection(
             title: "iCloud Sync",
             footer: "Sync cards across your Macs via iCloud. Screenshots stay local."

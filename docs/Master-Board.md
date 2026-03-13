@@ -48,6 +48,8 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Inline tag integration | In progress | PR `#50` is now governed by `docs/PR50-Inline-Tag-Integration-Runbook.md`; merge work must preserve selector stability, keyboard safety, and theme-sync behavior on current `main` |
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and click expansion | In progress | long cards need capped resting height, `+N lines` affordance, click-to-expand, and stable copied-stack behavior |
+| Stack refactor execution plan | Planned | the next Stack-wide slice is now locked in `docs/Stack-Refactor-Execution-Plan.md`, covering render containment, clipping repair, and the staged rollout for the new header rail/filter/TTL/logo UX |
+| Stack header rail, filter, and TTL ring | Planned | the next stack UX follow-up is locked in `docs/Stack-Header-Rail-Plan.md`, including a persistent header rail, launch-facing queue terminology, stack filtering, per-card TTL rings, and theme-adaptive Backtick logo rules |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |
 | Design-system execution planning | In progress in strategy branch | `docs/Design-System-Execution-Plan.md` breaks the strategy into DS1-DS5; DS1, DS2, and DS3 are implemented, DS4 has started, and DS5 remains pending |
 

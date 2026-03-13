@@ -210,6 +210,10 @@ After `Phase R8`, the next planned slice is:
 
 - `Phase R9: stack card overflow and click expansion`
 
+A broader execution plan now governs the next full stack refactor:
+
+- `docs/Stack-Refactor-Execution-Plan.md`
+
 This slice exists because very long cue content currently turns Stack into a layout outlier instead of a stable execution queue.
 
 Backtick rule for this slice:
@@ -237,6 +241,12 @@ Planned integration order:
 2. update active stack cards
 3. update collapsed copied-stack summaries
 4. add automated visual/behavior verification for long-card fixtures
+
+A bounded follow-up plan for the next stack UX slice now exists in:
+
+- `docs/Stack-Header-Rail-Plan.md`
+
+That document is now the UI child plan under `docs/Stack-Refactor-Execution-Plan.md` and locks the persistent stack header rail, launch-facing queue terminology, stack filtering, active-card TTL ring, and theme-adaptive Backtick logo behavior without reopening the current staged-copy and copied-commit contract.
 
 ## MCP Reset
 

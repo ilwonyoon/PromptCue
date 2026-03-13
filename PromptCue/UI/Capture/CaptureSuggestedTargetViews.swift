@@ -62,10 +62,12 @@ struct CaptureSuggestedTargetChooserPanelView: View {
 
     var body: some View {
         SuggestedTargetChooserListView(
+            selectedTarget: model.captureChooserTarget,
             focusedTarget: model.focusedCaptureSuggestedTarget,
             availableTargets: model.availableSuggestedTargets,
             emptyLabel: "No open supported apps",
             automaticTarget: model.automaticSuggestedTarget,
+            isAutomaticSelected: model.isCaptureSuggestedTargetAutomatic,
             isAutomaticFocused: model.isAutomaticCaptureSuggestedTargetFocused,
             controlWidth: AppUIConstants.captureSelectorControlWidth,
             fixedWidth: nil,
@@ -117,10 +119,12 @@ private struct SuggestedTargetOriginControl: View {
         .help(currentTargetTooltip)
         .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {
             SuggestedTargetChooserListView(
+                selectedTarget: currentTarget ?? automaticTarget,
                 focusedTarget: currentTarget ?? automaticTarget,
                 availableTargets: availableTargets,
                 emptyLabel: emptyLabel,
                 automaticTarget: automaticTarget,
+                isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
                 controlWidth: nil,
                 fixedWidth: 280,
@@ -161,11 +165,19 @@ private struct SuggestedTargetOriginControl: View {
     }
 }
 
+private enum SuggestedTargetChooserRowState {
+    case selected
+    case hovered
+    case idle
+}
+
 private struct SuggestedTargetChooserListView: View {
+    let selectedTarget: CaptureSuggestedTarget?
     let focusedTarget: CaptureSuggestedTarget?
     let availableTargets: [CaptureSuggestedTarget]
     let emptyLabel: String
     let automaticTarget: CaptureSuggestedTarget?
+    let isAutomaticSelected: Bool
     let isAutomaticFocused: Bool
     let controlWidth: CGFloat?
     let fixedWidth: CGFloat?
@@ -232,9 +244,7 @@ private struct SuggestedTargetChooserListView: View {
                         ForEach(displayedTargets, id: \.canonicalIdentityKey) { target in
                             chooserRow(
                                 target: target,
-                                isFocused: target == automaticTarget
-                                    ? isAutomaticFocused
-                                    : (!isAutomaticFocused && target == focusedTarget),
+                                rowState: rowState(for: target),
                                 isRecent: target == automaticTarget
                             ) {
                                 if target == automaticTarget {
@@ -257,7 +267,7 @@ private struct SuggestedTargetChooserListView: View {
                     visibleWindowStartIndex = 0
                     scrollHighlightedRowIfNeeded(using: proxy)
                 }
-                .onChange(of: highlightedChoiceID) { _, _ in
+                .onChange(of: focusedChoiceID) { _, _ in
                     scrollHighlightedRowIfNeeded(using: proxy)
                 }
             }
@@ -287,7 +297,15 @@ private struct SuggestedTargetChooserListView: View {
         "__automatic__"
     }
 
-    private var highlightedChoiceID: String? {
+    private var selectedChoiceID: String? {
+        if isAutomaticSelected, automaticTarget != nil {
+            return automaticChoiceID
+        }
+
+        return selectedTarget?.canonicalIdentityKey
+    }
+
+    private var focusedChoiceID: String? {
         if isAutomaticFocused, automaticTarget != nil {
             return automaticChoiceID
         }
@@ -296,11 +314,11 @@ private struct SuggestedTargetChooserListView: View {
     }
 
     private var highlightedChoiceIndex: Int? {
-        guard let highlightedChoiceID else {
+        guard let focusedChoiceID else {
             return nil
         }
 
-        return displayedTargets.firstIndex { choiceID(for: $0) == highlightedChoiceID }
+        return displayedTargets.firstIndex { choiceID(for: $0) == focusedChoiceID }
     }
 
     private var keyboardVisibleRowCapacity: Int {
@@ -341,17 +359,28 @@ private struct SuggestedTargetChooserListView: View {
     @ViewBuilder
     private func chooserRow(
         target: CaptureSuggestedTarget,
-        isFocused: Bool,
+        rowState: SuggestedTargetChooserRowState,
         isRecent: Bool,
         action: @escaping () -> Void
     ) -> some View {
         SuggestedTargetChooserRow(
             target: target,
             controlWidth: controlWidth,
-            isFocused: isFocused,
+            rowState: rowState,
             isRecent: isRecent,
             action: action
         )
+    }
+
+    private func rowState(for target: CaptureSuggestedTarget) -> SuggestedTargetChooserRowState {
+        let targetChoiceID = choiceID(for: target)
+        let activeChoiceID = focusedChoiceID ?? selectedChoiceID
+
+        if targetChoiceID == activeChoiceID {
+            return .selected
+        }
+
+        return .idle
     }
 
     private func choiceID(for target: CaptureSuggestedTarget) -> String {
@@ -391,28 +420,42 @@ private struct SuggestedTargetChooserListView: View {
 private struct SuggestedTargetChooserRow: View {
     let target: CaptureSuggestedTarget
     let controlWidth: CGFloat?
-    let isFocused: Bool
+    let rowState: SuggestedTargetChooserRowState
     let isRecent: Bool
     let action: () -> Void
+
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
             SuggestedTargetChooserRowChrome(
                 controlWidth: controlWidth,
                 minimumHeight: AppUIConstants.captureChooserRowHeight,
-                isFocused: isFocused
+                rowState: renderState
             ) {
                 SuggestedTargetIdentityLine(
                     target: target,
                     fallbackLabel: target.fallbackDisplayLabel,
                     style: .chooser,
                     showsRecent: isRecent,
-                    isSelected: isFocused
+                    isSelected: renderState == .selected
                 )
             }
         }
         .buttonStyle(.plain)
+        .onHover { hovered in
+            isHovered = hovered
+        }
         .help(target.helpText)
+    }
+
+    private var renderState: SuggestedTargetChooserRowState {
+        switch rowState {
+        case .selected:
+            return rowState
+        case .hovered, .idle:
+            return isHovered ? .hovered : .idle
+        }
     }
 }
 
@@ -457,18 +500,18 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
 private struct SuggestedTargetChooserRowChrome<Content: View>: View {
     let controlWidth: CGFloat?
     let minimumHeight: CGFloat?
-    let isFocused: Bool
+    let rowState: SuggestedTargetChooserRowState
     @ViewBuilder let content: Content
 
     init(
         controlWidth: CGFloat?,
         minimumHeight: CGFloat? = nil,
-        isFocused: Bool,
+        rowState: SuggestedTargetChooserRowState,
         @ViewBuilder content: () -> Content
     ) {
         self.controlWidth = controlWidth
         self.minimumHeight = minimumHeight
-        self.isFocused = isFocused
+        self.rowState = rowState
         self.content = content()
     }
 
@@ -479,16 +522,21 @@ private struct SuggestedTargetChooserRowChrome<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
             .background {
                 Capsule(style: .continuous)
-                    .fill(
-                        isFocused
-                            ? SemanticTokens.Surface.captureChooserRowSelectedFill
-                            : SemanticTokens.Surface.captureChooserRowFill
-                    )
+                    .fill(backgroundFill)
             }
             .clipShape(Capsule(style: .continuous))
             .contentShape(Capsule(style: .continuous))
             .frame(width: controlWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+    }
+
+    private var backgroundFill: Color {
+        switch rowState {
+        case .selected:
+            return SemanticTokens.Surface.captureChooserRowSelectedFill
+        case .hovered, .idle:
+            return SemanticTokens.Surface.captureChooserRowFill
+        }
     }
 }
 

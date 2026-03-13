@@ -14,6 +14,7 @@ enum StackOptionalUpdate<Value: Equatable & Sendable>: Equatable, Sendable {
 struct StackNoteCreateRequest: Equatable, Sendable {
     let id: UUID
     let text: String
+    let tags: [CaptureTag]
     let suggestedTarget: CaptureSuggestedTarget?
     let screenshotPath: String?
     let createdAt: Date
@@ -21,12 +22,14 @@ struct StackNoteCreateRequest: Equatable, Sendable {
     init(
         id: UUID = UUID(),
         text: String,
+        tags: [CaptureTag] = [],
         suggestedTarget: CaptureSuggestedTarget? = nil,
         screenshotPath: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
         self.text = text
+        self.tags = CaptureTag.deduplicatePreservingOrder(tags)
         self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
         self.createdAt = createdAt
@@ -35,15 +38,18 @@ struct StackNoteCreateRequest: Equatable, Sendable {
 
 struct StackNoteUpdate: Equatable, Sendable {
     let text: String?
+    let tags: StackOptionalUpdate<[CaptureTag]>
     let suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget>
     let screenshotPath: StackOptionalUpdate<String>
 
     init(
         text: String? = nil,
+        tags: StackOptionalUpdate<[CaptureTag]> = .keep,
         suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget> = .keep,
         screenshotPath: StackOptionalUpdate<String> = .keep
     ) {
         self.text = text
+        self.tags = tags
         self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
     }
@@ -94,6 +100,7 @@ final class StackWriteService {
                 rawText: request.text,
                 screenshotPath: preparedScreenshotPath.path
             ),
+            tags: request.tags,
             suggestedTarget: request.suggestedTarget,
             createdAt: request.createdAt,
             screenshotPath: preparedScreenshotPath.path,
@@ -125,6 +132,7 @@ final class StackWriteService {
                 rawText: changes.text ?? existingNote.text,
                 screenshotPath: preparedScreenshotPath.path
             ),
+            tags: resolvedTags(current: existingNote.tags, update: changes.tags),
             suggestedTarget: resolvedValue(
                 current: existingNote.suggestedTarget,
                 update: changes.suggestedTarget
@@ -250,6 +258,20 @@ final class StackWriteService {
             ownerID: ownerID
         ).standardizedFileURL
         return PreparedScreenshotPath(path: importedURL.path, importedManagedURL: importedURL)
+    }
+
+    private func resolvedTags(
+        current: [CaptureTag],
+        update: StackOptionalUpdate<[CaptureTag]>
+    ) -> [CaptureTag] {
+        switch update {
+        case .keep:
+            return current
+        case .clear:
+            return []
+        case .set(let value):
+            return CaptureTag.deduplicatePreservingOrder(value)
+        }
     }
 
     private func replacementOwnerID(

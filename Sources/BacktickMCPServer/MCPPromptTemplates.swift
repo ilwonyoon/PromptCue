@@ -73,6 +73,7 @@ enum MCPPromptCatalog {
         ## Rules
         - Only process active notes by default. Copied notes are already executed.
         - `group_notes` creates a merged card but does not archive sources unless `archiveSources` is set.
+        - Note payloads and classification groups may include `tags`; use them as routing hints when they add signal.
         - Do not call `mark_notes_executed` during planning, triage, or diagnosis.
         - For an explicit execute request, call `mark_notes_executed` after verification for the notes that were actually completed, unless the user asks to keep them active.
         - When unsure whether to diagnose or execute, default to diagnose.

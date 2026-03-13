@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import PromptCueCore
 
 enum PromptCueDatabaseSchema {
     static let cardsTableName = "cards"
@@ -101,6 +102,49 @@ final class PromptCueDatabase {
             }
         }
 
+        migrator.registerMigration("addTagsJSON") { db in
+            let existingColumnNames = try db.columns(in: PromptCueDatabaseSchema.cardsTableName).map(\.name)
+            guard !existingColumnNames.contains("tagsJSON") else {
+                return
+            }
+
+            try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
+                table.add(column: "tagsJSON", .text)
+            }
+        }
+
+        migrator.registerMigration("normalizeCanonicalTagsJSON") { db in
+            let rows = try CanonicalTagMigrationRow.fetchAll(
+                db,
+                sql: """
+                SELECT id, tagsJSON
+                FROM \(PromptCueDatabaseSchema.cardsTableName)
+                WHERE tagsJSON IS NOT NULL
+                """
+            )
+
+            for row in rows {
+                let normalizedTagsJSON = CaptureTag.encodeJSONArray(
+                    CaptureTag.decodeJSONArray(row.tagsJSON)
+                )
+                guard normalizedTagsJSON != row.tagsJSON else {
+                    continue
+                }
+
+                if let normalizedTagsJSON {
+                    try db.execute(
+                        sql: "UPDATE \(PromptCueDatabaseSchema.cardsTableName) SET tagsJSON = ? WHERE id = ?",
+                        arguments: [normalizedTagsJSON, row.id]
+                    )
+                } else {
+                    try db.execute(
+                        sql: "UPDATE \(PromptCueDatabaseSchema.cardsTableName) SET tagsJSON = NULL WHERE id = ?",
+                        arguments: [row.id]
+                    )
+                }
+            }
+        }
+
         migrator.registerMigration("createCopyEvents") { db in
             try db.create(table: PromptCueDatabaseSchema.copyEventsTableName) { table in
                 table.column("id", .text).notNull().primaryKey()
@@ -125,4 +169,9 @@ final class PromptCueDatabase {
 private struct LegacyCardRecord: FetchableRecord, Decodable {
     let id: String
     let createdAt: Date
+}
+
+private struct CanonicalTagMigrationRow: FetchableRecord, Decodable {
+    let id: String
+    let tagsJSON: String?
 }

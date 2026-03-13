@@ -108,9 +108,14 @@ struct PromptCueCoreTests {
         let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
         let lastCopiedAt = Date(timeIntervalSince1970: 1_700_001_000)
         let suggestedTarget = makeSuggestedTarget()
+        let tags = [
+            CaptureTag(rawValue: "bug"),
+            CaptureTag(rawValue: "#bug_fix"),
+        ].compactMap { $0 }
         let original = CaptureCard(
             id: id,
             text: "round-trip test",
+            tags: tags,
             suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: "/tmp/screenshot.png",
@@ -126,6 +131,7 @@ struct PromptCueCoreTests {
         #expect(decoded == original)
         #expect(decoded.id == id)
         #expect(decoded.text == "round-trip test")
+        #expect(decoded.tags == tags)
         #expect(decoded.suggestedTarget == suggestedTarget)
         #expect(decoded.createdAt == createdAt)
         #expect(decoded.screenshotPath == "/tmp/screenshot.png")
@@ -146,6 +152,7 @@ struct PromptCueCoreTests {
         let decoded = try decoder.decode(CaptureCard.self, from: data)
 
         #expect(decoded == original)
+        #expect(decoded.tags.isEmpty)
         #expect(decoded.suggestedTarget == nil)
         #expect(decoded.screenshotPath == nil)
         #expect(decoded.lastCopiedAt == nil)
@@ -169,6 +176,7 @@ struct PromptCueCoreTests {
 
         #expect(decoded.id == id)
         #expect(decoded.text == "legacy card")
+        #expect(decoded.tags.isEmpty)
         #expect(decoded.suggestedTarget == nil)
         #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
     }

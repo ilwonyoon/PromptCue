@@ -30,6 +30,7 @@ struct NoteClassification: Equatable, Sendable {
     let branch: String?
     let appName: String?
     let sessionIdentifier: String?
+    let tags: [CaptureTag]
     let noteIDs: [UUID]
     let previewTexts: [String]
 }
@@ -90,6 +91,7 @@ final class StackReadService {
                     branch: firstTarget?.branch,
                     appName: firstTarget?.appName,
                     sessionIdentifier: firstTarget?.sessionIdentifier,
+                    tags: aggregatedTags(from: cards),
                     noteIDs: cards.map(\.id),
                     previewTexts: cards.map { String($0.text.prefix(80)) }
                 )
@@ -125,6 +127,24 @@ final class StackReadService {
             return target.sessionIdentifier ?? "no-session"
         case .app:
             return "\(target.bundleIdentifier)|\(target.appName)"
+        }
+    }
+
+    private func aggregatedTags(from cards: [CaptureCard]) -> [CaptureTag] {
+        let tagsByFrequency = cards
+            .flatMap(\.tags)
+            .reduce(into: [CaptureTag: Int]()) { counts, tag in
+                counts[tag, default: 0] += 1
+            }
+
+        return tagsByFrequency.keys.sorted { lhs, rhs in
+            let lhsCount = tagsByFrequency[lhs, default: 0]
+            let rhsCount = tagsByFrequency[rhs, default: 0]
+            if lhsCount != rhsCount {
+                return lhsCount > rhsCount
+            }
+
+            return lhs < rhs
         }
     }
 }

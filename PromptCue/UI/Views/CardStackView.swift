@@ -65,11 +65,7 @@ struct CardStackView: View {
             classificationCache = buildClassificationCache(for: model.cards)
         }
         .onChange(of: model.cards) { _, newCards in
-            let currentIDs = Set(newCards.map(\.id))
-            classificationCache = classificationCache.filter { currentIDs.contains($0.key) }
-            for card in newCards where classificationCache[card.id] == nil {
-                classificationCache[card.id] = ContentClassifier.classify(card.text)
-            }
+            classificationCache = buildClassificationCache(for: newCards)
         }
     }
 
@@ -220,24 +216,14 @@ struct CardStackView: View {
 
                         if let card = copiedCards.first {
                             let classification = resolveClassification(for: card)
-                            let displayConfiguration = ContentDisplayFormatter.configuration(
-                                for: card.text,
-                                classification: classification
+                            let visibleInlineText = card.visibleInlineText
+                            InteractiveDetectedTextView(
+                                text: visibleInlineText,
+                                classification: classification,
+                                baseColor: copiedPreviewTextColor,
+                                highlightedRanges: card.visibleInlineTagRanges,
+                                multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
                             )
-
-                            Text(displayConfiguration.text)
-                                .font(PrimitiveTokens.Typography.body)
-                                .foregroundStyle(copiedPreviewTextColor)
-                                .lineLimit(
-                                    displayConfiguration.prefersSingleLine
-                                        ? 1
-                                        : StackCardOverflowPolicy.collapsedCopiedLineLimit
-                                )
-                                .truncationMode(
-                                    displayConfiguration.truncation == .head ? .head : .tail
-                                )
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
 
                         if let footer = collapsedCopiedFooterText(copiedCards: copiedCards) {
@@ -370,7 +356,7 @@ struct CardStackView: View {
             return cachedClassification
         }
 
-        let classification = ContentClassifier.classify(card.text)
+        let classification = ContentClassifier.classify(card.visibleInlineText)
         DispatchQueue.main.async {
             classificationCache[card.id] = classification
         }
@@ -381,7 +367,7 @@ struct CardStackView: View {
         var cache: [CaptureCard.ID: ContentClassification] = [:]
         cache.reserveCapacity(cards.count)
         for card in cards {
-            cache[card.id] = ContentClassifier.classify(card.text)
+            cache[card.id] = ContentClassifier.classify(card.visibleInlineText)
         }
         return cache
     }

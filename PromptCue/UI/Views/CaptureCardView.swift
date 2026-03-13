@@ -80,8 +80,9 @@ struct CaptureCardView: View {
     }
 
     var body: some View {
+        let visibleInlineText = card.visibleInlineText
         let displayConfiguration = InteractiveDetectedTextView.displayConfiguration(
-            text: card.text,
+            text: visibleInlineText,
             classification: classification
         )
         let overflowMetrics = StackCardOverflowPolicy.metrics(
@@ -106,9 +107,10 @@ struct CaptureCardView: View {
                     }
 
                     InteractiveDetectedTextView(
-                        text: card.text,
+                        text: visibleInlineText,
                         classification: classification,
-                        baseColor: actionStyle.bodyColor
+                        baseColor: actionStyle.bodyColor,
+                        highlightedRanges: card.visibleInlineTagRanges
                     )
                     .frame(
                         height: displayConfiguration.prefersSingleLine
@@ -174,7 +176,7 @@ struct CaptureCardView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Cue: \(card.text)")
+            .accessibilityLabel(accessibilityLabel(displayText: visibleInlineText))
             .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
         .contentShape(Rectangle())
@@ -290,6 +292,10 @@ struct CaptureCardView: View {
 
     private var isCommandClickEvent: Bool {
         NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) == true
+    }
+
+    private func accessibilityLabel(displayText: String) -> String {
+        "Cue: \(displayText)"
     }
 
     @ViewBuilder

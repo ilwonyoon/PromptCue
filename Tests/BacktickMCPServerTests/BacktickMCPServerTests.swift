@@ -72,6 +72,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 "name": "create_note",
                 "arguments": [
                     "text": "Ship Stack MCP",
+                    "tags": ["bug", "#mcp"],
                     "suggestedTarget": [
                         "appName": "Cursor",
                         "bundleIdentifier": "com.todesktop.230313mzl4w4u92",
@@ -83,6 +84,7 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let createdNote = try notePayload(from: createResponse)
         let createdID = try XCTUnwrap(createdNote["id"] as? String)
+        XCTAssertEqual(createdNote["tags"] as? [String], ["bug", "mcp"])
 
         let listResponse = try await sendRequest(
             session: session,
@@ -122,12 +124,14 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "id": createdID,
                     "text": "Ship Stack MCP for real",
+                    "tags": ["release", "mcp"],
                     "screenshotPath": externalScreenshotURL.path,
                 ],
             ]
         )
         let updatedNote = try notePayload(from: updateResponse)
         XCTAssertEqual(updatedNote["text"] as? String, "Ship Stack MCP for real")
+        XCTAssertEqual(updatedNote["tags"] as? [String], ["release", "mcp"])
         let updatedScreenshotPath = try XCTUnwrap(updatedNote["screenshotPath"] as? String)
         XCTAssertNotEqual(updatedScreenshotPath, externalScreenshotURL.path)
         XCTAssertTrue(updatedScreenshotPath.hasPrefix(attachmentsURL.path))
@@ -179,6 +183,27 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(deletePayload["deleted"] as? Bool, true)
     }
 
+    func testCreateNoteRejectsMixedScriptTags() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Should fail",
+                    "tags": ["bug", "ㅠㅕbug"],
+                ],
+            ]
+        )
+        let payload = try toolErrorPayload(from: response)
+
+        XCTAssertEqual(payload["error"] as? String, "tags must contain valid tag names")
+    }
+
     func testClassifyNotesGroupsByRepository() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
@@ -191,6 +216,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 "name": "create_note",
                 "arguments": [
                     "text": "Fix MCP parser",
+                    "tags": ["bug", "parser"],
                     "suggestedTarget": [
                         "appName": "Cursor",
                         "bundleIdentifier": "com.cursor",
@@ -208,6 +234,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 "name": "create_note",
                 "arguments": [
                     "text": "Add classify tool",
+                    "tags": ["mcp", "parser"],
                     "suggestedTarget": [
                         "appName": "Cursor",
                         "bundleIdentifier": "com.cursor",
@@ -225,6 +252,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 "name": "create_note",
                 "arguments": [
                     "text": "Update README",
+                    "tags": ["docs"],
                     "suggestedTarget": [
                         "appName": "Cursor",
                         "bundleIdentifier": "com.cursor",
@@ -254,6 +282,7 @@ final class BacktickMCPServerTests: XCTestCase {
         let groups = try XCTUnwrap(payload["groups"] as? [[String: Any]])
         let promptCueGroup = groups.first { ($0["repositoryName"] as? String) == "PromptCue" }
         XCTAssertEqual(promptCueGroup?["noteCount"] as? Int, 2)
+        XCTAssertEqual(promptCueGroup?["tags"] as? [String], ["parser", "bug", "mcp"])
     }
 
     func testClassifyNotesEmptyStack() async throws {
@@ -284,7 +313,10 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "tools/call",
             params: [
                 "name": "create_note",
-                "arguments": ["text": "Note A"],
+                "arguments": [
+                    "text": "Note A",
+                    "tags": ["bug", "ui"],
+                ],
             ]
         )
         let id1 = try XCTUnwrap(notePayload(from: create1)["id"] as? String)
@@ -295,7 +327,10 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "tools/call",
             params: [
                 "name": "create_note",
-                "arguments": ["text": "Note B"],
+                "arguments": [
+                    "text": "Note B",
+                    "tags": ["mcp", "bug"],
+                ],
             ]
         )
         let id2 = try XCTUnwrap(notePayload(from: create2)["id"] as? String)
@@ -319,6 +354,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(mergedText.contains("# Merged Notes"))
         XCTAssertTrue(mergedText.contains("Note A"))
         XCTAssertTrue(mergedText.contains("Note B"))
+        XCTAssertEqual(groupedNote["tags"] as? [String], ["bug", "ui", "mcp"])
         XCTAssertEqual(payload["archivedCount"] as? Int, 0)
 
         let listResponse = try await sendRequest(
@@ -533,6 +569,16 @@ final class BacktickMCPServerTests: XCTestCase {
     private func notePayload(from response: [String: Any]) throws -> [String: Any] {
         let payload = try toolPayload(from: response)
         return try XCTUnwrap(payload["note"] as? [String: Any])
+    }
+
+    private func toolErrorPayload(from response: [String: Any]) throws -> [String: Any] {
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, true)
+        let content = try XCTUnwrap(result["content"] as? [[String: Any]])
+        let text = try XCTUnwrap(content.first?["text"] as? String)
+        let payloadData = try XCTUnwrap(text.data(using: .utf8))
+        let payload = try JSONSerialization.jsonObject(with: payloadData)
+        return try XCTUnwrap(payload as? [String: Any])
     }
 
     private func notesPayload(from response: [String: Any]) throws -> [[String: Any]] {

@@ -525,6 +525,7 @@ final class AppModel: ObservableObject {
                 migratedCards[index] = CaptureCard(
                     id: card.id,
                     text: card.text,
+                    tags: card.tags,
                     suggestedTarget: card.suggestedTarget,
                     createdAt: card.createdAt,
                     screenshotPath: migratedPath,
@@ -897,6 +898,7 @@ extension AppModel: CloudSyncDelegate {
         return CaptureCard(
             id: card.id,
             text: card.text,
+            tags: card.tags,
             suggestedTarget: card.suggestedTarget,
             createdAt: card.createdAt,
             screenshotPath: screenshotPath,

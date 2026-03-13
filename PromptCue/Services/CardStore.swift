@@ -169,6 +169,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
 
     let id: String
     let text: String
+    let tagsJSON: String?
     let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
@@ -178,6 +179,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     init(captureCard: CaptureCard) {
         id = captureCard.id.uuidString
         text = captureCard.text
+        tagsJSON = CaptureTag.encodeJSONArray(captureCard.tags)
         suggestedTargetJSON = Self.encodeSuggestedTarget(captureCard.suggestedTarget)
         createdAt = captureCard.createdAt
         screenshotPath = captureCard.screenshotPath
@@ -189,6 +191,7 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         CaptureCard(
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
+            tags: CaptureTag.decodeJSONArray(tagsJSON),
             suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,

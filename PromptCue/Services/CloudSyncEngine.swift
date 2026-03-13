@@ -414,6 +414,7 @@ final class CloudSyncEngine: CloudSyncControlling {
 
     private func applyCardFields(_ card: CaptureCard, to record: CKRecord) {
         record["text"] = card.text as NSString
+        record["tags"] = card.tags.isEmpty ? nil : card.tags.map(\.name) as NSArray
         record["createdAt"] = card.createdAt as NSDate
         record["lastCopiedAt"] = card.lastCopiedAt as NSDate?
         record["sortOrder"] = NSNumber(value: card.sortOrder)
@@ -465,6 +466,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         return CaptureCard(
             id: uuid,
             text: text,
+            tags: CaptureTag.canonicalize(rawValues: (record["tags"] as? [String]) ?? []),
             createdAt: createdAt,
             screenshotPath: nil,
             lastCopiedAt: record["lastCopiedAt"] as? Date,

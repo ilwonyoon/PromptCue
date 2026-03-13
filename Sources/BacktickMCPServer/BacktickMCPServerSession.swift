@@ -230,6 +230,7 @@ final class BacktickMCPServerSession {
                     "type": "object",
                     "properties": [
                         "text": ["type": "string"],
+                        "tags": tagSchema(),
                         "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "createdAt": [
@@ -252,6 +253,7 @@ final class BacktickMCPServerSession {
                             "format": "uuid",
                         ],
                         "text": ["type": ["string", "null"]],
+                        "tags": tagSchema(),
                         "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                     ],
@@ -386,6 +388,15 @@ final class BacktickMCPServerSession {
         ]
     }
 
+    private func tagSchema() -> [String: Any] {
+        [
+            "type": ["array", "null"],
+            "items": [
+                "type": "string",
+            ],
+        ]
+    }
+
     private func callTool(name: String, arguments: [String: Any]) -> [String: Any] {
         do {
             let value: Any
@@ -441,6 +452,7 @@ final class BacktickMCPServerSession {
     private func createNote(arguments: [String: Any]) throws -> [String: Any] {
         let request = StackNoteCreateRequest(
             text: try requiredString(arguments, key: "text", allowEmpty: true),
+            tags: try parseTags(arguments["tags"]),
             suggestedTarget: try parseSuggestedTarget(arguments["suggestedTarget"]),
             screenshotPath: try parseOptionalString(arguments["screenshotPath"]),
             createdAt: try parseDate(arguments["createdAt"]) ?? Date()
@@ -456,6 +468,7 @@ final class BacktickMCPServerSession {
         let id = try requiredUUID(arguments, key: "id")
         let changes = StackNoteUpdate(
             text: try parseTextUpdate(arguments, key: "text"),
+            tags: try parseTagsUpdate(arguments, key: "tags"),
             suggestedTarget: try parseSuggestedTargetUpdate(arguments, key: "suggestedTarget"),
             screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath")
         )
@@ -511,6 +524,7 @@ final class BacktickMCPServerSession {
                     "branch": classification.branch ?? NSNull(),
                     "appName": classification.appName ?? NSNull(),
                     "sessionIdentifier": classification.sessionIdentifier ?? NSNull(),
+                    "tags": classification.tags.map(\.name),
                     "noteCount": classification.noteIDs.count,
                     "noteIDs": classification.noteIDs.map { $0.uuidString.lowercased() },
                     "previewTexts": classification.previewTexts,
@@ -620,6 +634,7 @@ final class BacktickMCPServerSession {
         [
             "id": note.id.uuidString.lowercased(),
             "text": note.text,
+            "tags": note.tags.map(\.name),
             "createdAt": Self.iso8601Formatter.string(from: note.createdAt),
             "screenshotPath": note.screenshotPath ?? NSNull(),
             "lastCopiedAt": note.lastCopiedAt.map { Self.iso8601Formatter.string(from: $0) } ?? NSNull(),
@@ -779,6 +794,25 @@ final class BacktickMCPServerSession {
         )
     }
 
+    private func parseTags(_ value: Any?) throws -> [CaptureTag] {
+        guard let value else {
+            return []
+        }
+        if value is NSNull {
+            return []
+        }
+        guard let rawTags = value as? [String] else {
+            throw BacktickMCPToolError(message: "tags must be an array of strings or null")
+        }
+
+        let tags = rawTags.compactMap(CaptureTag.init(rawValue:))
+        guard tags.count == rawTags.count else {
+            throw BacktickMCPToolError(message: "tags must contain valid tag names")
+        }
+
+        return CaptureTag.deduplicatePreservingOrder(tags)
+    }
+
     private func parseConfidence(_ value: Any?) throws -> CaptureSuggestedTargetConfidence {
         guard let confidence = try parseOptionalString(value) else {
             return .high
@@ -839,6 +873,19 @@ final class BacktickMCPServerSession {
             return .clear
         }
         return .set(target)
+    }
+
+    private func parseTagsUpdate(
+        _ arguments: [String: Any],
+        key: String
+    ) throws -> StackOptionalUpdate<[CaptureTag]> {
+        guard arguments.keys.contains(key) else {
+            return .keep
+        }
+        if arguments[key] is NSNull {
+            return .clear
+        }
+        return .set(try parseTags(arguments[key]))
     }
 
     private func toolSuccessResult(_ value: Any) -> [String: Any] {

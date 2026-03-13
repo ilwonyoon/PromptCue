@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import PromptCueCore
 import SwiftUI
 
 struct CapturePanelPreferredHeightUpdateMetrics {
@@ -79,6 +80,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let removeScreenshotButton = NSButton()
     private let suggestedTargetAccessoryView: NSHostingView<CaptureSuggestedTargetAccessoryView>
     private let editorHost = CaptureEditorRuntimeHostView()
+    private let inlineTagSuggestionView: NSHostingView<CaptureInlineTagSuggestionView>
     private let bootstrapSurfaceHeight: CGFloat
 
     private var shellHeightConstraint: NSLayoutConstraint!
@@ -91,6 +93,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private var pendingDraftSyncWorkItem: DispatchWorkItem?
     private var pendingDraftSyncText: String?
     private var displayedPreviewImageKey: String?
+    private var inlineTagSuggestions: [String] = []
+    private var selectedInlineTagSuggestionIndex = 0
+    private var lastInlineTagQueryValue: String?
 
     var onPreferredPanelHeightChange: ((CGFloat) -> Void)?
     var onSubmitSuccess: (() -> Void)?
@@ -101,12 +106,20 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         self.suggestedTargetAccessoryView = NSHostingView(
             rootView: Self.makeSuggestedTargetAccessoryView(model: model)
         )
+        self.inlineTagSuggestionView = NSHostingView(
+            rootView: CaptureInlineTagSuggestionView(
+                suggestions: [],
+                selectedIndex: 0,
+                onSelectSuggestion: { _ in }
+            )
+        )
         let bootstrapAccessoryHeight = max(
             self.suggestedTargetAccessoryView.fittingSize.height,
             AppUIConstants.captureDebugLineHeight
         )
         self.bootstrapSurfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
+            inlineTagSuggestionHeight: 0,
             suggestedTargetHeight: bootstrapAccessoryHeight + PrimitiveTokens.Space.sm,
             screenshotHeight: 0
         )
@@ -169,6 +182,8 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotSurface.refreshAppearance()
         suggestedTargetAccessoryView.appearance = appliedAppearance
         suggestedTargetAccessoryView.needsDisplay = true
+        inlineTagSuggestionView.appearance = appliedAppearance
+        inlineTagSuggestionView.needsDisplay = true
     }
 
     var currentPreferredPanelHeight: CGFloat {
@@ -296,6 +311,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             }
         )
 
+        inlineTagSuggestionView.translatesAutoresizingMaskIntoConstraints = false
+        inlineTagSuggestionView.isHidden = true
+        contentStack.addArrangedSubview(inlineTagSuggestionView)
+        NSLayoutConstraint.activate([
+            inlineTagSuggestionView.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
+        ])
+
         recomputePreferredPanelHeight()
     }
 
@@ -329,6 +351,13 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             }
             .store(in: &cancellables)
 
+        model.$cards
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshInlineTagState()
+            }
+            .store(in: &cancellables)
+
         model.$isSubmittingCapture
             .receive(on: RunLoop.main)
             .sink { [weak self] isSubmitting in
@@ -344,6 +373,11 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return
         }
 
+        // IME composition owns the live editor contents until the marked text commits.
+        guard !editorHost.textView.hasMarkedText() else {
+            return
+        }
+
         guard editorHost.textView.string != text else {
             return
         }
@@ -352,6 +386,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         isApplyingDraftExternally = true
         editorHost.applyExternalText(text, forceScrollToSelection: forceScrollToSelection, forceMeasure: true)
         isApplyingDraftExternally = false
+        refreshInlineTagState(resetSuggestionSelection: true)
     }
 
     private func applyEditorMetrics(_ metrics: CaptureEditorMetrics) {
@@ -468,6 +503,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         let surfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: editorHeight,
+            inlineTagSuggestionHeight: 0,
             suggestedTargetHeight: suggestedTargetHeight,
             screenshotHeight: screenshotHeight
         )
@@ -490,12 +526,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private static func minimumSurfaceHeight(
         editorHeight: CGFloat,
+        inlineTagSuggestionHeight: CGFloat,
         suggestedTargetHeight: CGFloat,
         screenshotHeight: CGFloat
     ) -> CGFloat {
         max(
             PrimitiveTokens.Size.searchFieldHeight,
             editorHeight
+                + inlineTagSuggestionHeight
                 + screenshotHeight
                 + suggestedTargetHeight
                 + (captureSurfaceVerticalInset * 2)
@@ -518,6 +556,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func handleEditorCommand(_ command: CueEditorCommand) -> Bool {
+        if handleInlineTagCommand(command) {
+            return true
+        }
+
         if model.isShowingCaptureSuggestedTargetChooser {
             switch command {
             case .moveSelectionUp:
@@ -541,6 +583,31 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return true
         case .moveSelectionDown, .completeSelection, .cancelSelection:
             return false
+        }
+    }
+
+    private func handleInlineTagCommand(_ command: CueEditorCommand) -> Bool {
+        switch command {
+        case .moveSelectionUp:
+            return moveInlineTagSelection(by: -1)
+        case .moveSelectionDown:
+            return moveInlineTagSelection(by: 1)
+        case .completeSelection(let trigger):
+            guard trigger == .tab else {
+                return false
+            }
+
+            return completePendingInlineTagIfPossible()
+        case .cancelSelection:
+            guard !inlineTagSuggestions.isEmpty else {
+                return false
+            }
+
+            inlineTagSuggestions = []
+            selectedInlineTagSuggestionIndex = 0
+            lastInlineTagQueryValue = nil
+            updateInlineTagSuggestionView()
+            return true
         }
     }
 
@@ -574,6 +641,184 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         )
     }
 
+    private func refreshInlineTagState(resetSuggestionSelection: Bool = false) {
+        guard !editorHost.textView.hasMarkedText() else {
+            suspendInlineTagPresentationForMarkedText()
+            return
+        }
+
+        let parseResult = CaptureTagText.parseCommittedPrefix(in: editorHost.textView.string)
+        let completionContext = currentInlineTagCompletionContext()
+        var highlightedRanges = parseResult.committedTokenRanges
+        if let completionContext,
+           completionContext.replacementRange.length > 0 {
+            highlightedRanges.append(completionContext.replacementRange)
+        }
+        editorHost.highlightedInlineTagRanges = highlightedRanges
+
+        let suggestions = matchingInlineTagSuggestions(
+            parseResult: parseResult,
+            completionContext: completionContext
+        )
+        let queryValue = completionContext?.normalizedPrefix
+        let didQueryChange = queryValue != lastInlineTagQueryValue
+        lastInlineTagQueryValue = queryValue
+        inlineTagSuggestions = Array(suggestions.prefix(4))
+
+        if inlineTagSuggestions.isEmpty {
+            selectedInlineTagSuggestionIndex = 0
+        } else if resetSuggestionSelection || didQueryChange {
+            selectedInlineTagSuggestionIndex = 0
+        } else {
+            selectedInlineTagSuggestionIndex = max(
+                0,
+                min(selectedInlineTagSuggestionIndex, inlineTagSuggestions.count - 1)
+            )
+        }
+
+        updateInlineTagSuggestionView()
+    }
+
+    private func suspendInlineTagPresentationForMarkedText() {
+        lastInlineTagQueryValue = nil
+        inlineTagSuggestions = []
+        selectedInlineTagSuggestionIndex = 0
+        editorHost.setInlineCompletion(suffix: nil, caretUTF16Offset: nil)
+        inlineTagSuggestionView.isHidden = true
+        recomputePreferredPanelHeight()
+    }
+
+    private func updateInlineTagSuggestionView() {
+        let completionContext = currentInlineTagCompletionContext()
+        let selectedRange = editorHost.textView.selectedRange()
+        let ghostSuffix = inlineTagGhostSuffix(
+            completionContext: completionContext,
+            selectedCaretLocation: selectedRange.location
+        )
+        editorHost.setInlineCompletion(
+            suffix: ghostSuffix,
+            caretUTF16Offset: ghostSuffix == nil ? nil : selectedRange.location
+        )
+        inlineTagSuggestionView.isHidden = true
+        recomputePreferredPanelHeight()
+    }
+
+    private func inlineTagGhostSuffix(
+        completionContext: CaptureTagCompletionContext?,
+        selectedCaretLocation: Int
+    ) -> String? {
+        guard let completionContext,
+              let normalizedPrefix = completionContext.normalizedPrefix,
+              selectedCaretLocation == NSMaxRange(completionContext.replacementRange) else {
+            return nil
+        }
+
+        let resolvedSuggestion = inlineTagSuggestions[safe: selectedInlineTagSuggestionIndex]
+            ?? inlineTagSuggestions.first
+        guard let resolvedSuggestion,
+              resolvedSuggestion.hasPrefix(normalizedPrefix) else {
+            return nil
+        }
+
+        let suffix = String(resolvedSuggestion.dropFirst(normalizedPrefix.count))
+        return suffix.isEmpty ? nil : suffix
+    }
+
+    private func moveInlineTagSelection(by offset: Int) -> Bool {
+        guard !inlineTagSuggestions.isEmpty else {
+            return false
+        }
+
+        let count = inlineTagSuggestions.count
+        let current = max(0, min(selectedInlineTagSuggestionIndex, count - 1))
+        selectedInlineTagSuggestionIndex = (current + offset + count) % count
+        updateInlineTagSuggestionView()
+        return true
+    }
+
+    private func completePendingInlineTagIfPossible() -> Bool {
+        guard let completionContext = currentInlineTagCompletionContext() else {
+            return false
+        }
+
+        let exactMatch = inlineTagSuggestions.first(where: {
+            $0 == completionContext.normalizedPrefix
+        })
+        let resolvedName = exactMatch
+            ?? inlineTagSuggestions[safe: selectedInlineTagSuggestionIndex]
+            ?? (completionContext.normalizedPrefix.flatMap(CaptureTag.init(rawValue:))?.name
+                ?? CaptureTag.normalize(completionContext.rawToken)
+            )
+
+        guard let resolvedName,
+              CaptureTag(rawValue: resolvedName) != nil else {
+            return false
+        }
+
+        return commitInlineTag(named: resolvedName)
+    }
+
+    private func matchingInlineTagSuggestions(
+        parseResult: CaptureTagPrefixParseResult,
+        completionContext: CaptureTagCompletionContext?
+    ) -> [String] {
+        guard let completionContext,
+              let normalizedPrefix = completionContext.normalizedPrefix else {
+            return []
+        }
+
+        let committedNames = Set(parseResult.tags.map(\.name))
+        return model.knownCaptureTagNames.filter { candidate in
+            (normalizedPrefix.isEmpty || candidate.hasPrefix(normalizedPrefix))
+                && !committedNames.contains(candidate)
+        }
+    }
+
+    private func currentInlineTagCompletionContext() -> CaptureTagCompletionContext? {
+        let selectedRange = editorHost.textView.selectedRange()
+        guard selectedRange.length == 0 else {
+            return nil
+        }
+
+        return CaptureTagText.completionContext(
+            in: editorHost.textView.string,
+            caretUTF16Offset: selectedRange.location
+        )
+    }
+
+    @discardableResult
+    private func commitInlineTag(named name: String) -> Bool {
+        guard let completionContext = currentInlineTagCompletionContext(),
+              let tag = CaptureTag(rawValue: name) else {
+            return false
+        }
+
+        let replacement = tag.displayText + " "
+        let nsText = editorHost.textView.string as NSString
+        let updatedText = nsText.replacingCharacters(
+            in: completionContext.replacementRange,
+            with: replacement
+        )
+        let updatedSelection = NSRange(
+            location: completionContext.replacementRange.location + replacement.utf16.count,
+            length: 0
+        )
+
+        discardPendingDraftSync()
+        isApplyingDraftExternally = true
+        editorHost.applyExternalText(
+            updatedText,
+            selectedRange: updatedSelection,
+            forceScrollToSelection: true,
+            forceMeasure: true
+        )
+        isApplyingDraftExternally = false
+        model.draftText = updatedText
+        refreshInlineTagState(resetSuggestionSelection: true)
+        editorHost.focusIfPossible()
+        return true
+    }
+
     @objc
     private func handleRemoveScreenshot() {
         model.dismissPendingScreenshot()
@@ -600,10 +845,15 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         let currentDraftCount = currentDraftText.utf16.count
         let isGrowingDraft = currentDraftCount >= previousDraftCount
         let shouldSkipMeasurement = editorHost.currentMetrics.isScrollable && isGrowingDraft
+        let isComposingMarkedText = textView.hasMarkedText()
 
-        if !isApplyingDraftExternally {
+        if isComposingMarkedText {
+            discardPendingDraftSync()
+        } else if !isApplyingDraftExternally {
             scheduleDraftSync(currentDraftText)
         }
+
+        refreshInlineTagState()
 
         guard !shouldSkipMeasurement else {
             return
@@ -617,6 +867,15 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         } else {
             editorHost.resolvePreferredHeight(forceMeasure: true)
         }
+    }
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView,
+              textView === editorHost.textView else {
+            return
+        }
+
+        refreshInlineTagState()
     }
 
     private func scheduleDraftSync(_ text: String) {
@@ -657,11 +916,40 @@ extension CapturePanelRuntimeViewController {
         set { editorHost.textView.string = newValue }
     }
 
+    var debugInlineCompletionSuffix: String? {
+        editorHost.debugInlineCompletionSuffix
+    }
+
+    var debugIsInlineCompletionVisible: Bool {
+        editorHost.debugIsInlineCompletionVisible
+    }
+
+    func debugApplyEditorText(_ text: String, selectedLocation: Int? = nil) {
+        let location = max(0, min(selectedLocation ?? text.utf16.count, text.utf16.count))
+        editorHost.applyExternalText(
+            text,
+            selectedRange: NSRange(location: location, length: 0),
+            forceScrollToSelection: true,
+            forceMeasure: true
+        )
+        refreshInlineTagState(resetSuggestionSelection: true)
+    }
+
     func debugScheduleDraftSync(_ text: String) {
         scheduleDraftSync(text)
     }
 }
 #endif
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        guard indices.contains(index) else {
+            return nil
+        }
+
+        return self[index]
+    }
+}
 
 final class CapturePreviewImageCache {
     private let storage = NSCache<NSString, NSImage>()

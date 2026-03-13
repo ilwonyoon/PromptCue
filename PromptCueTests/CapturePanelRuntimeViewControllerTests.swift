@@ -1,4 +1,5 @@
 import Foundation
+import PromptCueCore
 import XCTest
 @testable import Prompt_Cue
 
@@ -59,13 +60,85 @@ final class CapturePanelRuntimeViewControllerTests: XCTestCase {
         XCTAssertEqual(controller.debugEditorText, "")
     }
 
-    private func makeModel() -> AppModel {
-        AppModel(
-            cardStore: CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")),
+    func testInlineTagGhostShowsMostCommonSuggestionForBareHash() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hashtag"]),
+                makeTaggedCard(text: "Second", tags: ["hashtag"]),
+                makeTaggedCard(text: "Third", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        controller.debugApplyEditorText("#", selectedLocation: 1)
+
+        XCTAssertEqual(controller.debugInlineCompletionSuffix, "hashtag")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
+    }
+
+    func testInlineTagGhostShowsRemainingSuffixForPrefixMatch() throws {
+        let model = makeModel(
+            cards: [
+                makeTaggedCard(text: "First", tags: ["hashtag_extension"]),
+                makeTaggedCard(text: "Second", tags: ["hello"]),
+            ]
+        )
+
+        let controller = makePreparedController(model: model)
+        controller.debugApplyEditorText("#h", selectedLocation: 2)
+
+        XCTAssertEqual(controller.debugInlineCompletionSuffix, "ashtag_extension")
+        XCTAssertTrue(controller.debugIsInlineCompletionVisible)
+    }
+
+    private func makeModel(cards: [CaptureCard] = []) -> AppModel {
+        let store = CardStore(databaseURL: tempDirectoryURL.appendingPathComponent("PromptCue.sqlite"))
+        if !cards.isEmpty {
+            try? store.save(cards)
+        }
+
+        return AppModel(
+            cardStore: store,
             attachmentStore: AttachmentStore(
                 baseDirectoryURL: tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
             ),
             recentScreenshotCoordinator: TestRuntimeRecentScreenshotCoordinator()
+        )
+    }
+
+    private func makePreparedController(model: AppModel) -> CapturePanelRuntimeViewController {
+        model.start()
+
+        let controller = CapturePanelRuntimeViewController(model: model)
+        controller.loadViewIfNeeded()
+        controller.view.frame = NSRect(x: 0, y: 0, width: AppUIConstants.capturePanelWidth, height: 320)
+        controller.view.layoutSubtreeIfNeeded()
+        controller.prepareForPresentation()
+
+        let window = NSWindow(
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: AppUIConstants.capturePanelWidth,
+                height: controller.currentPreferredPanelHeight
+            ),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = controller
+        window.layoutIfNeeded()
+        window.layoutIfNeeded()
+        return controller
+    }
+
+    private func makeTaggedCard(text: String, tags: [String]) -> CaptureCard {
+        CaptureCard(
+            id: UUID(),
+            text: text,
+            tags: tags.compactMap { CaptureTag(rawValue: $0) },
+            createdAt: Date(),
+            sortOrder: Date().timeIntervalSinceReferenceDate
         )
     }
 

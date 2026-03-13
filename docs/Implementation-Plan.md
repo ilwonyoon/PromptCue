@@ -99,6 +99,43 @@ Progress on this slice:
 - the final merge-safe screenshot risk is closed: `beginCaptureSession()` restores the recent-screenshot slot immediately from the synchronous signal probe, and `submitCapture()` now waits for async readable promotion without rearming repeated scans on every poll
 - `safe-main` was rerun after the hidden stack-panel prewarm landed and remains green, with live trace reruns at `21.35 ms`, `18.74 ms`, and `22.22 ms`
 
+### `Phase R7C`: Inline Tag Contract Hardening
+
+Inline tags are now an active sub-slice under `Phase R7` because they touch capture input, stack rendering, persistence, and MCP payload quality at the same time.
+
+Reason for this slice:
+
+- tags are meant to be lightweight metadata that help MCP clients classify Stack notes more accurately
+- the current prototype proved the interaction model, but the storage contract is still too loose
+- live diagnosis confirmed the current prototype can persist polluted tags such as `ㅗhello` or `ㅠㅕbug` when input-source noise or IME-adjacent keystrokes are interpreted as valid tag characters
+- that pollution is not only a stack-display issue; it also feeds autocomplete, sync, and MCP note payloads
+
+Locked contract for this slice:
+
+- `CaptureCard.text` remains the canonical body text only
+- `CaptureCard.tags` remains the canonical structured metadata field that MCP and sync should trust
+- only canonical slug tags are allowed into `CaptureCard.tags`
+- canonical slug format is `^[a-z][a-z0-9_-]*$`
+- non-canonical `#...` tokens stay in body text instead of being promoted into structured tags
+- capture preview and stack display may reconstruct `#tag body` for readability, but reconstruction must only use canonical structured tags
+- autocomplete must only suggest canonical structured tags that already survived storage rules
+- MCP and Cloud sync must never emit or learn from polluted tags that violate the canonical contract
+
+Implementation rules:
+
+1. the editor commit path and the save-time parse path must share the same lexical contract
+2. save-time parsing must not be looser than the explicit tag-commit interaction
+3. invalid or polluted historical tags must be scrubbed before they continue to feed stack display, autocomplete, or MCP output
+4. this slice must preserve Capture as a fast dump and must not turn the panel into a heavy tag-management surface
+
+Required verification for `Phase R7C`:
+
+- English tag commit still works for canonical tags such as `#bug`, `#bug_fix`, and `#proj-alpha`
+- mixed-script or IME-noise prefixes such as `#ㅗhello` remain body text and do not populate `tags`
+- Korean and other IME composition input survives without disappearing during capture
+- Stack reconstructs inline `#tag body` only from canonical `tags`
+- MCP note payloads expose only canonical `tags`
+
 Working-with-apps port rule:
 
 - current `main` capture and stack visuals are the baseline

@@ -48,7 +48,7 @@ extension AppModel {
     func beginEditingCaptureCard(_ card: CaptureCard) {
         editingCaptureCardID = card.isCopied ? nil : card.id
         isSeedingCaptureFromCopiedCard = card.isCopied
-        draftText = card.text
+        draftText = CaptureTagText.editorText(tags: card.tags, bodyText: card.text)
         draftEditorMetrics = .empty
         draftSuggestedTargetOverride = card.suggestedTarget
         isShowingCaptureSuggestedTargetChooser = false
@@ -107,7 +107,9 @@ extension AppModel {
             }
         }
 
-        let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tagParseResult = CaptureTagText.parseCommittedPrefix(in: draftText)
+        let trimmed = tagParseResult.bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tags = tagParseResult.tags
         var attachment = currentRecentScreenshotAttachment
 
         if attachment == nil, recentScreenshotState.showsCaptureSlot {
@@ -133,6 +135,7 @@ extension AppModel {
             return submitEditedCapture(
                 editingCard,
                 trimmedText: trimmed,
+                tags: tags,
                 attachment: attachment
             )
         }
@@ -162,6 +165,7 @@ extension AppModel {
         let newCard = CaptureCard(
             id: newCardID,
             text: trimmed.isEmpty ? "Screenshot attached" : trimmed,
+            tags: tags,
             suggestedTarget: effectiveCaptureSuggestedTarget,
             createdAt: Date(),
             screenshotPath: importedScreenshotPath,
@@ -273,6 +277,7 @@ extension AppModel {
     private func submitEditedCapture(
         _ card: CaptureCard,
         trimmedText: String,
+        tags: [CaptureTag],
         attachment: ScreenshotAttachment?
     ) -> Bool {
         let updatedText = trimmedText.isEmpty ? "Screenshot attached" : trimmedText
@@ -301,6 +306,7 @@ extension AppModel {
 
         let updatedCard = card.updatingContent(
             text: updatedText,
+            tags: tags,
             suggestedTarget: effectiveCaptureSuggestedTarget,
             screenshotPath: updatedScreenshotPath
         )

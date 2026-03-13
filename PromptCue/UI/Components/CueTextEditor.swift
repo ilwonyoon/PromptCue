@@ -5,8 +5,19 @@ import SwiftUI
 enum CueEditorCommand {
     case moveSelectionUp
     case moveSelectionDown
-    case completeSelection
+    case completeSelection(CueEditorCompletionTrigger)
     case cancelSelection
+}
+
+enum CueEditorCompletionTrigger {
+    case tab
+    case returnKey
+}
+
+struct CueInlineCompletionPresentation {
+    let suffix: String
+    let caretUTF16Offset: Int
+    let attributes: [NSAttributedString.Key: Any]
 }
 
 struct CueTextEditor: NSViewRepresentable {
@@ -169,6 +180,16 @@ final class WrappingCueTextView: NSTextView {
     var onCancel: (() -> Void)?
     var onCommand: ((CueEditorCommand) -> Bool)?
     var onPaste: (() -> Void)?
+    var inlineCompletionPresentation: CueInlineCompletionPresentation? {
+        didSet {
+            needsDisplay = true
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        drawInlineCompletionIfNeeded(in: dirtyRect)
+    }
 
     override func keyDown(with event: NSEvent) {
         if hasMarkedText() {
@@ -190,12 +211,12 @@ final class WrappingCueTextView: NSTextView {
             }
             super.keyDown(with: event)
         case Int(kVK_Tab):
-            if onCommand?(.completeSelection) == true {
+            if onCommand?(.completeSelection(.tab)) == true {
                 return
             }
             super.keyDown(with: event)
         case Int(kVK_Return), Int(kVK_ANSI_KeypadEnter):
-            if onCommand?(.completeSelection) == true {
+            if onCommand?(.completeSelection(.returnKey)) == true {
                 return
             }
             if modifiers.contains(.shift) {
@@ -216,6 +237,164 @@ final class WrappingCueTextView: NSTextView {
     override func paste(_ sender: Any?) {
         super.paste(sender)
         onPaste?()
+    }
+
+    #if DEBUG
+    var debugIsInlineCompletionVisible: Bool {
+        guard let inlineCompletionPresentation else {
+            return false
+        }
+
+        return inlineCompletionDrawingRect(for: inlineCompletionPresentation) != nil
+    }
+    #endif
+
+    private func drawInlineCompletionIfNeeded(in dirtyRect: NSRect) {
+        guard let inlineCompletionPresentation,
+              let drawingRect = inlineCompletionDrawingRect(for: inlineCompletionPresentation),
+              drawingRect.intersects(dirtyRect) else {
+            return
+        }
+
+        NSAttributedString(
+            string: inlineCompletionPresentation.suffix,
+            attributes: inlineCompletionPresentation.attributes
+        ).draw(
+            with: drawingRect,
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+        )
+    }
+
+    private func inlineCompletionDrawingRect(
+        for presentation: CueInlineCompletionPresentation
+    ) -> NSRect? {
+        guard let textContainer,
+              let layoutManager else {
+            return nil
+        }
+
+        layoutManager.ensureLayout(for: textContainer)
+
+        let textLength = string.utf16.count
+        let caretLocation = max(0, min(presentation.caretUTF16Offset, textLength))
+        let containerOrigin = textContainerOrigin
+
+        if textLength == 0 || layoutManager.numberOfGlyphs == 0 {
+            let extraLineRect = layoutManager.extraLineFragmentRect
+            let resolvedHeight = max(extraLineRect.height, inlineCompletionFont.ascender - inlineCompletionFont.descender)
+            let resolvedRect = extraLineRect.isEmpty
+                ? NSRect(x: 0, y: 0, width: 0, height: resolvedHeight)
+                : extraLineRect
+            return drawingRect(
+                anchorX: containerOrigin.x + resolvedRect.minX,
+                lineOriginY: containerOrigin.y + resolvedRect.minY,
+                lineHeight: resolvedRect.height
+            )
+        }
+
+        let nsText = string as NSString
+        if caretLocation >= textLength {
+            return inlineCompletionRectAtDocumentEnd(
+                text: nsText,
+                containerOrigin: containerOrigin,
+                layoutManager: layoutManager,
+                textContainer: textContainer
+            )
+        }
+
+        let glyphIndex = layoutManager.glyphIndexForCharacter(at: caretLocation)
+        let glyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: glyphIndex, length: 1),
+            in: textContainer
+        )
+        let lineRect = layoutManager.lineFragmentUsedRect(
+            forGlyphAt: glyphIndex,
+            effectiveRange: nil
+        )
+
+        return drawingRect(
+            anchorX: containerOrigin.x + glyphRect.minX,
+            lineOriginY: containerOrigin.y + lineRect.minY,
+            lineHeight: lineRect.height
+        )
+    }
+
+    private func inlineCompletionRectAtDocumentEnd(
+        text: NSString,
+        containerOrigin: NSPoint,
+        layoutManager: NSLayoutManager,
+        textContainer: NSTextContainer
+    ) -> NSRect? {
+        let glyphCount = layoutManager.numberOfGlyphs
+        guard glyphCount > 0 else {
+            return nil
+        }
+
+        let lastGlyphIndex = glyphCount - 1
+        let lastGlyphRect = layoutManager.boundingRect(
+            forGlyphRange: NSRange(location: lastGlyphIndex, length: 1),
+            in: textContainer
+        )
+        let lineRect = layoutManager.lineFragmentUsedRect(
+            forGlyphAt: lastGlyphIndex,
+            effectiveRange: nil
+        )
+
+        let endsWithNewline: Bool
+        if text.length > 0,
+           let lastScalar = UnicodeScalar(text.character(at: text.length - 1)) {
+            endsWithNewline = CharacterSet.newlines.contains(lastScalar)
+        } else {
+            endsWithNewline = false
+        }
+
+        if endsWithNewline {
+            let extraLineRect = layoutManager.extraLineFragmentRect
+            let resolvedRect = extraLineRect.isEmpty
+                ? NSRect(
+                    x: lineRect.minX,
+                    y: lineRect.maxY,
+                    width: 0,
+                    height: max(lineRect.height, inlineCompletionFont.ascender - inlineCompletionFont.descender)
+                )
+                : extraLineRect
+
+            return drawingRect(
+                anchorX: containerOrigin.x + resolvedRect.minX,
+                lineOriginY: containerOrigin.y + resolvedRect.minY,
+                lineHeight: resolvedRect.height
+            )
+        }
+
+        return drawingRect(
+            anchorX: containerOrigin.x + lastGlyphRect.maxX,
+            lineOriginY: containerOrigin.y + lineRect.minY,
+            lineHeight: lineRect.height
+        )
+    }
+
+    private func drawingRect(
+        anchorX: CGFloat,
+        lineOriginY: CGFloat,
+        lineHeight: CGFloat
+    ) -> NSRect? {
+        let availableWidth = max(bounds.width - anchorX, 0)
+        guard availableWidth > 0.5 else {
+            return nil
+        }
+
+        return NSRect(
+            x: anchorX,
+            y: lineOriginY,
+            width: availableWidth,
+            height: max(lineHeight, 1)
+        )
+    }
+
+    private var inlineCompletionFont: NSFont {
+        inlineCompletionPresentation?.attributes[.font] as? NSFont
+            ?? font
+            ?? NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.capture)
     }
 }
 

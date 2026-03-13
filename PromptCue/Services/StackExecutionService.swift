@@ -144,6 +144,7 @@ final class StackExecutionService {
 private struct StackExecutionCardRecord: FetchableRecord, Decodable {
     let id: String
     let text: String
+    let tagsJSON: String?
     let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
@@ -154,6 +155,7 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
         CaptureCard(
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
+            tags: CaptureTag.decodeJSONArray(tagsJSON),
             suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,

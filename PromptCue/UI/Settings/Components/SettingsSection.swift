@@ -3,15 +3,18 @@ import SwiftUI
 struct SettingsSection<Content: View>: View {
     let title: String
     let footer: String?
+    let titleFont: Font
     private let content: Content
 
     init(
         title: String,
+        titleFont: Font = SettingsTokens.Typography.sectionTitle,
         footer: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.footer = footer
+        self.titleFont = titleFont
         self.content = content()
     }
 
@@ -19,7 +22,7 @@ struct SettingsSection<Content: View>: View {
         VStack(alignment: .leading, spacing: SettingsTokens.Layout.sectionHeaderSpacing) {
             VStack(alignment: .leading, spacing: SettingsTokens.Layout.sectionTitleSpacing) {
                 Text(title)
-                    .font(SettingsTokens.Typography.sectionTitle)
+                    .font(titleFont)
                     .foregroundStyle(SettingsSemanticTokens.Text.primary)
 
                 if let footer, footer.isEmpty == false {

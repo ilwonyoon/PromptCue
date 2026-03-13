@@ -18,18 +18,18 @@ enum SettingsTokens {
         static let sectionTitleSpacing: CGFloat = 2
         static let contentMaxWidth: CGFloat = 600
 
-        static let sidebarRowHeight: CGFloat = 32
+        static let sidebarRowHeight: CGFloat = 36
         static let sidebarCornerRadius: CGFloat = 10
-        static let sidebarItemSpacing: CGFloat = 8
-        static let sidebarItemHorizontalPadding: CGFloat = 10
-        static let sidebarItemVerticalPadding: CGFloat = 3
+        static let sidebarItemSpacing: CGFloat = 6
+        static let sidebarItemHorizontalPadding: CGFloat = 12
+        static let sidebarItemVerticalPadding: CGFloat = 2
         static let sidebarVerticalPadding: CGFloat = 16
         static let sidebarHorizontalPadding: CGFloat = 10
-        static let sidebarIconSize: CGFloat = 26
-        static let sidebarIconGlyphSize: CGFloat = 12
-        static let sidebarAssetIconInset: CGFloat = 2.5
-        static let sidebarIconTextSpacing: CGFloat = 7
-        static let sidebarIconCornerRadius: CGFloat = 5
+        static let sidebarIconSize: CGFloat = 30
+        static let sidebarIconGlyphSize: CGFloat = 16
+        static let sidebarAssetIconInset: CGFloat = 1.75
+        static let sidebarIconTextSpacing: CGFloat = 9
+        static let sidebarIconCornerRadius: CGFloat = 7
 
         static let groupCornerRadius: CGFloat = 12
         static let fieldCornerRadius: CGFloat = 10
@@ -54,6 +54,7 @@ enum SettingsTokens {
     enum Typography {
         static let pageTitle = Font.system(size: 20, weight: .semibold)
         static let sectionTitle = Font.system(size: 13, weight: .semibold)
+        static let sectionTitleMedium = Font.system(size: 13, weight: .medium)
         static let sidebarLabel = Font.system(size: 13, weight: .medium)
         static let rowLabel = Font.system(size: 13, weight: .medium)
         static let supporting = Font.system(size: 11, weight: .regular)

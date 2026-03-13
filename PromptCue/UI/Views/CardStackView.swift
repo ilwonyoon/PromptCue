@@ -182,13 +182,18 @@ struct CardStackView: View {
             Image(systemName: stackFilter == .all
                   ? "line.3.horizontal.decrease.circle"
                   : "line.3.horizontal.decrease.circle.fill")
+                .symbolRenderingMode(.hierarchical)
                 .font(PrimitiveTokens.Typography.accessoryIcon)
                 .foregroundStyle(
                     stackFilter == .all
                         ? SemanticTokens.Text.secondary
                         : SemanticTokens.Text.primary
                 )
+                .frame(width: 16, height: 16)
+                .contentShape(Rectangle())
         }
+        .fixedSize()
+        .menuIndicator(.hidden)
         .menuStyle(.borderlessButton)
         .buttonStyle(.plain)
         .accessibilityLabel("Filter stack")

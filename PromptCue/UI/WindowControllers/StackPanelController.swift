@@ -12,6 +12,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     private var globalMouseMonitor: Any?
     private(set) var isVisible = false
     private var isAnimatingClose = false
+    private var hasWarmedFirstPresentation = false
 
     var isPresentedOrTransitioning: Bool {
         isVisible || isAnimatingClose || panel?.isVisible == true
@@ -39,31 +40,43 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
+        PerformanceTrace.markStackOpenPhase("show_enter")
+
         let panel = panel ?? makePanel()
         guard !panel.isVisible else {
             return
         }
+        PerformanceTrace.markStackOpenPhase("panel_ready")
 
         model.beginStackSuggestedTargetPresentation()
+        PerformanceTrace.markStackOpenPhase("suggested_target_presentation_started")
         primePanelLayout(panel)
+        PerformanceTrace.markStackOpenPhase("layout_primed")
         let targetFrame = onscreenPanelFrame(for: panel.frame.size)
         panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
+        PerformanceTrace.markStackOpenPhase("offscreen_frame_positioned")
         panel.armFirstFrameCallback {
             PerformanceTrace.completeStackOpenTraceIfNeeded()
         }
+        PerformanceTrace.markStackOpenPhase("first_frame_callback_armed")
 
         // Start fully transparent so backdrop materials and SwiftUI content
         // can settle for one frame before becoming visible — prevents flash.
         panel.alphaValue = 0
+        PerformanceTrace.markStackOpenPhase("alpha_zeroed")
         NSApp.activate(ignoringOtherApps: true)
+        PerformanceTrace.markStackOpenPhase("app_activated")
         panel.makeKeyAndOrderFront(nil)
+        PerformanceTrace.markStackOpenPhase("made_key_and_ordered_front")
         isVisible = true
         installDismissMonitors()
+        PerformanceTrace.markStackOpenPhase("dismiss_monitors_installed")
 
         // Allow one run-loop cycle for NSVisualEffectView materials to
         // composite, then fade in alongside the slide animation.
         DispatchQueue.main.async { [weak panel] in
             guard let panel else { return }
+            PerformanceTrace.markStackOpenPhase("animation_dispatch")
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = PrimitiveTokens.Motion.standard
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -80,6 +93,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         let panel = panel ?? makePanel()
         primePanelLayout(panel)
+        warmOrderFrontIfNeeded(panel)
     }
 
     func close(commitDeferredCopies: Bool = true) {
@@ -198,6 +212,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 }
             )
         )
+        PerformanceTrace.markStackOpenPhase("panel_content_built")
 
         self.panel = panel
         return panel
@@ -209,8 +224,25 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         contentView.needsLayout = true
+        PerformanceTrace.markStackOpenPhase("layout_marked_dirty")
         contentView.layoutSubtreeIfNeeded()
+        PerformanceTrace.markStackOpenPhase("layout_subtree_complete")
         contentView.displayIfNeeded()
+        PerformanceTrace.markStackOpenPhase("display_if_needed_complete")
+    }
+
+    private func warmOrderFrontIfNeeded(_ panel: StackPanel) {
+        guard !hasWarmedFirstPresentation, !panel.isVisible else {
+            return
+        }
+
+        hasWarmedFirstPresentation = true
+        let targetFrame = onscreenPanelFrame(for: panel.frame.size)
+        panel.setFrame(offscreenPanelFrame(for: targetFrame.size), display: false)
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        panel.orderOut(nil)
+        panel.alphaValue = 1
     }
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {
@@ -220,7 +252,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         return NSRect(
             x: visibleFrame.maxX - width,
-            y: visibleFrame.minY,
+            y: visibleFrame.maxY - height,
             width: width,
             height: height
         )

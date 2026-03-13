@@ -201,6 +201,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             } else {
                 if shouldMeasureStackOpen {
                     PerformanceTrace.beginStackOpenTrace()
+                    PerformanceTrace.markStackOpenPhase("toggle_stack_show_begin")
                 }
                 self.stackPanelController.show()
             }

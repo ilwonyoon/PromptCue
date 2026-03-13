@@ -86,6 +86,7 @@ Reason:
 Locked v1 decision:
 
 - direct-download storefront: `Lemon Squeezy`
+- v1 compatibility baseline: `Apple Silicon only`
 - Mac App Store remains a later compatibility lane, not the first ship target
 
 ### 3. Business Model
@@ -288,6 +289,7 @@ Ship Backtick as:
 
 - `14-day` public beta build
 - direct-download app sold through `Lemon Squeezy`
+- `Apple Silicon only` for v1
 - `14-day` full in-app trial after launch
 - one-time purchase
 - `9.99 USD` founding launch price for `7 days`

@@ -11,6 +11,7 @@ Backtick is a native macOS utility app with:
 - code-facing core module name: `PromptCueCore`
 - primary release lane: direct distribution through Lemon Squeezy
 - secondary release lane: Mac App Store compatibility later
+- v1 compatibility baseline: `Apple Silicon only`
 
 For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and Xcode project. Product and planning language should use `Backtick`.
 
@@ -19,6 +20,7 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 ### Product Shape
 
 - Standard macOS utility app, not a macOS App Extension
+- v1 system requirement: `Apple Silicon Mac`
 - `LSUIElement` background utility app with menu bar presence
 - SwiftUI for view composition
 - AppKit for panel windowing, focus behavior, and system integration

@@ -273,6 +273,7 @@ Screenshot auto-attach must be designed around a user-approved folder. The app s
 ### Default Path
 
 - Direct download first, with Lemon Squeezy as the primary storefront for paid distribution
+- v1 compatibility baseline is `Apple Silicon only`
 - Ship a signed, notarized `.app` inside a branded `.dmg`
 - Signed, notarized macOS app
 - Auto-update path can be added later if needed

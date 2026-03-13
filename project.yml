@@ -17,6 +17,7 @@ configFiles:
 settings:
   base:
     SWIFT_VERSION: 5.0
+    ARCHS: arm64
 fileGroups:
   - Config
 schemes:

@@ -17,6 +17,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 - App shell: `LSUIElement` background utility with status item and floating panels
 - UI stack: SwiftUI for view composition, AppKit for windowing and system integration
 - Distribution baseline: Lemon Squeezy-backed direct distribution first, Mac App Store compatibility deferred
+- Compatibility baseline: v1 ships as `Apple Silicon only`
 - Screenshot strategy: user-selected screenshot folder with security-scoped bookmark support
 - Persistence baseline: local-only storage with optional auto-expiration, disabled by default
 - Storage engine baseline: `SQLite + GRDB`

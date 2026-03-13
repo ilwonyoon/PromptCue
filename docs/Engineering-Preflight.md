@@ -9,7 +9,7 @@ Backtick is a native macOS utility app with:
 - user-facing name: `Backtick`
 - code-facing app target name: `PromptCue`
 - code-facing core module name: `PromptCueCore`
-- primary release lane: direct distribution through Gumroad
+- primary release lane: direct distribution through Lemon Squeezy
 - secondary release lane: Mac App Store compatibility later
 
 For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and Xcode project. Product and planning language should use `Backtick`.
@@ -81,7 +81,7 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 
 - main app: `com.promptcue.promptcue`
 - login item helper, if added later: `com.promptcue.promptcue.launcher`
-- App Store SKU and Gumroad listing names should use `Backtick`
+- App Store SKU and direct storefront listing names should use `Backtick`
 
 ### Versioning
 
@@ -360,7 +360,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 
 ### Primary Lane
 
-- Gumroad storefront
+- Lemon Squeezy storefront
 - downloadable DMG containing the signed and notarized app
 
 ### Release Artifact Checklist
@@ -375,7 +375,7 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 
 ### Recommended User Delivery
 
-- Gumroad product page
+- Lemon Squeezy product page
 - DMG download after purchase or for free checkout
 - concise install instructions
 - changelog or release notes link
@@ -404,25 +404,37 @@ Do not let direct-distribution shortcuts make the app architecture impossible to
 - `create-dmg` or a custom `hdiutil` script
 - release script should be deterministic and version-aware
 
-## 16. Gumroad Sales Considerations
+## 16. Direct Sales And Licensing Considerations
 
 ### Early Recommendation
 
 Start simple:
 
-- free or paid download
+- paid direct download with try-before-buy access
 - no account requirement inside the app
-- no blocking license enforcement in v1
+- no blocking network dependency on normal local usage
 
 ### Why
 
 - Backtick is a utility tool
 - friction at install or launch directly fights the product promise
-- early users are better served by easy access than DRM
+- early users are better served by easy access than aggressive DRM
+
+### Locked v1 Recommendation
+
+- storefront: `Lemon Squeezy`
+- model: `14-day full trial -> one-time purchase`
+- launch price: `9.99 USD founding price`
+- regular price after the launch window: `19.99 USD`
+- activation limit: `2 Macs per license`
+- after trial expiry:
+  - keep read/export/license-management access
+  - block new capture and new save actions
+- persist trial and activation state in `Keychain`
 
 ### If Paid Enforcement Is Added Later
 
-- keep activation optional for free tier or trial
+- keep trial and license state separate from core capture flow
 - do not block local notes if a network check fails
 - separate storefront logic from app core
 - never tie core capture reliability to license validation latency
@@ -478,7 +490,7 @@ The App Store should not be the first ship target for Backtick. It should be pla
   - certificates
   - notarization
   - DMG packaging
-  - Gumroad upload checklist
+  - storefront release checklist
 - test owner
   - CI
   - smoke checks
@@ -503,7 +515,7 @@ Before serious feature implementation, confirm all of the following:
 - package tests and CI are green
 - release secrets storage plan is documented
 - DMG packaging plan exists
-- Gumroad listing and asset requirements are listed
+- storefront listing and asset requirements are listed
 
 ## 21. Immediate Next Actions
 

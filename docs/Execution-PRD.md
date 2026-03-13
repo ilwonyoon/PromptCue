@@ -272,7 +272,7 @@ Screenshot auto-attach must be designed around a user-approved folder. The app s
 
 ### Default Path
 
-- Direct download first, with Gumroad as the primary storefront for free or paid distribution
+- Direct download first, with Lemon Squeezy as the primary storefront for paid distribution
 - Ship a signed, notarized `.app` inside a branded `.dmg`
 - Signed, notarized macOS app
 - Auto-update path can be added later if needed
@@ -287,9 +287,9 @@ The App Sandbox introduces extra complexity around screenshot folder access and 
 
 ### Commerce And Packaging Notes
 
-- Gumroad requires a predictable downloadable artifact, so release automation should produce a versioned DMG and checksums.
+- The direct-download storefront requires a predictable downloadable artifact, so release automation should produce a versioned DMG and checksums.
 - The DMG should include the app, `/Applications` shortcut, a short install instruction, and brand-safe background/layout polish.
-- If license enforcement is added later, it should stay separate from core capture flow so offline usage remains reliable.
+- Trial and license enforcement should stay separate from core capture flow so offline usage remains reliable.
 - App Store packaging should be treated as a separate release lane because sandbox and entitlement constraints differ materially from direct distribution.
 
 ## Success Metrics

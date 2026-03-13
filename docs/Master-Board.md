@@ -16,7 +16,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 - Platform shape: standard macOS utility app, not an App Extension
 - App shell: `LSUIElement` background utility with status item and floating panels
 - UI stack: SwiftUI for view composition, AppKit for windowing and system integration
-- Distribution baseline: Gumroad-backed direct distribution first, Mac App Store compatibility deferred
+- Distribution baseline: Lemon Squeezy-backed direct distribution first, Mac App Store compatibility deferred
 - Screenshot strategy: user-selected screenshot folder with security-scoped bookmark support
 - Persistence baseline: local-only storage with optional auto-expiration, disabled by default
 - Storage engine baseline: `SQLite + GRDB`
@@ -27,7 +27,8 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | --- | --- | --- |
 | Execution PRD | Completed | Repo-backed and aligned to native macOS direction |
 | Implementation plan | Completed | Phase/task breakdown landed in repo |
-| Engineering preflight | Completed | Setup, distribution, Gumroad, DMG, and MAS considerations documented |
+| Engineering preflight | Completed | Setup, distribution, licensing, DMG, and MAS considerations documented |
+| Monetization launch decision | Completed | v1 beta, trial, pricing, activation, and storefront strategy are frozen in `docs/Monetization-Launch-Decision.md` |
 | Architecture decision | Locked | Native macOS utility app |
 | Repo scaffold | In progress | App target, local package, CI, and XcodeGen wiring are in place |
 | Core contracts | In progress | App target now depends on `PromptCueCore`; some app-only state contracts remain local |
@@ -99,7 +100,7 @@ This `Phase H` map supersedes the older Track A-E naming below for the public la
 5. Launch-at-login, settings, and polish
 6. AI Export Tail / Prompt Suffix integration
 7. Stack card overflow and click expansion
-8. DMG packaging, Gumroad release prep, and MAS compatibility review
+8. DMG packaging, Lemon Squeezy release prep, and MAS compatibility review
 9. Continue design-system strategy execution in the strategy branch: finish DS3, expand DS4 conservatively, then run DS5 native-alignment pass
 10. Run the bounded capture/stack polish lane: `DP0 -> DP4`, with review packets per slice
 

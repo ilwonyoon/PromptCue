@@ -353,7 +353,7 @@ private struct CaptureCardActionStyle {
         isShowingCopyFeedback: Bool
     ) -> CaptureCardActionStyle {
         let usesPersistentActionBackdrop = card.screenshotURL != nil
-        let isPrimaryCopyHover = isCopyHovered || (isCardHovered && !selectionMode)
+        let isPrimaryCopyHover = isCopyHovered
 
         let bodyColor: Color
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {

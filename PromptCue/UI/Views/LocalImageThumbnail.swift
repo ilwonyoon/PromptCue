@@ -18,6 +18,9 @@ struct LocalImageThumbnail: View {
         self.url = url
         self.width = width
         self.height = height
+        let resolvedURL = url.standardizedFileURL
+        _image = State(initialValue: Self.imageCache.object(forKey: resolvedURL as NSURL))
+        _loadedURL = State(initialValue: resolvedURL)
     }
 
     var body: some View {

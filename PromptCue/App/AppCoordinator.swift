@@ -3,14 +3,15 @@ import KeyboardShortcuts
 import PromptCueCore
 
 @MainActor
-final class AppCoordinator: AppLifecycleCoordinating {
-    let model = AppModel()
+final class AppCoordinator: NSObject, AppLifecycleCoordinating {
+    let model: AppModel
     private let hotKeyCenter = HotKeyCenter()
     private let screenshotSettingsModel = ScreenshotSettingsModel()
     private let exportTailSettingsModel = PromptExportTailSettingsModel()
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private let appearanceSettingsModel = AppearanceSettingsModel()
+    private let licensingSettingsModel = LicensingSettingsModel()
     private let mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     private let environment = AppEnvironment.current
     private lazy var capturePanelController = CapturePanelController(model: model)
@@ -27,21 +28,39 @@ final class AppCoordinator: AppLifecycleCoordinating {
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,
         appearanceSettingsModel: appearanceSettingsModel,
+        licensingSettingsModel: licensingSettingsModel,
         mcpConnectorSettingsModel: mcpConnectorSettingsModel
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
+    private var licenseManagementObserver: NSObjectProtocol?
 
-    init() {
+    override init() {
+        model = AppModel(captureAccessController: licensingSettingsModel)
+        super.init()
         appearanceSettingsModel.onAppearanceApplied = { [weak self] appearance in
             self?.applyAppearance(appearance)
         }
     }
 
     func start() {
+        if environment.isRunningUnitTests {
+            return
+        }
+
+        licenseManagementObserver = NotificationCenter.default.addObserver(
+            forName: .licenseManagementRequested,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.showSettingsWindow(selectedTab: .general)
+            }
+        }
         terminateDuplicateDebugInstancesIfNeeded()
         ScreenshotDirectoryResolver.bootstrapPreferredDirectoryIfNeeded()
         appearanceSettingsModel.applyAppearance()
+        licensingSettingsModel.refresh()
         model.start()
         applyCaptureQADraftSeedIfNeeded(environment)
         hotKeyCenter.registerDefaultShortcuts(
@@ -95,6 +114,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
     func stop() {
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
+        if let licenseManagementObserver {
+            NotificationCenter.default.removeObserver(licenseManagementObserver)
+        }
+        licenseManagementObserver = nil
         hotKeyCenter.unregisterAll()
         model.stop()
         statusItem = nil
@@ -111,22 +134,33 @@ final class AppCoordinator: AppLifecycleCoordinating {
         item.button?.imageScaling = .scaleProportionallyUpOrDown
         item.button?.appearance = nil
 
+        item.menu = makeStatusMenu()
+        statusItem = item
+    }
+
+    func makeStatusMenu() -> NSMenu {
         let menu = NSMenu()
         let quickCaptureItem = NSMenuItem(title: "Quick Capture", action: #selector(handleQuickCapture), keyEquivalent: "")
         quickCaptureItem.setShortcut(for: .quickCapture)
+        quickCaptureItem.target = self
         menu.addItem(quickCaptureItem)
 
         let toggleStackItem = NSMenuItem(title: "Show Stack Panel", action: #selector(handleToggleStack), keyEquivalent: "")
         toggleStackItem.setShortcut(for: .toggleStackPanel)
+        toggleStackItem.target = self
         menu.addItem(toggleStackItem)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q"))
 
-        menu.items.forEach { $0.target = self }
-        item.menu = menu
-        statusItem = item
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        let quitItem = NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        return menu
     }
 
     private func makeStatusItemImage() -> NSImage? {
@@ -211,8 +245,8 @@ final class AppCoordinator: AppLifecycleCoordinating {
         designSystemWindowController.show()
     }
 
-    private func showSettingsWindow() {
-        settingsWindowController.show(selectedTab: startupSettingsTab())
+    private func showSettingsWindow(selectedTab: SettingsTab? = nil) {
+        settingsWindowController.show(selectedTab: selectedTab ?? startupSettingsTab())
     }
 
     private func applyAppearance(_ appearance: NSAppearance?) {

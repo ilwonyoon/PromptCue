@@ -68,6 +68,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let retentionSettingsModel: CardRetentionSettingsModel
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
     private let appearanceSettingsModel: AppearanceSettingsModel
+    private let licensingSettingsModel: LicensingSettingsModel
     private let mcpConnectorSettingsModel: MCPConnectorSettingsModel
     private let navigationModel = SettingsNavigationModel()
     init(
@@ -76,6 +77,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
         appearanceSettingsModel: AppearanceSettingsModel,
+        licensingSettingsModel: LicensingSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
@@ -83,6 +85,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.appearanceSettingsModel = appearanceSettingsModel
+        self.licensingSettingsModel = licensingSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
         super.init()
     }
@@ -114,6 +117,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         retentionSettingsModel.refresh()
         cloudSyncSettingsModel.refresh()
         appearanceSettingsModel.refresh()
+        licensingSettingsModel.refresh()
         mcpConnectorSettingsModel.refresh()
     }
 
@@ -167,6 +171,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             retentionSettingsModel: retentionSettingsModel,
             cloudSyncSettingsModel: cloudSyncSettingsModel,
             appearanceSettingsModel: appearanceSettingsModel,
+            licensingSettingsModel: licensingSettingsModel,
             mcpConnectorSettingsModel: mcpConnectorSettingsModel
         )
     }

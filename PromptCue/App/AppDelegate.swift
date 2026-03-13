@@ -28,6 +28,22 @@ private func defaultAppDelegateManagesRemoteNotifications() -> Bool {
 }
 
 @MainActor
+private func defaultCoordinatorFactory() -> @MainActor () -> any AppLifecycleCoordinating {
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+        return { TestHostLifecycleCoordinator() }
+    }
+
+    return { AppCoordinator() }
+}
+
+@MainActor
+private final class TestHostLifecycleCoordinator: AppLifecycleCoordinating {
+    func start() {}
+    func stop() {}
+    func handleCloudRemoteNotification() {}
+}
+
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let coordinatorFactory: @MainActor () -> any AppLifecycleCoordinating
     private let remoteNotificationRegistrar: any RemoteNotificationRegistering
@@ -37,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cloudSyncEnabledObserver: NSObjectProtocol?
 
     override init() {
-        self.coordinatorFactory = { AppCoordinator() }
+        self.coordinatorFactory = defaultCoordinatorFactory()
         self.remoteNotificationRegistrar = ApplicationRemoteNotificationRegistrar()
         self.cloudSyncPreferencesDefaults = .standard
         self.managesRemoteNotifications = defaultAppDelegateManagesRemoteNotifications()

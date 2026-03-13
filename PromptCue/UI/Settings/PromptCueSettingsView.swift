@@ -10,6 +10,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
     @ObservedObject private var appearanceSettingsModel: AppearanceSettingsModel
+    @ObservedObject private var licensingSettingsModel: LicensingSettingsModel
     @ObservedObject private var mcpConnectorSettingsModel: MCPConnectorSettingsModel
     @State private var installGuideClient: MCPConnectorClient?
     @State private var setupGuideClient: MCPConnectorClient?
@@ -29,6 +30,7 @@ struct PromptCueSettingsView: View {
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
         appearanceSettingsModel: AppearanceSettingsModel,
+        licensingSettingsModel: LicensingSettingsModel,
         mcpConnectorSettingsModel: MCPConnectorSettingsModel
     ) {
         _navigationModel = ObservedObject(
@@ -40,6 +42,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.appearanceSettingsModel = appearanceSettingsModel
+        self.licensingSettingsModel = licensingSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
     }
 
@@ -53,6 +56,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = CardRetentionSettingsModel()
         self.cloudSyncSettingsModel = CloudSyncSettingsModel()
         self.appearanceSettingsModel = AppearanceSettingsModel()
+        self.licensingSettingsModel = LicensingSettingsModel()
         self.mcpConnectorSettingsModel = MCPConnectorSettingsModel()
     }
 
@@ -79,6 +83,7 @@ struct PromptCueSettingsView: View {
             retentionSettingsModel.refresh()
             cloudSyncSettingsModel.refresh()
             appearanceSettingsModel.refresh()
+            licensingSettingsModel.refresh()
             mcpConnectorSettingsModel.refresh()
         }
         .onChange(of: mcpConnectorSettingsModel.connectionState) { _, newValue in
@@ -289,6 +294,80 @@ struct PromptCueSettingsView: View {
                 ) {
                     KeyboardShortcuts.Recorder(for: .toggleStackPanel)
                         .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        }
+
+        SettingsSection(
+            title: "License & Trial",
+            footer: "Backtick includes a full 14-day trial. After expiry, existing cards stay visible and exportable, but new saves require a license."
+        ) {
+            SettingsRows {
+                SettingsTwoColumnGroupRow("Status") {
+                    SettingsStatusBadge(
+                        title: licensingSettingsModel.accessStatusTitle,
+                        tone: licensingStatusBadgeTone
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                SettingsDetailGroupRow("Access") {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        Text(licensingSettingsModel.accessDetailText)
+                            .font(PrimitiveTokens.Typography.bodyStrong)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let storedLicenseDetailText = licensingSettingsModel.storedLicenseDetailText {
+                            rowNote(storedLicenseDetailText)
+                        }
+
+                        if let configurationNote = licensingSettingsModel.configurationNote {
+                            rowNote(configurationNote)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } actions: {
+                    if licensingSettingsModel.canOpenStorefront {
+                        Button(licensingSettingsModel.storefrontButtonTitle) {
+                            licensingSettingsModel.openStorefront()
+                        }
+                    }
+                }
+
+                SettingsDetailGroupRow("License Key", showsDivider: false) {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        TextField(
+                            "Paste a Lemon Squeezy license key",
+                            text: binding(
+                                get: { licensingSettingsModel.enteredLicenseKey },
+                                set: { licensingSettingsModel.enteredLicenseKey = $0 }
+                            )
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            Task {
+                                await licensingSettingsModel.activateEnteredLicenseKey()
+                            }
+                        }
+
+                        if let activationError = licensingSettingsModel.activationError {
+                            Text(activationError)
+                                .font(SettingsTokens.Typography.supporting)
+                                .foregroundStyle(Color(nsColor: .systemRed))
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            rowNote("Use your purchased license to unlock new saves on this Mac.")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } actions: {
+                    Button(licensingSettingsModel.activationButtonTitle) {
+                        Task {
+                            await licensingSettingsModel.activateEnteredLicenseKey()
+                        }
+                    }
+                    .disabled(!licensingSettingsModel.canSubmitLicenseActivation)
                 }
             }
         }
@@ -1630,6 +1709,19 @@ struct PromptCueSettingsView: View {
         }
 
         return cloudSyncSettingsModel.isSyncEnabled ? .success : .neutral
+    }
+
+    private var licensingStatusBadgeTone: SettingsStatusBadge.Tone {
+        switch licensingSettingsModel.accessSnapshot.status {
+        case .licensed:
+            return .success
+        case .trial:
+            return .accent
+        case .expired(.trialExpired):
+            return .warning
+        case .expired(.clockMovedBackward):
+            return .danger
+        }
     }
 
     private var sectionDivider: some View {

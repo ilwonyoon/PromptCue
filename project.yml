@@ -18,6 +18,10 @@ settings:
   base:
     SWIFT_VERSION: 5.0
     ARCHS: arm64
+    PROMPTCUE_STORE_URL: ""
+    PROMPTCUE_LS_STORE_ID: ""
+    PROMPTCUE_LS_PRODUCT_ID: ""
+    PROMPTCUE_LS_VARIANT_ID: ""
 fileGroups:
   - Config
 schemes:
@@ -92,6 +96,10 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHighResolutionCapable: YES
+        INFOPLIST_KEY_BacktickStoreURL: $(PROMPTCUE_STORE_URL)
+        INFOPLIST_KEY_BacktickLemonSqueezyStoreID: $(PROMPTCUE_LS_STORE_ID)
+        INFOPLIST_KEY_BacktickLemonSqueezyProductID: $(PROMPTCUE_LS_PRODUCT_ID)
+        INFOPLIST_KEY_BacktickLemonSqueezyVariantID: $(PROMPTCUE_LS_VARIANT_ID)
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
   PromptCueTests:

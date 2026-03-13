@@ -84,6 +84,7 @@ final class AppModel: ObservableObject {
     let attachmentStore: AttachmentStoring
     let recentScreenshotCoordinator: RecentScreenshotCoordinating
     let suggestedTargetProvider: any SuggestedTargetProviding
+    let captureAccessController: any CaptureAccessControlling
     private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
     var cloudSyncEngine: (any CloudSyncControlling)?
@@ -109,6 +110,7 @@ final class AppModel: ObservableObject {
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
         suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil,
+        captureAccessController: (any CaptureAccessControlling)? = nil,
         cloudSyncEngineFactory: @escaping @MainActor () -> any CloudSyncControlling = { CloudSyncEngine() },
         cleanupInterval: TimeInterval = 60
     ) {
@@ -117,6 +119,7 @@ final class AppModel: ObservableObject {
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
         self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
+        self.captureAccessController = captureAccessController ?? AllowAllCaptureAccessController()
         self.cloudSyncEngineFactory = cloudSyncEngineFactory
         self.cleanupInterval = cleanupInterval
         self.suggestedTargetProvider.onChange = { [weak self] in
@@ -126,7 +129,9 @@ final class AppModel: ObservableObject {
         }
     }
 
-    convenience init() {
+    convenience init(
+        captureAccessController: (any CaptureAccessControlling)? = nil
+    ) {
         let isTestEnvironment = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
         let syncEnabled = !isTestEnvironment && CloudSyncPreferences.load()
         self.init(
@@ -134,7 +139,8 @@ final class AppModel: ObservableObject {
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
             suggestedTargetProvider: RecentSuggestedAppTargetTracker(),
-            cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil
+            cloudSyncEngine: syncEnabled ? CloudSyncEngine() : nil,
+            captureAccessController: captureAccessController
         )
     }
 

@@ -126,6 +126,11 @@ extension AppModel {
             return false
         }
 
+        guard captureAccessController.accessSnapshot.allowsCaptureSave else {
+            captureAccessController.handleBlockedCaptureAttempt()
+            return false
+        }
+
         if isEditingCaptureCard {
             guard let editingCard = editingCaptureCard else {
                 clearDraft()

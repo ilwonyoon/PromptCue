@@ -7,6 +7,13 @@ enum StartupSettingsTab: String {
     case connectors
 }
 
+enum QAAccessStateOverride: String {
+    case trial
+    case expired
+    case rollback
+    case licensed
+}
+
 struct AppEnvironment {
     static var current: AppEnvironment {
         AppEnvironment()
@@ -25,6 +32,10 @@ struct AppEnvironment {
 
     var shouldOpenDesignSystemOnStart: Bool {
         boolFlag("PROMPTCUE_OPEN_DESIGN_SYSTEM") || hasArgument("--open-design-system")
+    }
+
+    var isRunningUnitTests: Bool {
+        values["XCTestConfigurationFilePath"] != nil
     }
 
     var shouldOpenStackOnStart: Bool {
@@ -51,6 +62,16 @@ struct AppEnvironment {
 
     var qaDraftTextFilePath: String? {
         nonEmptyValue(for: "PROMPTCUE_QA_DRAFT_TEXT_FILE")
+    }
+
+    var qaAccessStateOverride: QAAccessStateOverride? {
+        #if DEBUG
+        nonEmptyValue(for: "PROMPTCUE_QA_ACCESS_STATE")
+            .map { $0.lowercased() }
+            .flatMap(QAAccessStateOverride.init(rawValue:))
+        #else
+        nil
+        #endif
     }
 
     private func boolFlag(_ key: String) -> Bool {

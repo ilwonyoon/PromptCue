@@ -53,6 +53,7 @@ let package = Package(
                 "PromptCue/Services/CloudSyncEngine.swift",
                 "PromptCue/Services/HotKeyCenter.swift",
                 "PromptCue/Services/ManagedScreenshotAccess.swift",
+                "PromptCue/Services/Licensing",
                 "PromptCue/Services/RecentClipboardImageMonitor.swift",
                 "PromptCue/Services/RecentScreenshotContracts.swift",
                 "PromptCue/Services/RecentScreenshotCoordinator.swift",

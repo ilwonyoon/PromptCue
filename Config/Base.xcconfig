@@ -7,3 +7,10 @@
 // Config/AppStore.xcconfig overrides this with the MAS compatibility file.
 
 CODE_SIGN_ENTITLEMENTS = PromptCue/PromptCue.entitlements
+
+// Lemon Squeezy storefront and product identifiers are injected at build time.
+// Keep the shared defaults empty so non-release builds still compile.
+PROMPTCUE_STORE_URL =
+PROMPTCUE_LS_STORE_ID =
+PROMPTCUE_LS_PRODUCT_ID =
+PROMPTCUE_LS_VARIANT_ID =

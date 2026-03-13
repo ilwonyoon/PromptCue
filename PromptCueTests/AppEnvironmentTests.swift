@@ -62,4 +62,24 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.qaDraftText, "seeded text")
         XCTAssertNil(environment.qaDraftTextFilePath)
     }
+
+    func testQAAccessOverrideReadsSupportedValue() {
+        let environment = AppEnvironment(
+            values: [
+                "PROMPTCUE_QA_ACCESS_STATE": "  rollback  ",
+            ]
+        )
+
+        XCTAssertEqual(environment.qaAccessStateOverride, .rollback)
+    }
+
+    func testInvalidQAAccessOverrideIsIgnored() {
+        let environment = AppEnvironment(
+            values: [
+                "PROMPTCUE_QA_ACCESS_STATE": "unknown",
+            ]
+        )
+
+        XCTAssertNil(environment.qaAccessStateOverride)
+    }
 }

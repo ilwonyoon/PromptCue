@@ -246,6 +246,7 @@ struct PromptCueSettingsView: View {
     private var generalSections: some View {
         SettingsSection(
             title: "Appearance",
+            titleFont: SettingsTokens.Typography.sectionTitleMedium,
             footer: "Choose whether Backtick follows the system theme or forces a specific mode."
         ) {
             SettingsRows {
@@ -328,6 +329,7 @@ struct PromptCueSettingsView: View {
     private var captureSections: some View {
         SettingsSection(
             title: "Screenshots",
+            titleFont: SettingsTokens.Typography.sectionTitleMedium,
             footer: "Auto-attach only checks the screenshot folder you explicitly approve."
         ) {
             SettingsRows {
@@ -372,7 +374,10 @@ struct PromptCueSettingsView: View {
 
     @ViewBuilder
     private var stackSections: some View {
-        SettingsSection(title: "Retention") {
+        SettingsSection(
+            title: "Retention",
+            titleFont: SettingsTokens.Typography.sectionTitleMedium
+        ) {
             SettingsRows {
                 SettingsDetailGroupRow("Card Lifetime", showsDivider: false) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
@@ -492,14 +497,16 @@ struct PromptCueSettingsView: View {
                             .font(PrimitiveTokens.Typography.bodyStrong)
                             .foregroundStyle(SemanticTokens.Text.primary)
 
-                        SettingsStatusBadge(
-                            title: connectorStatusTitle(for: client),
-                            tone: connectorStatusBadgeTone(for: client)
-                        )
+                        if shouldShowConnectorStatusBadge(for: client) {
+                            SettingsStatusBadge(
+                                title: connectorStatusTitle(for: client),
+                                tone: connectorStatusBadgeTone(for: client)
+                            )
+                        }
                     }
 
                     Text(focusedConnectorDetail(for: client))
-                        .font(PrimitiveTokens.Typography.metaStrong)
+                        .font(PrimitiveTokens.Typography.body)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -765,6 +772,10 @@ struct PromptCueSettingsView: View {
         case .failed:
             return "Needs Repair"
         }
+    }
+
+    private func shouldShowConnectorStatusBadge(for client: MCPConnectorClientStatus) -> Bool {
+        client.hasConfiguredScope || !client.hasDetectedCLI || !mcpConnectorSettingsModel.isServerAvailable
     }
 
     private func connectorStatusBadgeTone(for client: MCPConnectorClientStatus) -> SettingsStatusBadge.Tone {
@@ -1700,7 +1711,7 @@ struct PromptCueSettingsView: View {
 
     private func rowNote(_ text: String) -> some View {
         Text(text)
-            .font(SettingsTokens.Typography.supportingStrong)
+            .font(SettingsTokens.Typography.supporting)
             .foregroundStyle(SettingsSemanticTokens.Text.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }

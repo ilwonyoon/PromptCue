@@ -9,8 +9,7 @@ enum ScreenshotDirectoryResolver {
         "com.promptcue.preferredScreenshotDirectoryDidChange"
     )
 
-    static func bootstrapPreferredDirectoryIfNeeded() {
-        let defaults = UserDefaults.standard
+    static func bootstrapPreferredDirectoryIfNeeded(defaults: UserDefaults = .standard) {
 
         guard defaults.string(forKey: lastKnownPathKey) == nil else {
             return
@@ -21,11 +20,12 @@ enum ScreenshotDirectoryResolver {
         }
 
         defaults.set(legacyPath, forKey: lastKnownPathKey)
+        defaults.set(true, forKey: onboardingHandledKey)
     }
 
-    static func accessState() -> ScreenshotFolderAccessState {
-        if let bookmarkData = bookmarkData() {
-            switch resolvedBookmarkState(from: bookmarkData) {
+    static func accessState(defaults: UserDefaults = .standard) -> ScreenshotFolderAccessState {
+        if let bookmarkData = bookmarkData(defaults: defaults) {
+            switch resolvedBookmarkState(from: bookmarkData, defaults: defaults) {
             case .connected(let url):
                 return .connected(url: url, displayPath: displayPath(for: url))
             case .needsReconnect(let url):
@@ -35,14 +35,15 @@ enum ScreenshotDirectoryResolver {
             }
         }
 
-        if let lastKnownURL = lastKnownDirectoryURL() ?? legacyPreferredDirectoryURL() {
+        if let lastKnownURL = lastKnownDirectoryURL(defaults: defaults)
+            ?? legacyPreferredDirectoryURL(defaults: defaults) {
             return .needsReconnect(lastKnownDisplayPath: displayPath(for: lastKnownURL))
         }
 
         return .notConfigured
     }
 
-    static func saveAuthorizedDirectory(_ url: URL) throws {
+    static func saveAuthorizedDirectory(_ url: URL, defaults: UserDefaults = .standard) throws {
         let standardizedURL = url.standardizedFileURL
         guard directoryExists(at: standardizedURL) else {
             throw ScreenshotDirectoryResolverError.invalidDirectory
@@ -54,15 +55,14 @@ enum ScreenshotDirectoryResolver {
             relativeTo: nil
         )
 
-        let defaults = UserDefaults.standard
         defaults.set(bookmarkData, forKey: bookmarkDataKey)
         defaults.set(standardizedURL.path, forKey: lastKnownPathKey)
+        defaults.set(true, forKey: onboardingHandledKey)
         defaults.removeObject(forKey: legacyPreferredPathKey)
         postAuthorizedDirectoryDidChange()
     }
 
-    static func clearAuthorizedDirectory() {
-        let defaults = UserDefaults.standard
+    static func clearAuthorizedDirectory(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: bookmarkDataKey)
         defaults.removeObject(forKey: lastKnownPathKey)
         defaults.removeObject(forKey: legacyPreferredPathKey)
@@ -107,15 +107,27 @@ enum ScreenshotDirectoryResolver {
     }
 
     static var shouldPresentOnboarding: Bool {
-        guard case .notConfigured = accessState() else {
+        shouldPresentOnboarding(using: .standard)
+    }
+
+    static func shouldPresentOnboarding(using defaults: UserDefaults) -> Bool {
+        guard !defaults.bool(forKey: onboardingHandledKey) else {
             return false
         }
 
-        return !UserDefaults.standard.bool(forKey: onboardingHandledKey)
+        guard !hasPersistedDirectoryHistory(defaults: defaults) else {
+            return false
+        }
+
+        guard case .notConfigured = accessState(defaults: defaults) else {
+            return false
+        }
+
+        return true
     }
 
-    static func markOnboardingHandled() {
-        UserDefaults.standard.set(true, forKey: onboardingHandledKey)
+    static func markOnboardingHandled(defaults: UserDefaults = .standard) {
+        defaults.set(true, forKey: onboardingHandledKey)
     }
 
     static func selectionSeedURL() -> URL? {
@@ -155,12 +167,12 @@ enum ScreenshotDirectoryResolver {
         authorizedDirectoryURL()
     }
 
-    private static func authorizedDirectoryURL() -> URL? {
-        guard let bookmarkData = bookmarkData() else {
+    private static func authorizedDirectoryURL(defaults: UserDefaults = .standard) -> URL? {
+        guard let bookmarkData = bookmarkData(defaults: defaults) else {
             return nil
         }
 
-        switch resolvedBookmarkState(from: bookmarkData) {
+        switch resolvedBookmarkState(from: bookmarkData, defaults: defaults) {
         case .connected(let url):
             return url
         case .needsReconnect:
@@ -168,17 +180,17 @@ enum ScreenshotDirectoryResolver {
         }
     }
 
-    private static func bookmarkData() -> Data? {
-        let data = UserDefaults.standard.data(forKey: bookmarkDataKey)
+    private static func bookmarkData(defaults: UserDefaults = .standard) -> Data? {
+        let data = defaults.data(forKey: bookmarkDataKey)
         return data?.isEmpty == false ? data : nil
     }
 
-    private static func lastKnownDirectoryURL() -> URL? {
-        directoryURL(fromStoredPath: UserDefaults.standard.string(forKey: lastKnownPathKey))
+    private static func lastKnownDirectoryURL(defaults: UserDefaults = .standard) -> URL? {
+        directoryURL(fromStoredPath: defaults.string(forKey: lastKnownPathKey))
     }
 
-    private static func legacyPreferredDirectoryURL() -> URL? {
-        directoryURL(fromStoredPath: UserDefaults.standard.string(forKey: legacyPreferredPathKey))
+    private static func legacyPreferredDirectoryURL(defaults: UserDefaults = .standard) -> URL? {
+        directoryURL(fromStoredPath: defaults.string(forKey: legacyPreferredPathKey))
     }
 
     private static func directoryURL(fromStoredPath path: String?) -> URL? {
@@ -189,7 +201,10 @@ enum ScreenshotDirectoryResolver {
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
     }
 
-    private static func resolvedBookmarkState(from bookmarkData: Data) -> ResolvedBookmarkState {
+    private static func resolvedBookmarkState(
+        from bookmarkData: Data,
+        defaults: UserDefaults = .standard
+    ) -> ResolvedBookmarkState {
         var isStale = false
 
         do {
@@ -205,7 +220,7 @@ enum ScreenshotDirectoryResolver {
             }
 
             if isStale {
-                if refreshBookmarkIfPossible(for: resolvedURL) {
+                if refreshBookmarkIfPossible(for: resolvedURL, defaults: defaults) {
                     return .connected(resolvedURL)
                 }
 
@@ -214,11 +229,13 @@ enum ScreenshotDirectoryResolver {
 
             return .connected(resolvedURL)
         } catch {
-            return .needsReconnect(lastKnownDirectoryURL() ?? legacyPreferredDirectoryURL())
+            return .needsReconnect(
+                lastKnownDirectoryURL(defaults: defaults) ?? legacyPreferredDirectoryURL(defaults: defaults)
+            )
         }
     }
 
-    private static func refreshBookmarkIfPossible(for url: URL) -> Bool {
+    private static func refreshBookmarkIfPossible(for url: URL, defaults: UserDefaults = .standard) -> Bool {
         let started = url.startAccessingSecurityScopedResource()
         defer {
             if started { url.stopAccessingSecurityScopedResource() }
@@ -232,11 +249,16 @@ enum ScreenshotDirectoryResolver {
             return false
         }
 
-        let defaults = UserDefaults.standard
         defaults.set(freshData, forKey: bookmarkDataKey)
         defaults.set(url.standardizedFileURL.path, forKey: lastKnownPathKey)
         postAuthorizedDirectoryDidChange()
         return true
+    }
+
+    private static func hasPersistedDirectoryHistory(defaults: UserDefaults) -> Bool {
+        bookmarkData(defaults: defaults) != nil
+            || lastKnownDirectoryURL(defaults: defaults) != nil
+            || legacyPreferredDirectoryURL(defaults: defaults) != nil
     }
 
     private static func postAuthorizedDirectoryDidChange() {

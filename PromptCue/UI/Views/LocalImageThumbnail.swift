@@ -1,4 +1,5 @@
 import AppKit
+import ImageIO
 import SwiftUI
 
 struct LocalImageThumbnail: View {
@@ -43,7 +44,6 @@ struct LocalImageThumbnail: View {
         }
         .frame(width: width, height: height)
         .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-        .id(resolvedURL.path)
         .background(
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .fill(thumbnailBackdropColor)
@@ -54,6 +54,7 @@ struct LocalImageThumbnail: View {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .stroke(thumbnailBorderColor)
         }
+        .allowsHitTesting(false)
         .task(id: resolvedURL.path) {
             await loadImage(from: resolvedURL)
         }
@@ -78,33 +79,61 @@ struct LocalImageThumbnail: View {
     @MainActor
     private func loadImage(from resolvedURL: URL) async {
         guard let readableURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) else {
-            loadedURL = resolvedURL
-            image = nil
             return
         }
 
         if loadedURL != resolvedURL {
             loadedURL = resolvedURL
-            image = Self.imageCache.object(forKey: resolvedURL as NSURL)
+            if let cachedImage = Self.imageCache.object(forKey: resolvedURL as NSURL) {
+                image = cachedImage
+            }
         }
 
         if image != nil {
             return
         }
 
-        let imageData = await Task.detached(priority: .userInitiated) { () -> Data? in
-            try? Data(contentsOf: readableURL)
+        let targetPixelSize = max((width ?? 320) * 2, height * 2)
+        let decodedImage = await Task.detached(priority: .userInitiated) { () -> NSImage? in
+            if let thumbnail = Self.decodeThumbnail(from: readableURL, maxPixelSize: targetPixelSize) {
+                return thumbnail
+            }
+            return Self.decodeImageAsFallback(from: readableURL)
         }.value
 
         guard !Task.isCancelled else {
             return
         }
 
-        if let image = imageData.flatMap(NSImage.init(data:)) {
-            Self.imageCache.setObject(image, forKey: resolvedURL as NSURL)
-            self.image = image
-        } else {
-            self.image = nil
+        if let decodedImage {
+            Self.imageCache.setObject(decodedImage, forKey: resolvedURL as NSURL)
+            self.image = decodedImage
         }
+    }
+
+    private static func decodeThumbnail(from url: URL, maxPixelSize: CGFloat) -> NSImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return nil
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCache: false,
+            kCGImageSourceThumbnailMaxPixelSize: max(1, Int(maxPixelSize.rounded(.up))),
+        ]
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+
+        return NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
+    }
+
+    private static func decodeImageAsFallback(from url: URL) -> NSImage? {
+        return NSImage(contentsOf: url)
     }
 }

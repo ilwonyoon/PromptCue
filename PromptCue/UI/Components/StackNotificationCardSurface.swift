@@ -50,19 +50,14 @@ struct StackNotificationCardSurface<Content: View>: View {
             }
             .clipShape(shape)
 
-        if showsElevatedChrome {
-            cardBody
-                .compositingGroup()
-                .shadow(
-                    color: SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft),
-                    radius: PrimitiveTokens.Shadow.notificationCardBlur,
-                    x: PrimitiveTokens.Shadow.zeroX,
-                    y: PrimitiveTokens.Shadow.notificationCardY
-                )
-        } else {
-            cardBody
-                .drawingGroup()
-        }
+        cardBody.shadow(
+            color: showsElevatedChrome
+                ? SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft)
+                : .clear,
+            radius: PrimitiveTokens.Shadow.notificationCardBlur,
+            x: PrimitiveTokens.Shadow.zeroX,
+            y: PrimitiveTokens.Shadow.notificationCardY
+        )
     }
 
     private var backgroundFill: Color {

@@ -287,6 +287,90 @@ Remove the current mismatch between successful capture submission and what the s
 - Light-mode cards and collapsed copied stacks are clearly distinct from the background.
 - The stack panel no longer depends on "try again" behavior to reflect the latest state.
 
+## Phase R6A: System-Inherit Appearance And Theme Consistency
+
+### Goal
+
+Remove the app-level light/dark override path so Backtick always inherits the active macOS appearance, and make open capture/stack surfaces repaint cleanly when the system appearance changes.
+
+### Product Decision
+
+1. Backtick should feel seamlessly integrated with macOS instead of carrying a separate app-owned theme preference.
+2. The user-facing `Appearance` control is low-value relative to the regression surface it creates.
+3. The app should not claim "done" on theme work until live system-appearance switching has been simulated and verified on the real runtime surfaces.
+
+### Current Diagnosis
+
+1. The current `Appearance` feature still introduces a global AppKit override pipeline: `appearance.mode` -> `NSApp.appearance` -> per-window and per-panel fan-out.
+2. That override path fights the normal inherited appearance path. AppKit shells tend to update from `effectiveAppearance`, while SwiftUI stack cards and thumbnails consume inherited `colorScheme`.
+3. In the stack panel, the shell can repaint correctly while some idle cards keep stale dark rasters. This aligns with the prewarmed stack host plus the idle-card `.drawingGroup()` path.
+4. Similar low-level residue risk exists in smaller surfaces that have already shown history of missed theme updates, including capture editor text presentation, suggested-target accessory text, and stack-card background surfaces.
+5. Theme-token branching is not itself the main bug. The main bug class is split appearance ownership. The token system should remain unified and resolve appearance internally from the inherited system state only.
+
+### Design Decision
+
+1. Remove the user-facing theme override and all persistence for `appearance.mode`.
+2. Backtick will always inherit the active macOS appearance.
+3. Keep one semantic token family. Light/dark differences may still exist inside the token implementation, but they must resolve from inherited `effectiveAppearance` / `colorScheme`, not from a second app-owned on/off switch.
+4. Keep appearance refresh ownership local to runtime hosts:
+   - AppKit surfaces react to `viewDidChangeEffectiveAppearance`
+   - SwiftUI surfaces consume inherited `colorScheme`
+   - no global coordinator fan-out of `NSAppearance`
+5. If residue remains after the override path is removed, treat prewarmed stack-host invalidation as the first fix target before reopening token tuning or broad render-path changes.
+
+### Tasks
+
+| Task | Owner | Dependency | Parallelizable | Exit Criteria |
+| --- | --- | --- | --- | --- |
+| Remove the `Appearance` section from Settings and delete theme persistence / observer logic | Master | None | No | users can no longer force light or dark mode from Backtick |
+| Remove `NSApp.appearance` and coordinator-driven per-window/panel appearance fan-out | Master | Settings removal | No | the app no longer owns a global appearance override pipeline |
+| Rewire stack, capture, settings, and debug windows to rely on inherited system appearance only | Master | override removal | No | windows repaint from the system appearance without explicit app theme pushes |
+| Add stack-host theme-flip handling for the prewarmed panel so idle cards do not keep stale rasters | Master | inherit-only runtime | No | shell, header, idle cards, and hover cards all match after a live system theme flip |
+| Audit capture editor text, placeholder, accessory text, and stack-card background surfaces for inherited-theme correctness | Master | inherit-only runtime | Yes | historically fragile small surfaces stay in sync with the active system appearance |
+| Define a bounded simulation harness for live `light -> dark -> light` switching on already-open capture and stack surfaces | Master | inherit-only runtime | No | theme regressions are reproducible without ad hoc manual guessing |
+| Re-run non-perf regression gates before every perf pass touching stack/capture appearance paths | Master | above tasks | No | theme fixes do not silently break capture text, stack rendering, or export behavior |
+| Re-run stack perf verification after each accepted runtime invalidation change | Master | stack-host handling | No | theme correctness work does not destroy approved stack performance |
+
+### Verification Gate
+
+Do not call this phase complete until every item below is true:
+
+1. Live simulation has been run against the real Debug app, not only static snapshots.
+2. The following scenarios all pass on already-created surfaces:
+   - open `Capture`, then flip system light/dark
+   - open `Stack`, then flip system light/dark
+   - keep the prewarmed stack panel path active, then flip system light/dark before and after presentation
+3. Small but historically fragile surfaces are explicitly checked:
+   - capture editor text color
+   - capture placeholder and caret
+   - suggested-target accessory text
+   - stack card idle background
+   - stack hover/emphasis state
+4. Non-perf regression verification is green before any perf conclusion is accepted:
+   - `swift test`
+   - `xcodegen generate`
+   - `xcodebuild -project PromptCue.xcodeproj -scheme PromptCue -configuration Debug CODE_SIGNING_ALLOWED=NO build`
+   - targeted capture/stack rendering tests for touched surfaces
+5. Perf guardrails are still acceptable after the final implementation:
+   - `PromptCueTests/StackPanelVisualPerformanceTests/testStackVisualRenderBenchmark`
+   - `scripts/record_stack_open_trace.sh --app <Prompt Cue.app>`
+
+### Guardrails
+
+1. Do not accept a theme fix that only looks correct after closing and reopening panels.
+2. Do not accept a theme fix that regresses capture text readability or stack-card separability in either appearance.
+3. Do not accept a theme fix that relies on broad always-on invalidation if the work can be scoped to actual theme-flip events.
+4. Do not accept a performance regression just because a visual bug disappears; correctness and approved stack speed must hold together.
+5. Do not announce the lane as complete until the simulation gate above has passed in full.
+
+### Exit Criteria
+
+- Backtick has no user-facing theme override and always inherits the system appearance.
+- Open capture and stack surfaces repaint correctly on live system appearance changes.
+- Idle stack cards no longer retain stale dark or light backgrounds after a theme flip.
+- Capture editor text and smaller accessory surfaces remain synchronized with the active appearance.
+- Final verification includes live simulation plus regression and perf guardrails, not optimism.
+
 ## Merge Order
 
 1. Phase R0 contract lock
@@ -296,10 +380,11 @@ Remove the current mismatch between successful capture submission and what the s
 5. Track D, design-system reconciliation
 6. Phase R5 verification pass
 7. Phase R6 stack sync and light-mode readability
-8. Phase R7 capture input system hardening
-9. Phase R8 AI Export Tail / Prompt Suffix
-10. Phase R9 stack card overflow and hover expansion
-11. Phase DP capture/stack visual polish under explicit review gates
+8. Phase R6A system-inherit appearance and theme consistency
+9. Phase R7 capture input system hardening
+10. Phase R8 AI Export Tail / Prompt Suffix
+11. Phase R9 stack card overflow and hover expansion
+12. Phase DP capture/stack visual polish under explicit review gates
 
 ## Immediate Next Slice
 
@@ -312,8 +397,9 @@ The current slice status is:
 5. Phase R4 design-system reconciliation: in progress via the design-system strategy branch (`Phase DS1` and `Phase DS2` implemented, `Phase DS3` and early `Phase DS4` underway)
 6. Phase R5 app-level verification: started, but still too light
 7. Phase R6 stack sync and light-mode readability: in progress
+8. Phase R6A system-inherit appearance and theme consistency: planned, master-owned
 
-The next Track B slice is the default multi-copy pivot above, then the remaining target-app export validation and broader Phase R5 verification work.
+The next master-owned remediation lane after the current stack/export validation work is `Phase R6A`, because theme override removal and live-system inheritance are now the clearest path to eliminating the remaining light/dark residue bugs without reopening ad hoc token churn.
 
 ## Phase DP: Capture And Stack Visual Polish
 

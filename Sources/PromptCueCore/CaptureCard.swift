@@ -191,4 +191,17 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     ) -> Bool {
         createdAt.addingTimeInterval(ttl) < date
     }
+
+    public func ttlProgressRemaining(
+        relativeTo date: Date = Date(),
+        ttl: TimeInterval = CaptureCard.ttl
+    ) -> Double {
+        guard ttl > 0 else {
+            return 0
+        }
+
+        let remaining = createdAt.addingTimeInterval(ttl).timeIntervalSince(date)
+        let progress = remaining / ttl
+        return min(max(progress, 0), 1)
+    }
 }

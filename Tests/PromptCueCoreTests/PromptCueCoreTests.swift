@@ -47,6 +47,17 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func captureCardTTLProgressRemainingClampsFromFreshToExpired() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8_000
+        let card = CaptureCard(text: "ttl ring", createdAt: createdAt)
+
+        #expect(card.ttlProgressRemaining(relativeTo: createdAt, ttl: ttl) == 1)
+        #expect(card.ttlProgressRemaining(relativeTo: createdAt.addingTimeInterval(4_000), ttl: ttl) == 0.5)
+        #expect(card.ttlProgressRemaining(relativeTo: createdAt.addingTimeInterval(9_000), ttl: ttl) == 0)
+    }
+
+    @Test
     func captureCardBuildsScreenshotURL() {
         let card = CaptureCard(
             text: "screenshot attached",

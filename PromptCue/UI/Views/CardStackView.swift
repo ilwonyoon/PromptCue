@@ -7,10 +7,15 @@ struct CardStackView: View {
     let onBackdropTap: () -> Void
     let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
+    private let ttlTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+    @State private var stackFilter: StackRailFilter = .all
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
-    @State private var classificationCache: [CaptureCard.ID: ContentClassification] = [:]
+    @State private var classificationCache: [CaptureCard.ID: ContentClassification]
+    @State private var cardSections: CardSections
+    @State private var stagedCopiedCardIDSet: Set<CaptureCard.ID>
+    @State private var ttlNow = Date()
 
     init(
         model: AppModel,
@@ -22,30 +27,52 @@ struct CardStackView: View {
         self.onBackdropTap = onBackdropTap
         self.onEditCard = onEditCard
         self.onDeleteCard = onDeleteCard
+        let initialSections = Self.partitionedCards(from: model.cards)
+        _cardSections = State(initialValue: initialSections)
+        _classificationCache = State(
+            initialValue: Self.buildClassificationCache(
+                for: Self.classificationRelevantCards(
+                    sections: initialSections,
+                    filter: .all,
+                    isCopiedStackExpanded: ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
+                )
+            )
+        )
+        _stagedCopiedCardIDSet = State(initialValue: Set(model.stagedCopiedCardIDs))
     }
 
     var body: some View {
-        let sections = partitionedCards(from: model.cards)
+        let allSections = cardSections
+        let railState = StackRailState(
+            activeCount: allSections.active.count,
+            copiedCount: allSections.copied.count,
+            stagedCount: model.stagedCopiedCount,
+            filter: stackFilter
+        )
+        let visibleSections = filteredSections(from: allSections, state: railState)
 
         ZStack {
             stackBackdrop
 
             VStack(alignment: .trailing, spacing: PrimitiveTokens.Size.panelSectionSpacing) {
-                header
+                header(railState: railState)
 
-                if sections.isEmpty {
+                if visibleSections.isEmpty {
                     emptyState
                 } else {
                     ScrollView {
                         LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if !sections.active.isEmpty {
-                                ForEach(sections.active) { card in
+                            if !visibleSections.active.isEmpty {
+                                ForEach(visibleSections.active) { card in
                                     cardRow(for: card)
                                 }
                             }
 
-                            if !sections.copied.isEmpty {
-                                copiedSection(copiedCards: sections.copied)
+                            if !visibleSections.copied.isEmpty {
+                                copiedSection(
+                                    copiedCards: visibleSections.copied,
+                                    forceExpanded: railState.forcesExpandedCopiedSection
+                                )
                                     .padding(.top, PrimitiveTokens.Space.sm)
                             }
                         }
@@ -62,32 +89,109 @@ struct CardStackView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .onAppear {
-            classificationCache = buildClassificationCache(for: model.cards)
+            refreshDerivedState(
+                cards: model.cards,
+                filter: stackFilter,
+                isCopiedStackExpanded: isCopiedStackExpanded
+            )
         }
         .onChange(of: model.cards) { _, newCards in
-            classificationCache = buildClassificationCache(for: newCards)
+            refreshDerivedState(
+                cards: newCards,
+                filter: stackFilter,
+                isCopiedStackExpanded: isCopiedStackExpanded
+            )
+        }
+        .onChange(of: model.stagedCopiedCardIDs) { _, newIDs in
+            stagedCopiedCardIDSet = Set(newIDs)
+        }
+        .onChange(of: stackFilter) { _, newFilter in
+            classificationCache = Self.buildClassificationCache(
+                for: Self.classificationRelevantCards(
+                    sections: cardSections,
+                    filter: newFilter,
+                    isCopiedStackExpanded: isCopiedStackExpanded
+                )
+            )
+        }
+        .onChange(of: isCopiedStackExpanded) { _, expanded in
+            classificationCache = Self.buildClassificationCache(
+                for: Self.classificationRelevantCards(
+                    sections: cardSections,
+                    filter: stackFilter,
+                    isCopiedStackExpanded: expanded
+                )
+            )
+        }
+        .onReceive(ttlTicker) { now in
+            ttlNow = now
         }
     }
 
-    private var header: some View {
-        Group {
-            if model.stagedCopiedCount > 0 {
-                stagedCopyHeader
+    private func header(railState: StackRailState) -> some View {
+        stackColumnSurface {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
+                stackHeaderLogo
+
+                Text(railState.summaryLabel)
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: PrimitiveTokens.Space.xs)
+
+                if let actionFeedbackLabel = railState.actionFeedbackLabel {
+                    Text(actionFeedbackLabel)
+                        .font(PrimitiveTokens.Typography.metaStrong)
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                }
+
+                filterMenu
             }
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
-    private var stagedCopyHeader: some View {
-        stackColumnSurface {
-            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                Text("\(model.stagedCopiedCount) staged")
-                    .font(PrimitiveTokens.Typography.bodyStrong)
-                    .foregroundStyle(SemanticTokens.Text.primary)
+    private var stackHeaderLogo: some View {
+        Image("BacktickSidebarMark")
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 14, height: 14)
+            .foregroundStyle(SemanticTokens.Text.primary)
+            .accessibilityHidden(true)
+    }
 
-                Spacer(minLength: PrimitiveTokens.Space.xs)
+    private var filterMenu: some View {
+        Menu {
+            ForEach(StackRailFilter.allCases, id: \.self) { filter in
+                Button {
+                    stackFilter = filter
+                    if filter == .offstage {
+                        isCopiedStackExpanded = true
+                    }
+                } label: {
+                    if stackFilter == filter {
+                        Label(filter.title, systemImage: "checkmark")
+                    } else {
+                        Text(filter.title)
+                    }
+                }
             }
+        } label: {
+            Image(systemName: stackFilter == .all
+                  ? "line.3.horizontal.decrease.circle"
+                  : "line.3.horizontal.decrease.circle.fill")
+                .font(PrimitiveTokens.Typography.accessoryIcon)
+                .foregroundStyle(
+                    stackFilter == .all
+                        ? SemanticTokens.Text.secondary
+                        : SemanticTokens.Text.primary
+                )
         }
+        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Filter stack")
     }
 
     private var emptyState: some View {
@@ -108,7 +212,8 @@ struct CardStackView: View {
     }
 
     private func cardRow(for card: CaptureCard) -> some View {
-        let isStagedCopied = model.stagedCopiedCardIDs.contains(card.id)
+        let isStagedCopied = stagedCopiedCardIDSet.contains(card.id)
+        let ttlProgress = ttlProgressRemaining(for: card)
 
         return stackColumnContent {
             CaptureCardView(
@@ -119,6 +224,7 @@ struct CardStackView: View {
                 isSelected: isStagedCopied,
                 isRecentlyCopied: isStagedCopied,
                 selectionMode: selectionMode,
+                ttlProgressRemaining: ttlProgress,
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
                     _ = model.toggleMultiCopiedCard(card)
@@ -153,10 +259,10 @@ struct CardStackView: View {
     }
 
     @ViewBuilder
-    private func copiedSection(copiedCards: [CaptureCard]) -> some View {
-        if isCopiedStackExpanded {
+    private func copiedSection(copiedCards: [CaptureCard], forceExpanded: Bool) -> some View {
+        if forceExpanded || isCopiedStackExpanded {
             LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                copiedSectionHeader(copiedCards: copiedCards)
+                copiedSectionHeader(copiedCards: copiedCards, isCollapsible: !forceExpanded)
 
                 ForEach(copiedCards) { card in
                     cardRow(for: card)
@@ -169,22 +275,28 @@ struct CardStackView: View {
         }
     }
 
-    private func copiedSectionHeader(copiedCards: [CaptureCard]) -> some View {
+    private func copiedSectionHeader(copiedCards: [CaptureCard], isCollapsible: Bool) -> some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
-            Text("Copied")
+            Text("Offstage")
                 .font(PrimitiveTokens.Typography.metaStrong)
                 .foregroundStyle(SemanticTokens.Text.secondary)
 
             Spacer(minLength: PrimitiveTokens.Space.xs)
 
-            Image(systemName: "chevron.down")
-                .font(PrimitiveTokens.Typography.chipIcon)
-                .foregroundStyle(SemanticTokens.Text.secondary)
+            if isCollapsible {
+                Image(systemName: "chevron.down")
+                    .font(PrimitiveTokens.Typography.chipIcon)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+            }
         }
         .contentShape(Rectangle())
-        .accessibilityLabel("Copied section, \(copiedCards.count) cues")
-        .accessibilityHint("Tap to collapse")
+        .accessibilityLabel("Offstage section, \(copiedCards.count) cues")
+        .accessibilityHint(isCollapsible ? "Tap to collapse" : "")
         .onTapGesture {
+            guard isCollapsible else {
+                return
+            }
+
             isCopiedStackExpanded = false
         }
     }
@@ -203,7 +315,7 @@ struct CardStackView: View {
                 StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
                     VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                         HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                            Text("Copied")
+                            Text("Offstage")
                                 .font(PrimitiveTokens.Typography.metaStrong)
                                 .foregroundStyle(copiedHeaderTextColor)
 
@@ -252,7 +364,7 @@ struct CardStackView: View {
                 isCopiedStackHovered = false
             }
         }
-        .accessibilityLabel("Copied cues, \(copiedCards.count) items")
+        .accessibilityLabel("Offstage cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
     }
 
@@ -352,18 +464,10 @@ struct CardStackView: View {
     }
 
     private func resolveClassification(for card: CaptureCard) -> ContentClassification {
-        if let cachedClassification = classificationCache[card.id] {
-            return cachedClassification
-        }
-
-        let classification = ContentClassifier.classify(card.visibleInlineText)
-        DispatchQueue.main.async {
-            classificationCache[card.id] = classification
-        }
-        return classification
+        classificationCache[card.id] ?? ContentClassifier.classify(card.visibleInlineText)
     }
 
-    private func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
+    private static func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
         var cache: [CaptureCard.ID: ContentClassification] = [:]
         cache.reserveCapacity(cards.count)
         for card in cards {
@@ -389,7 +493,7 @@ struct CardStackView: View {
             .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
     }
 
-    private func partitionedCards(from cards: [CaptureCard]) -> CardSections {
+    private static func partitionedCards(from cards: [CaptureCard]) -> CardSections {
         var active: [CaptureCard] = []
         var copied: [CaptureCard] = []
         active.reserveCapacity(cards.count)
@@ -404,6 +508,59 @@ struct CardStackView: View {
         }
 
         return CardSections(active: active, copied: copied)
+    }
+
+    private func filteredSections(from sections: CardSections, state: StackRailState) -> CardSections {
+        CardSections(
+            active: state.showsActiveCards ? sections.active : [],
+            copied: state.showsCopiedCards ? sections.copied : []
+        )
+    }
+
+    private func refreshDerivedState(
+        cards: [CaptureCard],
+        filter: StackRailFilter,
+        isCopiedStackExpanded: Bool
+    ) {
+        let sections = Self.partitionedCards(from: cards)
+        cardSections = sections
+        classificationCache = Self.buildClassificationCache(
+            for: Self.classificationRelevantCards(
+                sections: sections,
+                filter: filter,
+                isCopiedStackExpanded: isCopiedStackExpanded
+            )
+        )
+    }
+
+    private static func classificationRelevantCards(
+        sections: CardSections,
+        filter: StackRailFilter,
+        isCopiedStackExpanded: Bool
+    ) -> [CaptureCard] {
+        switch filter {
+        case .all:
+            if isCopiedStackExpanded {
+                return sections.active + sections.copied
+            }
+            return sections.active + sections.copied.prefix(1)
+
+        case .onStage:
+            return sections.active
+
+        case .offstage:
+            return isCopiedStackExpanded ? sections.copied : Array(sections.copied.prefix(1))
+        }
+    }
+
+    private func ttlProgressRemaining(for card: CaptureCard) -> Double? {
+        guard card.isCopied == false,
+              let ttl = CardRetentionPreferences.load().effectiveTTL
+        else {
+            return nil
+        }
+
+        return card.ttlProgressRemaining(relativeTo: ttlNow, ttl: ttl)
     }
 }
 

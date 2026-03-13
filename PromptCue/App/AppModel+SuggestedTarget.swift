@@ -2,6 +2,10 @@ import Foundation
 import PromptCueCore
 
 extension AppModel {
+    private var automaticCaptureSuggestedTargetChoiceID: String {
+        "__automatic__"
+    }
+
     var automaticSuggestedTarget: CaptureSuggestedTarget? {
         guard hasStartedSuggestedTargetProvider else {
             return nil
@@ -33,24 +37,16 @@ extension AppModel {
         captureSuggestedTargetChoices.count
     }
 
-    var focusedCaptureSuggestedTarget: CaptureSuggestedTarget? {
-        let choices = captureSuggestedTargetChoices
-        guard !choices.isEmpty else {
-            return nil
-        }
+    var committedCaptureSuggestedTargetChoiceID: String? {
+        committedCaptureSuggestedTargetChoice(in: captureSuggestedTargetChoices).map(choiceID(for:))
+    }
 
-        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        return choices[clampedIndex].target
+    var focusedCaptureSuggestedTarget: CaptureSuggestedTarget? {
+        focusedCaptureSuggestedTargetChoice(in: captureSuggestedTargetChoices)?.target
     }
 
     var isAutomaticCaptureSuggestedTargetFocused: Bool {
-        let choices = captureSuggestedTargetChoices
-        guard !choices.isEmpty else {
-            return false
-        }
-
-        let clampedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        return choices[clampedIndex].isAutomatic
+        focusedCaptureSuggestedTargetChoice(in: captureSuggestedTargetChoices)?.isAutomatic ?? false
     }
 
     var highlightedCaptureSuggestedTarget: CaptureSuggestedTarget? {
@@ -100,6 +96,7 @@ extension AppModel {
 
     func hideCaptureSuggestedTargetChooser() {
         isShowingCaptureSuggestedTargetChooser = false
+        syncCaptureSuggestedTargetSelection()
     }
 
     @discardableResult
@@ -109,9 +106,12 @@ extension AppModel {
             return false
         }
 
-        let count = choices.count
-        let current = max(0, min(selectedCaptureSuggestedTargetIndex, count - 1))
-        selectedCaptureSuggestedTargetIndex = (current + offset + count) % count
+        let choiceIDs = choices.map(choiceID(for:))
+        let currentChoiceID = resolvedFocusedCaptureSuggestedTargetChoiceID(in: choices) ?? choiceIDs[0]
+        let currentIndex = choiceIDs.firstIndex(of: currentChoiceID) ?? 0
+        let count = choiceIDs.count
+        let nextIndex = (currentIndex + offset + count) % count
+        applyFocusedCaptureSuggestedTargetChoiceID(choiceIDs[nextIndex], in: choices)
         return true
     }
 
@@ -122,11 +122,11 @@ extension AppModel {
         }
 
         let choices = captureSuggestedTargetChoices
-        guard let matchingIndex = choices.firstIndex(where: { !$0.isAutomatic && $0.target == target }) else {
+        guard let matchingChoice = choices.first(where: { !$0.isAutomatic && $0.target == target }) else {
             return false
         }
 
-        selectedCaptureSuggestedTargetIndex = matchingIndex
+        applyFocusedCaptureSuggestedTargetChoiceID(choiceID(for: matchingChoice), in: choices)
         return true
     }
 
@@ -137,11 +137,11 @@ extension AppModel {
         }
 
         let choices = captureSuggestedTargetChoices
-        guard let matchingIndex = choices.firstIndex(where: \.isAutomatic) else {
+        guard choices.contains(where: \.isAutomatic) else {
             return false
         }
 
-        selectedCaptureSuggestedTargetIndex = matchingIndex
+        applyFocusedCaptureSuggestedTargetChoiceID(automaticCaptureSuggestedTargetChoiceID, in: choices)
         return true
     }
 
@@ -152,8 +152,11 @@ extension AppModel {
             return false
         }
 
-        let selectedIndex = max(0, min(selectedCaptureSuggestedTargetIndex, choices.count - 1))
-        switch choices[selectedIndex] {
+        guard let focusedChoice = focusedCaptureSuggestedTargetChoice(in: choices) else {
+            return false
+        }
+
+        switch focusedChoice {
         case .automatic:
             clearDraftSuggestedTargetOverride()
         case .explicit(let target):
@@ -182,25 +185,20 @@ extension AppModel {
         let choices = captureSuggestedTargetChoices
         guard !choices.isEmpty else {
             selectedCaptureSuggestedTargetIndex = 0
+            focusedCaptureSuggestedTargetChoiceID = nil
             return
         }
 
-        if draftSuggestedTargetOverride == nil,
-           automaticSuggestedTarget != nil {
-            selectedCaptureSuggestedTargetIndex = 0
-            return
+        let committedChoiceID = committedCaptureSuggestedTargetChoice(in: choices).map(choiceID(for:))
+        let preferredFocusedChoiceID: String?
+        if isShowingCaptureSuggestedTargetChooser,
+           let existingFocusedChoiceID = resolvedFocusedCaptureSuggestedTargetChoiceID(in: choices) {
+            preferredFocusedChoiceID = existingFocusedChoiceID
+        } else {
+            preferredFocusedChoiceID = committedChoiceID
         }
 
-        if let draftSuggestedTargetOverride,
-           let matchingIndex = choices.firstIndex(where: { choice in
-               !choice.isAutomatic
-                   && choice.target.canonicalIdentityKey == draftSuggestedTargetOverride.canonicalIdentityKey
-           }) {
-            selectedCaptureSuggestedTargetIndex = matchingIndex
-            return
-        }
-
-        selectedCaptureSuggestedTargetIndex = min(selectedCaptureSuggestedTargetIndex, choices.count - 1)
+        applyFocusedCaptureSuggestedTargetChoiceID(preferredFocusedChoiceID, in: choices)
     }
 
     private var captureSuggestedTargetChoices: [CaptureSuggestedTargetChoice] {
@@ -227,5 +225,72 @@ extension AppModel {
 
         choices.append(contentsOf: deduplicatedTargets.map(CaptureSuggestedTargetChoice.explicit))
         return choices
+    }
+
+    private func committedCaptureSuggestedTargetChoice(
+        in choices: [CaptureSuggestedTargetChoice]
+    ) -> CaptureSuggestedTargetChoice? {
+        guard !choices.isEmpty else {
+            return nil
+        }
+
+        if draftSuggestedTargetOverride == nil,
+           let automaticChoice = choices.first(where: \.isAutomatic) {
+            return automaticChoice
+        }
+
+        if let draftSuggestedTargetOverride,
+           let explicitChoice = choices.first(where: { choice in
+               !choice.isAutomatic
+                   && choice.target.canonicalIdentityKey == draftSuggestedTargetOverride.canonicalIdentityKey
+           }) {
+            return explicitChoice
+        }
+
+        return choices.first
+    }
+
+    private func focusedCaptureSuggestedTargetChoice(
+        in choices: [CaptureSuggestedTargetChoice]
+    ) -> CaptureSuggestedTargetChoice? {
+        guard let resolvedChoiceID = resolvedFocusedCaptureSuggestedTargetChoiceID(in: choices) else {
+            return nil
+        }
+
+        return choices.first(where: { choiceID(for: $0) == resolvedChoiceID })
+    }
+
+    private func resolvedFocusedCaptureSuggestedTargetChoiceID(
+        in choices: [CaptureSuggestedTargetChoice]
+    ) -> String? {
+        if let focusedCaptureSuggestedTargetChoiceID,
+           choices.contains(where: { choiceID(for: $0) == focusedCaptureSuggestedTargetChoiceID }) {
+            return focusedCaptureSuggestedTargetChoiceID
+        }
+
+        return committedCaptureSuggestedTargetChoice(in: choices).map(choiceID(for:))
+    }
+
+    private func applyFocusedCaptureSuggestedTargetChoiceID(
+        _ choiceID: String?,
+        in choices: [CaptureSuggestedTargetChoice]
+    ) {
+        guard let choiceID,
+              let matchingIndex = choices.firstIndex(where: { self.choiceID(for: $0) == choiceID }) else {
+            focusedCaptureSuggestedTargetChoiceID = nil
+            selectedCaptureSuggestedTargetIndex = 0
+            return
+        }
+
+        focusedCaptureSuggestedTargetChoiceID = choiceID
+        selectedCaptureSuggestedTargetIndex = matchingIndex
+    }
+
+    private func choiceID(for choice: CaptureSuggestedTargetChoice) -> String {
+        if choice.isAutomatic {
+            return automaticCaptureSuggestedTargetChoiceID
+        }
+
+        return choice.target.canonicalIdentityKey
     }
 }

@@ -203,16 +203,22 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         model.toggleCaptureSuggestedTargetChooser()
 
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, "__automatic__")
         XCTAssertEqual(model.focusedCaptureSuggestedTarget, automaticTarget)
 
         XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
 
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
         XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
 
         XCTAssertTrue(model.completeCaptureSuggestedTargetSelection())
 
         XCTAssertEqual(model.captureChooserTarget, explicitTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, explicitTarget.canonicalIdentityKey)
         XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
     }
 
@@ -304,6 +310,39 @@ final class AppModelSuggestedTargetTests: XCTestCase {
         XCTAssertTrue(model.cancelCaptureSuggestedTargetSelection())
         XCTAssertFalse(model.isShowingCaptureSuggestedTargetChooser)
         XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+    }
+
+    func testCancelCaptureSuggestedTargetSelectionRestoresFocusedChoiceToCommittedTarget() {
+        let automaticTarget = makeTarget(
+            appName: "Cursor",
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            repo: "Backtick",
+            branch: "main"
+        )
+        let explicitTarget = makeTarget(
+            appName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            repo: "PromptCue",
+            branch: "feature/cancel"
+        )
+        let provider = TestSuggestedTargetProvider(
+            latestTarget: automaticTarget,
+            availableTargets: [automaticTarget, explicitTarget]
+        )
+        let model = makeModel(provider: provider)
+
+        model.start()
+        model.beginCaptureSession()
+        model.toggleCaptureSuggestedTargetChooser()
+        XCTAssertTrue(model.moveCaptureSuggestedTargetSelection(by: 1))
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, explicitTarget)
+
+        XCTAssertTrue(model.cancelCaptureSuggestedTargetSelection())
+
+        XCTAssertEqual(model.captureChooserTarget, automaticTarget)
+        XCTAssertEqual(model.focusedCaptureSuggestedTarget, automaticTarget)
+        XCTAssertEqual(model.committedCaptureSuggestedTargetChoiceID, "__automatic__")
+        XCTAssertEqual(model.focusedCaptureSuggestedTargetChoiceID, "__automatic__")
     }
 
     func testAssignSuggestedTargetUpdatesExistingCard() async {

@@ -43,7 +43,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |
 | Settings surface | In progress | Shortcut recorders and screenshot folder controls are now implemented |
 | Stack sync and light-mode readability | In progress | `Phase R6` now uses tracked capture submission plus a stronger light-mode veil; real-device QA is still the gate |
-| Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host, and selector v2 replacement planning is locked in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md` |
+| Capture input system hardening | In progress | `Phase R7A` contract lock and QA harness are complete; `Phase R7B` now rewrites the live capture panel around an AppKit-owned sizing host, and the suggested-target selector is fully fixed with the v2 replacement contract locked in `docs/Capture-Suggested-Target-Selector-Repair-Plan.md` |
 | AI Export Tail / Prompt Suffix | Planned | export-time-only suffix append with Settings toggle, multiline text, and regression coverage |
 | Stack card overflow and click expansion | In progress | long cards need capped resting height, `+N lines` affordance, click-to-expand, and stable copied-stack behavior |
 | Design-system architecture alignment | In progress in strategy branch | `docs/Design-System-Architecture-Proposal.md` defines a five-layer model that preserves runtime and pattern ownership |

@@ -4,6 +4,8 @@
 
 Replace the capture suggested-target selector as a narrow subsystem so future visual or interaction changes stop causing state, outline, or keyboard regressions.
 
+Status: completed on `main`. Selector is fully fixed under this v2 replacement contract.
+
 This plan is intentionally limited to the capture suggested-target selector:
 
 - inline selector accessory

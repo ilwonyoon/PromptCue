@@ -39,6 +39,28 @@ public struct StackRailState: Equatable, Sendable {
         "\(activeCount) on stage · \(copiedCount) offstage"
     }
 
+    public var headerTitle: String {
+        switch filter {
+        case .all:
+            return "On Stage \(activeCount) · Offstage \(copiedCount)"
+        case .onStage:
+            return "On Stage \(activeCount)"
+        case .offstage:
+            return "Offstage \(copiedCount)"
+        }
+    }
+
+    public var headerCountLabel: String {
+        switch filter {
+        case .all:
+            return summaryLabel
+        case .onStage:
+            return "\(activeCount)"
+        case .offstage:
+            return "\(copiedCount)"
+        }
+    }
+
     public var actionFeedbackLabel: String? {
         guard stagedCount > 0 else {
             return nil

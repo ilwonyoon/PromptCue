@@ -12,6 +12,8 @@ struct CardStackView: View {
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
+    @State private var isFilterPopoverPresented = false
+    @State private var isConfirmingOffstageDelete = false
     @State private var classificationCache: [CaptureCard.ID: ContentClassification]
     @State private var cardSections: CardSections
     @State private var stagedCopiedCardIDSet: Set<CaptureCard.ID>
@@ -64,18 +66,24 @@ struct CardStackView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                            if !visibleSections.active.isEmpty {
-                                ForEach(visibleSections.active) { card in
+                            if railState.filter == .offstage {
+                                ForEach(visibleSections.copied) { card in
                                     cardRow(for: card)
                                 }
-                            }
+                            } else {
+                                if !visibleSections.active.isEmpty {
+                                    ForEach(visibleSections.active) { card in
+                                        cardRow(for: card)
+                                    }
+                                }
 
-                            if !visibleSections.copied.isEmpty {
-                                copiedSection(
-                                    copiedCards: visibleSections.copied,
-                                    forceExpanded: railState.forcesExpandedCopiedSection
-                                )
-                                    .padding(.top, PrimitiveTokens.Space.sm)
+                                if !visibleSections.copied.isEmpty {
+                                    copiedSection(
+                                        copiedCards: visibleSections.copied,
+                                        forceExpanded: railState.forcesExpandedCopiedSection
+                                    )
+                                        .padding(.top, PrimitiveTokens.Space.sm)
+                                }
                             }
                         }
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
@@ -132,73 +140,80 @@ struct CardStackView: View {
 
     private func header(railState: StackRailState) -> some View {
         HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-            stackHeaderLogo
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                Text(railState.headerTitle)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
 
-            Text(railState.summaryLabel)
-                .font(PrimitiveTokens.Typography.meta)
-                .foregroundStyle(SemanticTokens.Text.secondary)
-                .lineLimit(1)
-
-            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-            if let actionFeedbackLabel = railState.actionFeedbackLabel {
-                Text(actionFeedbackLabel)
-                    .font(PrimitiveTokens.Typography.metaStrong)
-                    .foregroundStyle(SemanticTokens.Text.primary)
+                if let actionFeedbackLabel = railState.actionFeedbackLabel {
+                    Text(actionFeedbackLabel)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(SemanticTokens.Text.primary)
+                        .lineLimit(1)
+                }
             }
-            filterMenu
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            filterTrigger
         }
         .padding(.horizontal, PrimitiveTokens.Space.xxxs)
         .padding(.vertical, PrimitiveTokens.Space.xxxs)
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .trailing)
-        .frame(maxWidth: .infinity, alignment: .trailing)
+        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
     }
 
-    private var stackHeaderLogo: some View {
-        Image("BacktickSidebarMark")
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 14, height: 14)
-            .foregroundStyle(SemanticTokens.Text.primary)
-            .accessibilityHidden(true)
+    private var filterTrigger: some View {
+        StackRailControlButton(
+            systemName: stackFilter == .all
+                ? "line.3.horizontal.decrease.circle"
+                : "line.3.horizontal.decrease.circle.fill",
+            accessibilityLabel: "Filter stack",
+            glyphSize: 20,
+            controlSize: 32,
+            isActive: stackFilter != .all || isFilterPopoverPresented
+        ) {
+            isFilterPopoverPresented.toggle()
+        }
+        .popover(isPresented: $isFilterPopoverPresented, arrowEdge: Edge.top) {
+            stackFilterPopover
+        }
     }
 
-    private var filterMenu: some View {
-        Menu {
+    private var stackFilterPopover: some View {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
             ForEach(StackRailFilter.allCases, id: \.self) { filter in
                 Button {
                     stackFilter = filter
                     if filter == .offstage {
                         isCopiedStackExpanded = true
+                    } else if filter == .all {
+                        isCopiedStackExpanded = false
                     }
+                    isFilterPopoverPresented = false
                 } label: {
-                    if stackFilter == filter {
-                        Label(filter.title, systemImage: "checkmark")
-                    } else {
+                    HStack(spacing: PrimitiveTokens.Space.sm) {
                         Text(filter.title)
+                            .font(PrimitiveTokens.Typography.body)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+                        Spacer(minLength: PrimitiveTokens.Space.sm)
+                        if stackFilter == filter {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(SemanticTokens.Text.primary)
+                        }
                     }
+                    .padding(.horizontal, PrimitiveTokens.Space.sm)
+                    .padding(.vertical, PrimitiveTokens.Space.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(filterRowBackground(for: filter))
+                    .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
                 }
+                .buttonStyle(.plain)
             }
-        } label: {
-            Image(systemName: stackFilter == .all
-                  ? "line.3.horizontal.decrease.circle"
-                  : "line.3.horizontal.decrease.circle.fill")
-                .symbolRenderingMode(.hierarchical)
-                .font(PrimitiveTokens.Typography.accessoryIcon)
-                .foregroundStyle(
-                    stackFilter == .all
-                        ? SemanticTokens.Text.secondary
-                        : SemanticTokens.Text.primary
-                )
-                .frame(width: 16, height: 16)
-                .contentShape(Rectangle())
         }
-        .fixedSize()
-        .menuIndicator(.hidden)
-        .menuStyle(.borderlessButton)
-        .buttonStyle(.plain)
-        .accessibilityLabel("Filter stack")
+        .padding(PrimitiveTokens.Space.xs)
+        .frame(width: 188, alignment: .leading)
     }
 
     private var emptyState: some View {
@@ -269,7 +284,7 @@ struct CardStackView: View {
     private func copiedSection(copiedCards: [CaptureCard], forceExpanded: Bool) -> some View {
         if forceExpanded || isCopiedStackExpanded {
             LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Size.cardStackSpacing) {
-                copiedSectionHeader(copiedCards: copiedCards, isCollapsible: !forceExpanded)
+                copiedSectionHeader(copiedCards: copiedCards, isExpanded: true, isCollapsible: !forceExpanded)
 
                 ForEach(copiedCards) { card in
                     cardRow(for: card)
@@ -277,94 +292,80 @@ struct CardStackView: View {
             }
             .id("copied-expanded")
         } else {
-            collapsedCopiedStack(copiedCards: copiedCards)
+            LazyVStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                copiedSectionHeader(copiedCards: copiedCards, isExpanded: false, isCollapsible: true)
+                collapsedCopiedStack(copiedCards: copiedCards)
+            }
                 .id("copied-collapsed")
         }
     }
 
-    private func copiedSectionHeader(copiedCards: [CaptureCard], isCollapsible: Bool) -> some View {
+    private func copiedSectionHeader(copiedCards: [CaptureCard], isExpanded: Bool, isCollapsible: Bool) -> some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
-            Text("Offstage")
-                .font(PrimitiveTokens.Typography.metaStrong)
-                .foregroundStyle(SemanticTokens.Text.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: PrimitiveTokens.Space.xs) {
+                Text("Offstage")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(SemanticTokens.Text.secondary)
 
-            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-            if isCollapsible {
-                Image(systemName: "chevron.down")
-                    .font(PrimitiveTokens.Typography.chipIcon)
+                Text("\(copiedCards.count)")
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(SemanticTokens.Text.secondary)
             }
-        }
-        .contentShape(Rectangle())
-        .accessibilityLabel("Offstage section, \(copiedCards.count) cues")
-        .accessibilityHint(isCollapsible ? "Tap to collapse" : "")
-        .onTapGesture {
-            guard isCollapsible else {
-                return
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            isCopiedStackExpanded = false
+            offstageControlCluster(
+                copiedCards: copiedCards,
+                isExpanded: isExpanded,
+                isCollapsible: isCollapsible
+            )
         }
+        .accessibilityLabel("Offstage section, \(copiedCards.count) cues")
     }
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
-        Button {
-            isCopiedStackExpanded = true
-        } label: {
-            ZStack(alignment: .topLeading) {
-                ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
-                    stackedBackPlate(index: index)
-                        .offset(y: CGFloat(index) * PrimitiveTokens.Space.xs)
-                        .zIndex(Double(-index))
-                }
-
-                StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                            Text("Offstage")
-                                .font(PrimitiveTokens.Typography.metaStrong)
-                                .foregroundStyle(copiedHeaderTextColor)
-
-                            Spacer(minLength: PrimitiveTokens.Space.xs)
-
-                            Text("\(copiedCards.count)")
-                                .font(PrimitiveTokens.Typography.meta)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                        }
-
-                        if let card = copiedCards.first {
-                            let classification = resolveClassification(for: card)
-                            let visibleInlineText = card.visibleInlineText
-                            InteractiveDetectedTextView(
-                                text: visibleInlineText,
-                                classification: classification,
-                                baseColor: copiedPreviewTextColor,
-                                highlightedRanges: card.visibleInlineTagRanges,
-                                multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
-                            )
-                        }
-
-                        if let footer = collapsedCopiedFooterText(copiedCards: copiedCards) {
-                            Text(footer)
-                                .font(PrimitiveTokens.Typography.meta)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
-                        }
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                }
-                .frame(height: collapsedCopiedCardHeight)
-                .zIndex(1)
+        ZStack(alignment: .topLeading) {
+            ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
+                stackedBackPlate(index: index)
+                    .offset(y: CGFloat(index) * PrimitiveTokens.Space.xs)
+                    .zIndex(Double(-index))
             }
-            .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
-            .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
-            .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
+
+            StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                    if let card = copiedCards.first {
+                        let classification = resolveClassification(for: card)
+                        let visibleInlineText = card.visibleInlineText
+                        InteractiveDetectedTextView(
+                            text: visibleInlineText,
+                            classification: classification,
+                            baseColor: copiedPreviewTextColor,
+                            highlightedRanges: card.visibleInlineTagRanges,
+                            multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
+                        )
+                    }
+
+                    if let footer = collapsedCopiedFooterText(copiedCards: copiedCards) {
+                        Text(footer)
+                            .font(PrimitiveTokens.Typography.meta)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(height: collapsedCopiedCardHeight)
+            .zIndex(1)
         }
-        .buttonStyle(.plain)
+        .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
+        .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
+        .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
             isCopiedStackHovered = hovered
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isCopiedStackExpanded = true
         }
         .accessibilityLabel("Offstage cues, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
@@ -410,6 +411,65 @@ struct CardStackView: View {
 
     private var copiedHeaderTextColor: Color {
         CopiedStackRecipe.headerTextColor(colorScheme: colorScheme)
+    }
+
+    private func offstageControlCluster(
+        copiedCards: [CaptureCard],
+        isExpanded: Bool,
+        isCollapsible: Bool
+    ) -> some View {
+        HStack(spacing: PrimitiveTokens.Space.xxxs) {
+            if isConfirmingOffstageDelete {
+                Button("Cancel") {
+                    isConfirmingOffstageDelete = false
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .frame(height: 16)
+
+                Button("Delete all") {
+                    model.deleteOffstageCards()
+                    isConfirmingOffstageDelete = false
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(nsColor: .systemRed))
+                .frame(height: 16)
+            } else if !copiedCards.isEmpty {
+                Button("Delete all") {
+                    isConfirmingOffstageDelete = true
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(SemanticTokens.Text.secondary)
+                .frame(height: 16)
+            }
+
+            if isCollapsible {
+                StackRailControlButton(
+                    systemName: "chevron.down",
+                    accessibilityLabel: isExpanded ? "Collapse offstage cues" : "Expand offstage cues",
+                    glyphSize: 12,
+                    controlSize: 20,
+                    isActive: isExpanded,
+                    rotationDegrees: isExpanded ? 180 : 0
+                ) {
+                    isCopiedStackExpanded.toggle()
+                    isConfirmingOffstageDelete = false
+                }
+                .frame(height: 16)
+            }
+        }
+        .frame(height: 16, alignment: .center)
+    }
+
+    private func filterRowBackground(for filter: StackRailFilter) -> Color {
+        if stackFilter == filter {
+            return SemanticTokens.Surface.captureChooserRowSelectedFill
+        }
+
+        return .clear
     }
 
     private func copiedSummaryMetrics(copiedCards: [CaptureCard]) -> StackCardOverflowPolicy.Metrics? {

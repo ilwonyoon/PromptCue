@@ -342,6 +342,38 @@ final class AppModel: ObservableObject {
         cloudSyncEngine?.pushDeletion(id: card.id)
     }
 
+    func deleteOffstageCards() {
+        let removedCards = cards.filter(\.isCopied)
+        guard !removedCards.isEmpty else {
+            return
+        }
+
+        let survivingCards = sortedCards(cards.filter { !$0.isCopied })
+        let removedIDs = removedCards.map(\.id)
+
+        do {
+            try cardStore.delete(ids: removedIDs)
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Offstage card delete failed", error: error)
+            return
+        }
+
+        cards = survivingCards
+        selectedCardIDs = selectedCardIDs.filter { id in
+            survivingCards.contains(where: { $0.id == id })
+        }
+        stagedCopiedCardIDs.removeAll { id in
+            survivingCards.contains(where: { $0.id == id }) == false
+        }
+        syncStagedCopyMode()
+        if hasStagedCopiedCards {
+            _ = syncStagedMultiCopyClipboard()
+        }
+        cleanupManagedAttachments(removedCards: removedCards, remainingCards: survivingCards)
+        cloudSyncEngine?.pushBatch(cards: [], deletions: removedIDs)
+    }
+
     func purgeExpiredCards() {
         guard let ttl = CardRetentionPreferences.load().effectiveTTL else {
             return

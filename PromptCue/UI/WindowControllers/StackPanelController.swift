@@ -242,6 +242,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        guard !hasVisibleAuxiliaryPresentation() else {
+            return
+        }
         close()
     }
 
@@ -422,6 +425,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
+        if isAssociatedAuxiliaryWindow(event.window, panel: panel) {
+            return
+        }
+
         if event.window !== panel {
             close()
             return
@@ -435,9 +442,72 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
-        if !panel.frame.contains(NSEvent.mouseLocation) {
+        let mouseLocation = NSEvent.mouseLocation
+        if panel.frame.contains(mouseLocation) {
+            return
+        }
+
+        if relatedAuxiliaryWindows(for: panel).contains(where: { $0.frame.contains(mouseLocation) }) {
+            return
+        }
+
+        if !panel.frame.contains(mouseLocation) {
             close()
         }
+    }
+
+    private func hasVisibleAuxiliaryPresentation() -> Bool {
+        guard let panel else {
+            return false
+        }
+
+        return relatedAuxiliaryWindows(for: panel).contains(where: \.isVisible)
+    }
+
+    private func relatedAuxiliaryWindows(for panel: NSWindow) -> [NSWindow] {
+        var relatedWindows: [NSWindow] = []
+
+        if let childWindows = panel.childWindows {
+            relatedWindows.append(contentsOf: childWindows)
+        }
+
+        if let keyWindow = NSApp.keyWindow, isAssociatedAuxiliaryWindow(keyWindow, panel: panel) {
+            relatedWindows.append(keyWindow)
+        }
+
+        if let mainWindow = NSApp.mainWindow, isAssociatedAuxiliaryWindow(mainWindow, panel: panel) {
+            relatedWindows.append(mainWindow)
+        }
+
+        var seen = Set<ObjectIdentifier>()
+        return relatedWindows.filter { window in
+            let identifier = ObjectIdentifier(window)
+            if seen.contains(identifier) {
+                return false
+            }
+            seen.insert(identifier)
+            return true
+        }
+    }
+
+    private func isAssociatedAuxiliaryWindow(_ window: NSWindow?, panel: NSWindow) -> Bool {
+        guard let window, window !== panel else {
+            return false
+        }
+
+        if window.parent === panel || window.sheetParent === panel {
+            return true
+        }
+
+        if panel.childWindows?.contains(where: { $0 === window }) == true {
+            return true
+        }
+
+        if let parent = window.parent, parent === panel {
+            return true
+        }
+
+        return false
     }
 }
 

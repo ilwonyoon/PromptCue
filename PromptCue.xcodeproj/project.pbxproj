@@ -63,6 +63,7 @@
 		662E8E8AA1826F28777F5221 /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = AFC3CC710569DFF516D4E39C /* PromptCueCore */; };
 		67387EC750467E7F43312823 /* CaptureCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DA754E495B637178A614D3C /* CaptureCardView.swift */; };
 		689FEF48023B46A799478B39 /* MCPConnectorSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */; };
+		6BE00B7343E3138C31A6F768 /* StackRailControlButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 663938197B33CD0F05421FDA /* StackRailControlButton.swift */; };
 		6CBE7AB1CC9E40AF0676412A /* CardRetentionSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEBCB8BBEBAA5498AFF55F28 /* CardRetentionSettingsModel.swift */; };
 		6E23938A01779029981B2144 /* CaptureComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */; };
 		70466BE87469152E7F2F2360 /* StackPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A7B229FE0346BD992E1208 /* StackPanelController.swift */; };
@@ -228,6 +229,7 @@
 		61D593D8E7C5928FCDFA1D28 /* CaptureSuggestedTargetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSuggestedTargetViews.swift; sourceTree = "<group>"; };
 		6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsModel.swift; sourceTree = "<group>"; };
 		65959EE4923F0AA0EDE928EA /* AppTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTiming.swift; sourceTree = "<group>"; };
+		663938197B33CD0F05421FDA /* StackRailControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackRailControlButton.swift; sourceTree = "<group>"; };
 		6847C4F07F9A4481224AD862 /* AppEnvironmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironmentTests.swift; sourceTree = "<group>"; };
 		699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptExportTailSettingsModel.swift; sourceTree = "<group>"; };
 		6B09DA8483113CAF4C6ED0DA /* SettingsSidebarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSidebarItem.swift; sourceTree = "<group>"; };
@@ -634,6 +636,7 @@
 				BEEB6C15D81F9C8F2C4A411A /* StackNotificationCardSurface.swift */,
 				D5F9FE981B47D04E2603007B /* StackPanelBackdrop.swift */,
 				26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */,
+				663938197B33CD0F05421FDA /* StackRailControlButton.swift */,
 				1AE0A5A352E047EF7ED93053 /* TopEdgeStrokeOverlay.swift */,
 				4CDBE5DCAF84737F31BD15F4 /* VisualEffectBackdrop.swift */,
 			);
@@ -946,6 +949,7 @@
 				630633C63EAE3E6932494C35 /* StackPanelBackdrop.swift in Sources */,
 				F3B98F6DF2F7372C28F9D70E /* StackPanelBackdropRecipe.swift in Sources */,
 				70466BE87469152E7F2F2360 /* StackPanelController.swift in Sources */,
+				6BE00B7343E3138C31A6F768 /* StackRailControlButton.swift in Sources */,
 				F820D4D247C1C6EC6D281F92 /* StackReadService.swift in Sources */,
 				F14864F9658354DF6E5906BB /* StackWriteService.swift in Sources */,
 				A3B388733B91B624F0344F36 /* TopEdgeStrokeOverlay.swift in Sources */,

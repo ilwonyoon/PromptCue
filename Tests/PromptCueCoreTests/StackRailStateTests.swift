@@ -7,6 +7,8 @@ struct StackRailStateTests {
         let state = StackRailState(activeCount: 4, copiedCount: 2, stagedCount: 0)
 
         #expect(state.summaryLabel == "4 on stage · 2 offstage")
+        #expect(state.headerTitle == "On Stage 4 · Offstage 2")
+        #expect(state.headerCountLabel == "4 on stage · 2 offstage")
     }
 
     @Test
@@ -30,6 +32,8 @@ struct StackRailStateTests {
         #expect(state.showsActiveCards)
         #expect(state.showsCopiedCards == false)
         #expect(state.forcesExpandedCopiedSection == false)
+        #expect(state.headerTitle == "On Stage 4")
+        #expect(state.headerCountLabel == "4")
     }
 
     @Test
@@ -44,5 +48,7 @@ struct StackRailStateTests {
         #expect(state.showsActiveCards == false)
         #expect(state.showsCopiedCards)
         #expect(state.forcesExpandedCopiedSection)
+        #expect(state.headerTitle == "Offstage 2")
+        #expect(state.headerCountLabel == "2")
     }
 }

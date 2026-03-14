@@ -51,7 +51,7 @@ struct CaptureCardSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: false,
             onUseAutomaticTarget: nil,
             onActivateInlineChooser: nil,
-            controlWidth: nil
+            controlWidth: PanelMetrics.stackCardColumnWidth
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -149,11 +149,7 @@ private struct SuggestedTargetOriginControl: View {
     }
 
     private var popoverWidth: CGFloat {
-        if let controlWidth {
-            return max(controlWidth, PanelMetrics.stackCardColumnWidth)
-        }
-
-        return PanelMetrics.stackCardColumnWidth
+        return controlWidth ?? PanelMetrics.stackCardColumnWidth
     }
 
     private var displayedTarget: CaptureSuggestedTarget? {

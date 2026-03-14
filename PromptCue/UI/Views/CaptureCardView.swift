@@ -26,10 +26,8 @@ struct CaptureCardView: View {
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
-    @State private var isImageHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
-    @State private var pendingUnhoverTask: Task<Void, Never>?
     #if DEBUG
     @State private var lastRawHoverNanos: UInt64?
     @State private var lastEmphasizedNanos: UInt64?
@@ -119,20 +117,7 @@ struct CaptureCardView: View {
                         LocalImageThumbnail(
                             url: screenshotURL,
                             height: PrimitiveTokens.Size.notificationThumbnailHeight
-                        ) { hovered in
-                            #if DEBUG
-                            if isCardHoverTraceEnabled {
-                                print(
-                                    String(
-                                        format: "PROMPTCUE_CARD_IMAGE_HOVER_EVENT card=%@ hovered=%d raw_nanos=%llu",
-                                        card.id.uuidString,
-                                        hovered ? 1 : 0,
-                                        DispatchTime.now().uptimeNanoseconds
-                                    )
-                                )
-                            }
-                            isImageHovered = hovered
-                        }
+                        )
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
@@ -221,11 +206,12 @@ struct CaptureCardView: View {
                 performPrimaryAction()
             }
         }
-        .onHover { hovered in
-            setCardHovered(hovered)
-        }
-        .onDisappear {
-            pendingUnhoverTask?.cancel()
+        .overlay(alignment: .topLeading) {
+            HoverTrackingArea { hovered in
+                setCardHovered(hovered)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityHidden(true)
         }
         #if DEBUG
         .onChange(of: isCardHoveredState) { isEmphasized in
@@ -274,8 +260,6 @@ struct CaptureCardView: View {
     }
 
     private func setCardHovered(_ hovered: Bool) {
-        pendingUnhoverTask?.cancel()
-
         if hovered {
             isCardHovered = true
             #if DEBUG
@@ -298,42 +282,27 @@ struct CaptureCardView: View {
         if !isCardHovered {
             return
         }
-
         guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
             return
         }
-        guard !isImageHovered else {
-            return
-        }
-
-        pendingUnhoverTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(30))
-            guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
-                return
-            }
-            guard !isImageHovered else {
-                return
-            }
-            isCardHovered = false
-            #if DEBUG
-            if isCardHoverTraceEnabled {
-                let now = DispatchTime.now().uptimeNanoseconds
-                print(
-                    String(
-                        format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=exited raw_nanos=%llu",
-                        card.id.uuidString,
-                        card.screenshotURL != nil ? 1 : 0,
-                        now
-                    )
+        isCardHovered = false
+        #if DEBUG
+        if isCardHoverTraceEnabled {
+            let now = DispatchTime.now().uptimeNanoseconds
+            print(
+                String(
+                    format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=exited raw_nanos=%llu",
+                    card.id.uuidString,
+                    card.screenshotURL != nil ? 1 : 0,
+                    now
                 )
-            }
-            #endif
+            )
         }
+        #endif
     }
 
     private var isCardHoveredState: Bool {
         isCardHovered
-            || isImageHovered
             || isCopyHovered
             || isDeleteHovered
             || isShowingCopyFeedback
@@ -346,6 +315,126 @@ struct CaptureCardView: View {
         }
 
         return PrimitiveTokens.Space.xxs
+    }
+
+    private struct HoverTrackingArea: NSViewRepresentable {
+        let onHover: (Bool) -> Void
+
+        func makeNSView(context: Context) -> NSView {
+            let view = HoverTrackingContainerView()
+            view.onHover = onHover
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {
+            guard let trackingView = nsView as? HoverTrackingContainerView else {
+                return
+            }
+            trackingView.onHover = onHover
+            trackingView.reinstallTrackingAreaIfNeeded()
+        }
+
+        final class HoverTrackingContainerView: NSView {
+            var onHover: (Bool) -> Void = { _ in }
+            private var isMouseInside = false
+            private var trackingArea: NSTrackingArea?
+
+            override init(frame frameRect: NSRect) {
+                super.init(frame: frameRect)
+                postsBoundsChangedNotifications = true
+            }
+
+            required init?(coder: NSCoder) {
+                super.init(coder: coder)
+                postsBoundsChangedNotifications = true
+            }
+
+            deinit {
+                removeTrackingAreaIfNeeded()
+            }
+
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                reinstallTrackingAreaIfNeeded()
+            }
+
+            override func updateTrackingAreas() {
+                super.updateTrackingAreas()
+                reinstallTrackingAreaIfNeeded()
+            }
+
+            private func removeTrackingAreaIfNeeded() {
+                if let trackingArea {
+                    removeTrackingArea(trackingArea)
+                    self.trackingArea = nil
+                }
+            }
+
+            func reinstallTrackingAreaIfNeeded() {
+                guard window != nil else {
+                    isMouseInside = false
+                    removeTrackingAreaIfNeeded()
+                    return
+                }
+
+                if let trackingArea {
+                    removeTrackingArea(trackingArea)
+                }
+
+                let options: NSTrackingArea.Options = [
+                    .mouseEnteredAndExited,
+                    .mouseMoved,
+                    .activeInKeyWindow,
+                    .inVisibleRect
+                ]
+                trackingArea = NSTrackingArea(
+                    rect: bounds,
+                    options: options,
+                    owner: self,
+                    userInfo: nil
+                )
+                addTrackingArea(trackingArea!)
+            }
+
+            override func hitTest(_ point: NSPoint) -> NSView? {
+                return nil
+            }
+
+            override func mouseEntered(with event: NSEvent) {
+                super.mouseEntered(with: event)
+                guard !isMouseInside else {
+                    return
+                }
+                isMouseInside = true
+                onHover(true)
+            }
+
+            override func mouseExited(with event: NSEvent) {
+                super.mouseExited(with: event)
+                guard isMouseInside else {
+                    return
+                }
+                isMouseInside = false
+                onHover(false)
+            }
+
+            override func mouseMoved(with event: NSEvent) {
+                super.mouseMoved(with: event)
+                guard window != nil else {
+                    return
+                }
+
+                let locationInView = convert(event.locationInWindow, from: nil)
+                let inside = bounds.contains(locationInView)
+                if inside, !isMouseInside {
+                    isMouseInside = true
+                    onHover(true)
+                } else if !inside, isMouseInside {
+                    isMouseInside = false
+                    onHover(false)
+                }
+            }
+        }
     }
 
     private var actionColumnWidth: CGFloat {

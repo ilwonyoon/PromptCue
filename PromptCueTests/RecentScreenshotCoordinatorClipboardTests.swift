@@ -259,6 +259,7 @@ private final class ClipboardTestRecentScreenshotObserver: RecentScreenshotObser
 
 @MainActor
 private final class TestRecentClipboardProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
     var currentImage: RecentClipboardImage?
     var dismissCalls = 0
     var consumeCalls = 0

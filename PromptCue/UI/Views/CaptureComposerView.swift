@@ -102,15 +102,7 @@ struct CaptureComposerView: View {
             )
             .animation(.easeOut(duration: 0.16), value: model.recentScreenshotState)
 
-            Button(action: clearRecentScreenshot) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(PrimitiveTokens.Typography.accessoryIcon)
-                    .foregroundStyle(SemanticTokens.Text.primary)
-                    .promptCueFloatingControlShadow()
-            }
-            .buttonStyle(.plain)
-            .help("Remove recent screenshot")
-            .accessibilityLabel("Remove recent screenshot")
+            ScreenshotRemoveButton(action: clearRecentScreenshot)
             .padding(.top, PrimitiveTokens.Space.xs)
             .padding(.trailing, PrimitiveTokens.Space.xs)
         }
@@ -137,5 +129,25 @@ struct CaptureComposerView: View {
     private func closePanel() {
         model.clearDraft()
         NSApp.keyWindow?.cancelOperation(nil)
+    }
+}
+
+private struct ScreenshotRemoveButton: View {
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark.circle.fill")
+                .font(PrimitiveTokens.Typography.accessoryIcon)
+                .foregroundStyle(.white.opacity(isHovered ? 1.0 : 0.7))
+                .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered in
+            isHovered = hovered
+        }
+        .help("Remove recent screenshot")
+        .accessibilityLabel("Remove recent screenshot")
     }
 }

@@ -541,6 +541,7 @@ private final class TestRecentScreenshotObserver: RecentScreenshotObserving {
 
 @MainActor
 private final class NilClipboardImageProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
     func start() {}
     func stop() {}
     func refreshNow() {}
@@ -551,6 +552,7 @@ private final class NilClipboardImageProvider: RecentClipboardImageProviding {
 
 @MainActor
 private final class CountingClipboardImageProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
     private(set) var monitoringTransitions: [Bool] = []
 
     func start() {}

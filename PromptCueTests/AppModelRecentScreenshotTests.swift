@@ -299,6 +299,7 @@ private final class AppModelTestRecentScreenshotObserver: RecentScreenshotObserv
 
 @MainActor
 private final class AppModelNilClipboardProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
     func start() {}
     func stop() {}
     func refreshNow() {}

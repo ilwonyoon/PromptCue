@@ -68,6 +68,12 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             }
         }
 
+        clipboardProvider.onImageDetected = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleClipboardImageDetected()
+            }
+        }
+
         try? cache.clear()
         clipboardProvider.start()
     }
@@ -206,6 +212,14 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         currentSession = nil
         pendingPreviewCacheRequest = nil
         invalidateTimers()
+        refreshState()
+    }
+
+    private func handleClipboardImageDetected() {
+        guard isStarted, isCaptureSessionMonitoringActive else {
+            return
+        }
+
         refreshState()
     }
 

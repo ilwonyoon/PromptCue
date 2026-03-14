@@ -237,6 +237,7 @@ private final class BenchmarkRecentScreenshotObserver: RecentScreenshotObserving
 
 @MainActor
 private final class BenchmarkNilClipboardProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
     func start() {}
     func stop() {}
     func refreshNow() {}

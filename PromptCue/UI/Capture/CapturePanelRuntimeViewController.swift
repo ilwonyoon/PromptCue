@@ -77,7 +77,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let screenshotSurface = CaptureScreenshotSurfaceView()
     private let screenshotImageView = NSImageView()
     private let screenshotSpinner = NSProgressIndicator()
-    private let removeScreenshotButton = NSButton()
+    private let removeScreenshotButton = HoverTintButton()
     private let suggestedTargetAccessoryView: NSHostingView<CaptureSuggestedTargetAccessoryView>
     private let editorHost = CaptureEditorRuntimeHostView()
     private let inlineTagSuggestionView: NSHostingView<CaptureInlineTagSuggestionView>
@@ -272,7 +272,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         removeScreenshotButton.bezelStyle = .regularSquare
         removeScreenshotButton.isBordered = false
         removeScreenshotButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Remove recent screenshot")
-        removeScreenshotButton.contentTintColor = .labelColor
+        removeScreenshotButton.contentTintColor = NSColor.white.withAlphaComponent(0.7)
+        removeScreenshotButton.shadow = {
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor.black.withAlphaComponent(0.4)
+            shadow.shadowBlurRadius = 2
+            shadow.shadowOffset = NSSize(width: 0, height: -1)
+            return shadow
+        }()
         removeScreenshotButton.target = self
         removeScreenshotButton.action = #selector(handleRemoveScreenshot)
         screenshotContainer.addSubview(removeScreenshotButton)
@@ -1278,5 +1285,34 @@ private final class CaptureScreenshotSurfaceView: NSView {
         loadingOverlay.layer?.backgroundColor = (isDark
             ? NSColor.white.withAlphaComponent(0.06)
             : NSColor.white.withAlphaComponent(0.44)).cgColor
+    }
+}
+
+private final class HoverTintButton: NSButton {
+    private let normalAlpha: CGFloat = 0.7
+    private let hoverAlpha: CGFloat = 1.0
+    private var trackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        contentTintColor = NSColor.white.withAlphaComponent(hoverAlpha)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        contentTintColor = NSColor.white.withAlphaComponent(normalAlpha)
     }
 }

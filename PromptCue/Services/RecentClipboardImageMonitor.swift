@@ -17,6 +17,7 @@ struct RecentClipboardImage: Equatable {
 
 @MainActor
 protocol RecentClipboardImageProviding: AnyObject {
+    var onImageDetected: (() -> Void)? { get set }
     func start()
     func stop()
     func setMonitoringActive(_ isActive: Bool)
@@ -52,6 +53,7 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
     private let now: () -> Date
     private let pollInterval: TimeInterval
 
+    var onImageDetected: (() -> Void)?
     private var currentImage: RecentClipboardImage?
     private var lastObservedChangeCount: Int?
     private var ignoredChangeCounts: [Int: Date] = [:]
@@ -183,6 +185,7 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
             detectedAt: now(),
             cacheURL: cacheURL
         )
+        onImageDetected?()
     }
 
     private func imagePayload() -> ClipboardImagePayload? {

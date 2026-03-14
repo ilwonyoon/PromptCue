@@ -32,6 +32,8 @@ schemes:
       gatherCoverageData: false
       targets:
         - name: PromptCueTests
+    archive:
+      config: AppStore
 packages:
   PromptCueCore:
     path: .

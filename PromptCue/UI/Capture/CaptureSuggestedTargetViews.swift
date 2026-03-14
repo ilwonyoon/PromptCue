@@ -51,7 +51,7 @@ struct CaptureCardSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: false,
             onUseAutomaticTarget: nil,
             onActivateInlineChooser: nil,
-            controlWidth: StackCardOverflowPolicy.cardTextWidth
+            controlWidth: PanelMetrics.stackCardColumnWidth
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -457,6 +457,7 @@ private struct SuggestedTargetChooserRow: View {
             }
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .onHover { hovered in
             isHovered = hovered
         }
@@ -548,7 +549,9 @@ private struct SuggestedTargetChooserRowChrome<Content: View>: View {
         switch rowState {
         case .selected:
             return SemanticTokens.Surface.captureChooserRowSelectedFill
-        case .hovered, .idle:
+        case .hovered:
+            return SemanticTokens.Surface.captureChooserRowHoverFill
+        case .idle:
             return SemanticTokens.Surface.captureChooserRowFill
         }
     }

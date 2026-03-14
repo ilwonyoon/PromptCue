@@ -127,7 +127,7 @@ private struct SuggestedTargetOriginControl: View {
                 isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
                 controlWidth: nil,
-                fixedWidth: 280,
+                fixedWidth: popoverWidth,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 surfaceBottomPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 headerTopPadding: AppUIConstants.captureChooserPromptVerticalPadding,
@@ -146,6 +146,14 @@ private struct SuggestedTargetOriginControl: View {
                 }
             )
         }
+    }
+
+    private var popoverWidth: CGFloat {
+        if let controlWidth {
+            return max(controlWidth, PanelMetrics.stackCardColumnWidth)
+        }
+
+        return PanelMetrics.stackCardColumnWidth
     }
 
     private var displayedTarget: CaptureSuggestedTarget? {

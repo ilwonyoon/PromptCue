@@ -143,9 +143,10 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
     }
 
     func markAppearanceDirty() {
-        // Capture panel currently refreshes eagerly via the deferred
-        // coordinator call — stub kept for API symmetry with
-        // StackPanelController so the coordinator can call both.
+        // No flag needed: show() already calls
+        // runtimeViewController.refreshAppearance() unconditionally,
+        // so a hidden-during-theme-change scenario is handled.
+        // Kept for API symmetry with StackPanelController.
     }
 
     func refreshForInheritedAppearanceChange() {

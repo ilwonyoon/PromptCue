@@ -16,24 +16,22 @@ enum CaptureShellChromeRecipe {
         dark: NSColor.textBackgroundColor.withAlphaComponent(0.92 * 0.18)
     )
 
-    // Gradient stops built from adaptive colors so the gradient resolves
-    // per-appearance without needing @Environment(\.colorScheme).
-    static var quietSheenGradient: LinearGradient {
-        // glassSheen: light white@0.34, dark white@0.28
-        // glassTint:  light white@0.16, dark white@0.18
-        // glassEdge:  light white@0.12, dark white@0.12
-        let top = SemanticTokens.adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.34 * 0.74),
-            dark: NSColor.white.withAlphaComponent(0.28 * 0.18)
-        )
-        let mid = SemanticTokens.adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.16 * 0.22),
-            dark: NSColor.white.withAlphaComponent(0.18 * 0.12)
-        )
-        let bottom = Color.clear
+    // Gradient stops pre-built as static lets so NSColor(name:) closures
+    // are allocated once, not on every SwiftUI body evaluation.
+    // glassSheen: light white@0.34, dark white@0.28
+    // glassTint:  light white@0.16, dark white@0.18
+    private static let quietSheenTop = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.34 * 0.74),
+        dark: NSColor.white.withAlphaComponent(0.28 * 0.18)
+    )
+    private static let quietSheenMid = SemanticTokens.adaptiveColor(
+        light: NSColor.white.withAlphaComponent(0.16 * 0.22),
+        dark: NSColor.white.withAlphaComponent(0.18 * 0.12)
+    )
 
-        return LinearGradient(
-            colors: [top, mid, bottom],
+    static var quietSheenGradient: LinearGradient {
+        LinearGradient(
+            colors: [quietSheenTop, quietSheenMid, .clear],
             startPoint: .top,
             endPoint: .bottom
         )

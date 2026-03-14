@@ -255,12 +255,8 @@ struct CardStackView: View {
                 ttlProgressRemaining: ttlProgress,
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
-                    if model.isMultiSelectMode {
-                        _ = model.toggleMultiCopiedCard(card)
-                    } else {
-                        _ = model.copySingleCard(card)
-                        onDismissAfterCopy()
-                    }
+                    _ = model.copySingleCard(card)
+                    onDismissAfterCopy()
                 },
                 onEdit: {
                     onEditCard(card)

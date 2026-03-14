@@ -127,12 +127,13 @@ private struct SuggestedTargetOriginControl: View {
                 isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
                 controlWidth: nil,
-                fixedWidth: AppUIConstants.captureSelectorControlWidth,
+                fixedWidth: nil,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 surfaceBottomPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 headerTopPadding: AppUIConstants.captureChooserPromptVerticalPadding,
                 headerBottomPadding: AppUIConstants.captureChooserPromptVerticalPadding,
                 allowsPeekRow: true,
+                identityStyle: .accessory,
                 onRefreshTargets: onRefreshTargets,
                 onSelectTarget: { target in
                     onSelectTarget(target)
@@ -145,6 +146,7 @@ private struct SuggestedTargetOriginControl: View {
                     }
                 }
             )
+            .padding(.horizontal, PrimitiveTokens.Space.md)
         }
     }
 
@@ -186,6 +188,7 @@ private struct SuggestedTargetChooserListView: View {
     let headerTopPadding: CGFloat
     let headerBottomPadding: CGFloat
     let allowsPeekRow: Bool
+    var identityStyle: SuggestedTargetIdentityLine.Style = .chooser
     let onRefreshTargets: () -> Void
     let onSelectTarget: (CaptureSuggestedTarget) -> Void
     let onUseAutomaticTarget: (() -> Void)?
@@ -366,6 +369,7 @@ private struct SuggestedTargetChooserListView: View {
         SuggestedTargetChooserRow(
             target: target,
             controlWidth: controlWidth,
+            identityStyle: identityStyle,
             rowState: rowState,
             isRecent: isRecent,
             action: action
@@ -420,6 +424,7 @@ private struct SuggestedTargetChooserListView: View {
 private struct SuggestedTargetChooserRow: View {
     let target: CaptureSuggestedTarget
     let controlWidth: CGFloat?
+    var identityStyle: SuggestedTargetIdentityLine.Style = .chooser
     let rowState: SuggestedTargetChooserRowState
     let isRecent: Bool
     let action: () -> Void
@@ -436,7 +441,7 @@ private struct SuggestedTargetChooserRow: View {
                 SuggestedTargetIdentityLine(
                     target: target,
                     fallbackLabel: target.fallbackDisplayLabel,
-                    style: .chooser,
+                    style: identityStyle,
                     showsRecent: isRecent,
                     isSelected: renderState == .selected
                 )

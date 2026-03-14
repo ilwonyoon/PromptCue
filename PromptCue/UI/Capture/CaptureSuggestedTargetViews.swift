@@ -51,7 +51,7 @@ struct CaptureCardSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: false,
             onUseAutomaticTarget: nil,
             onActivateInlineChooser: nil,
-            controlWidth: StackCardOverflowPolicy.cardTextWidth
+            controlWidth: nil
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -126,8 +126,8 @@ private struct SuggestedTargetOriginControl: View {
                 automaticTarget: automaticTarget,
                 isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
-                controlWidth: controlWidth,
-                fixedWidth: controlWidth ?? 280,
+                controlWidth: nil,
+                fixedWidth: PanelMetrics.stackCardColumnWidth,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 surfaceBottomPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
                 headerTopPadding: AppUIConstants.captureChooserPromptVerticalPadding,

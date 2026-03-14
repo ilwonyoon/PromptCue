@@ -18,45 +18,41 @@ enum ClipboardFormatter {
     static func copyToPasteboard(cards: [CaptureCard]) {
         let value = string(for: cards)
         let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
 
-        let items = pasteboardItems(for: cards, textPayload: value)
-        if !items.isEmpty, pasteboard.writeObjects(items) {
-            return
+        var types: [NSPasteboard.PasteboardType] = [.string]
+        var imageData: (tiff: Data?, png: Data?) = (nil, nil)
+
+        if let card = cards.first,
+           let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) {
+            if let image = NSImage(contentsOf: screenshotURL),
+               let tiff = image.tiffRepresentation {
+                imageData.tiff = tiff
+                types.append(.tiff)
+            }
+            if screenshotURL.pathExtension.lowercased() == "png",
+               let png = try? Data(contentsOf: screenshotURL) {
+                imageData.png = png
+                types.append(.png)
+            }
         }
 
-        copyStringToPasteboard(value)
+        pasteboard.declareTypes(types, owner: nil)
+        pasteboard.setString(value, forType: .string)
+        if let tiff = imageData.tiff {
+            pasteboard.setData(tiff, forType: .tiff)
+        }
+        if let png = imageData.png {
+            pasteboard.setData(png, forType: .png)
+        }
     }
 
     static func copyRawToPasteboard(card: CaptureCard) {
         copyStringToPasteboard(rawString(for: card))
     }
 
-    private static func pasteboardItems(for cards: [CaptureCard], textPayload: String) -> [NSPasteboardItem] {
-        let item = NSPasteboardItem()
-        item.setString(textPayload, forType: .string)
-
-        if let card = cards.first,
-           let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) {
-            item.setString(screenshotURL.absoluteString, forType: .fileURL)
-
-            if let image = NSImage(contentsOf: screenshotURL),
-               let tiffData = image.tiffRepresentation {
-                item.setData(tiffData, forType: .tiff)
-            }
-
-            if screenshotURL.pathExtension.lowercased() == "png",
-               let pngData = try? Data(contentsOf: screenshotURL) {
-                item.setData(pngData, forType: .png)
-            }
-        }
-
-        return [item]
-    }
-
     private static func copyStringToPasteboard(_ value: String) {
         let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
+        pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(value, forType: .string)
     }
 }

@@ -33,34 +33,25 @@ enum ClipboardFormatter {
     }
 
     private static func pasteboardItems(for cards: [CaptureCard], textPayload: String) -> [NSPasteboardItem] {
-        var items: [NSPasteboardItem] = []
+        let item = NSPasteboardItem()
+        item.setString(textPayload, forType: .string)
 
-        let textItem = NSPasteboardItem()
-        textItem.setString(textPayload, forType: .string)
-        items.append(textItem)
-
-        for card in cards {
-            guard let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) else {
-                continue
-            }
-
-            let imageItem = NSPasteboardItem()
-            imageItem.setString(screenshotURL.absoluteString, forType: .fileURL)
+        if let card = cards.first,
+           let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) {
+            item.setString(screenshotURL.absoluteString, forType: .fileURL)
 
             if let image = NSImage(contentsOf: screenshotURL),
                let tiffData = image.tiffRepresentation {
-                imageItem.setData(tiffData, forType: .tiff)
+                item.setData(tiffData, forType: .tiff)
             }
 
             if screenshotURL.pathExtension.lowercased() == "png",
                let pngData = try? Data(contentsOf: screenshotURL) {
-                imageItem.setData(pngData, forType: .png)
+                item.setData(pngData, forType: .png)
             }
-
-            items.append(imageItem)
         }
 
-        return items
+        return [item]
     }
 
     private static func copyStringToPasteboard(_ value: String) {

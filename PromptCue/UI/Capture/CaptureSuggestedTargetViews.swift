@@ -51,7 +51,7 @@ struct CaptureCardSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: false,
             onUseAutomaticTarget: nil,
             onActivateInlineChooser: nil,
-            controlWidth: PanelMetrics.stackCardColumnWidth
+            controlWidth: StackCardOverflowPolicy.cardTextWidth
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -249,7 +249,8 @@ private struct SuggestedTargetChooserListView: View {
                             chooserRow(
                                 target: target,
                                 rowState: rowState(for: target),
-                                isRecent: target == automaticTarget
+                                isRecent: target == automaticTarget,
+                                controlWidth: fixedWidth
                             ) {
                                 if target == automaticTarget {
                                     if let onUseAutomaticTarget {
@@ -365,6 +366,7 @@ private struct SuggestedTargetChooserListView: View {
         target: CaptureSuggestedTarget,
         rowState: SuggestedTargetChooserRowState,
         isRecent: Bool,
+        controlWidth: CGFloat?,
         action: @escaping () -> Void
     ) -> some View {
         SuggestedTargetChooserRow(
@@ -493,7 +495,7 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
             .clipShape(chromeShape)
             .contentShape(chromeShape)
             .frame(width: controlWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var chromeShape: Capsule {
@@ -531,7 +533,7 @@ private struct SuggestedTargetChooserRowChrome<Content: View>: View {
             .clipShape(Capsule(style: .continuous))
             .contentShape(Capsule(style: .continuous))
             .frame(width: controlWidth, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: controlWidth == nil ? .leading : .center)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var backgroundFill: Color {

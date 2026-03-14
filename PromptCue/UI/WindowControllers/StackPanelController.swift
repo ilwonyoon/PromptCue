@@ -308,6 +308,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 onBackdropTap: { [weak self] in
                     self?.close()
                 },
+                onDismissAfterCopy: { [weak self] in
+                    self?.close(commitDeferredCopies: false)
+                },
                 onEditCard: { [weak self] card in
                     self?.onEditCard(card)
                 },

@@ -5,6 +5,7 @@ struct CardStackView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: AppModel
     let onBackdropTap: () -> Void
+    let onDismissAfterCopy: () -> Void
     let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
     private let ttlTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
@@ -22,11 +23,13 @@ struct CardStackView: View {
     init(
         model: AppModel,
         onBackdropTap: @escaping () -> Void = {},
+        onDismissAfterCopy: @escaping () -> Void = {},
         onEditCard: @escaping (CaptureCard) -> Void,
         onDeleteCard: @escaping (CaptureCard) -> Void
     ) {
         self.model = model
         self.onBackdropTap = onBackdropTap
+        self.onDismissAfterCopy = onDismissAfterCopy
         self.onEditCard = onEditCard
         self.onDeleteCard = onDeleteCard
         let initialSections = Self.partitionedCards(from: model.cards)
@@ -252,7 +255,12 @@ struct CardStackView: View {
                 ttlProgressRemaining: ttlProgress,
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
-                    _ = model.toggleMultiCopiedCard(card)
+                    if model.isMultiSelectMode {
+                        _ = model.toggleMultiCopiedCard(card)
+                    } else {
+                        _ = model.copySingleCard(card)
+                        onDismissAfterCopy()
+                    }
                 },
                 onEdit: {
                     onEditCard(card)

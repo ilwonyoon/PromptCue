@@ -301,6 +301,15 @@ final class AppModel: ObservableObject {
     }
 
     @discardableResult
+    func copySingleCard(_ card: CaptureCard) -> String {
+        let payload = ClipboardFormatter.string(for: [card])
+        ClipboardFormatter.copyToPasteboard(cards: [card])
+        markCopied(orderedIDs: [card.id])
+        exitMultiSelectMode()
+        return payload
+    }
+
+    @discardableResult
     func copyRaw(card: CaptureCard) -> String {
         let payload = ClipboardFormatter.rawString(for: card)
         ClipboardFormatter.copyRawToPasteboard(card: card)

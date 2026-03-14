@@ -134,6 +134,93 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertTrue(model.cards.allSatisfy { !$0.isCopied })
     }
 
+    // MARK: - Single-copy-closes-panel tests
+
+    func testSingleCardCopyMarksCardCopiedImmediately() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "Alpha", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Beta", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        let payload = model.copySingleCard(cards[0])
+
+        XCTAssertEqual(payload, ClipboardFormatter.string(for: [cards[0]]))
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+
+        let copiedIDs = model.cards.filter(\.isCopied).map(\.id)
+        XCTAssertEqual(copiedIDs, [cards[0].id])
+        XCTAssertNil(model.cards.first { $0.id == cards[1].id }?.lastCopiedAt)
+    }
+
+    func testSingleCardCopyDoesNotAffectOtherCards() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "First", createdAt: Date(timeIntervalSinceReferenceDate: 300), sortOrder: 30),
+            CaptureCard(id: UUID(), text: "Second", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Third", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        _ = model.copySingleCard(cards[1])
+
+        let activeIDs = model.cards.filter { !$0.isCopied }.map(\.id)
+        XCTAssertEqual(Set(activeIDs), [cards[0].id, cards[2].id])
+        XCTAssertTrue(model.cards.first { $0.id == cards[1].id }!.isCopied)
+    }
+
+    func testCmdClickEntersMultiSelectThenNormalCopyToggles() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "One", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Two", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        // Cmd+click first card enters multi-select
+        _ = model.toggleMultiCopiedCard(cards[0])
+        XCTAssertTrue(model.isMultiSelectMode)
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[0].id])
+
+        // In multi-select mode, toggleMultiCopiedCard adds second card
+        _ = model.toggleMultiCopiedCard(cards[1])
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[0].id, cards[1].id])
+
+        // Cards are NOT yet marked as copied (deferred)
+        XCTAssertTrue(model.cards.allSatisfy { $0.lastCopiedAt == nil })
+    }
+
+    func testSingleCardCopyExitsActiveMultiSelectMode() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "A", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "B", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        // Enter multi-select by staging a card
+        _ = model.toggleMultiCopiedCard(cards[0])
+        XCTAssertTrue(model.isMultiSelectMode)
+
+        // copySingleCard should exit multi-select and mark only the target card
+        _ = model.copySingleCard(cards[1])
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+        XCTAssertEqual(model.cards.filter(\.isCopied).map(\.id), [cards[1].id])
+    }
+
+    // MARK: - Copy raw tests
+
     func testCopyRawReturnsUnformattedTextAndMarksOnlyThatCardCopied() throws {
         let cards = [
             CaptureCard(id: UUID(), text: "Raw body", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),

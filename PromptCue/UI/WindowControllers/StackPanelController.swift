@@ -425,16 +425,13 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
-        if isAssociatedAuxiliaryWindow(event.window, panel: panel) {
+        let eventWindow = event.window
+        if shouldIgnoreMouseEvent(for: eventWindow, panel: panel) {
             return
         }
 
-        if event.window !== panel {
-            close()
-            return
-        }
-
-        closeIfMouseOutsidePanel()
+        let clickPoint = eventWindow?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
+        closeIfMouseOutsidePanel(at: clickPoint)
     }
 
     private func closeIfMouseOutsidePanel() {
@@ -442,7 +439,14 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
-        let mouseLocation = NSEvent.mouseLocation
+        closeIfMouseOutsidePanel(at: NSEvent.mouseLocation)
+    }
+
+    private func closeIfMouseOutsidePanel(at mouseLocation: NSPoint) {
+        guard let panel, isVisible else {
+            return
+        }
+
         if panel.frame.contains(mouseLocation) {
             return
         }
@@ -451,9 +455,67 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
+        if hasVisiblePopoverUnderPoint(mouseLocation) {
+            return
+        }
+
         if !panel.frame.contains(mouseLocation) {
             close()
         }
+    }
+
+    private func shouldIgnoreMouseEvent(for window: NSWindow?, panel: NSWindow) -> Bool {
+        if window == nil || isAssociatedAuxiliaryWindow(window, panel: panel) {
+            return true
+        }
+
+        if isPopoverWindow(window) {
+            return true
+        }
+
+        if window === panel {
+            return true
+        }
+
+        return false
+    }
+
+    private func hasVisiblePopoverUnderPoint(_ point: NSPoint) -> Bool {
+        guard let panel else {
+            return false
+        }
+
+        return visiblePopoverWindows(for: panel).contains { popoverWindow in
+            popoverWindow.frame.contains(point)
+        }
+    }
+
+    private func visiblePopoverWindows(for panel: NSWindow) -> [NSWindow] {
+        NSApp.windows
+            .filter { window in
+                guard window.isVisible else {
+                    return false
+                }
+
+                if window === panel {
+                    return false
+                }
+
+                if isPopoverWindow(window) {
+                    return true
+                }
+
+                return false
+            }
+    }
+
+    private func isPopoverWindow(_ window: NSWindow?) -> Bool {
+        guard let window else {
+            return false
+        }
+
+        let className = NSStringFromClass(type(of: window))
+        return className.localizedStandardContains("Popover")
     }
 
     private func hasVisibleAuxiliaryPresentation() -> Bool {

@@ -430,7 +430,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
 
-        let clickPoint = eventWindow?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
+        let clickPoint = NSEvent.mouseLocation
         closeIfMouseOutsidePanel(at: clickPoint)
     }
 
@@ -501,7 +501,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                     return false
                 }
 
-                if isPopoverWindow(window) {
+                if isLikelyPopoverWindow(window) {
                     return true
                 }
 
@@ -516,6 +516,21 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         let className = NSStringFromClass(type(of: window))
         return className.localizedStandardContains("Popover")
+    }
+
+    private func isLikelyPopoverWindow(_ window: NSWindow) -> Bool {
+        if isPopoverWindow(window) {
+            return true
+        }
+
+        let style = window.styleMask
+        if window.level.rawValue >= NSWindow.Level.floating.rawValue,
+           style.contains(.nonactivatingPanel) {
+            return true
+        }
+
+        let className = NSStringFromClass(type(of: window)).lowercased()
+        return className.localizedStandardContains("popover")
     }
 
     private func hasVisibleAuxiliaryPresentation() -> Bool {

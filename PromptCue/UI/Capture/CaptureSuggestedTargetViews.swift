@@ -200,14 +200,22 @@ private struct SuggestedTargetChooserListView: View {
             chooserHeader
             chooserBody
         }
-        .frame(width: fixedWidth, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(width: resolvedFixedWidth, alignment: .leading)
+        .frame(maxWidth: resolvedFixedWidth, alignment: .leading)
         .padding(.horizontal, AppUIConstants.captureChooserSurfaceHorizontalPadding)
         .padding(.top, surfaceTopPadding)
         .padding(.bottom, surfaceBottomPadding)
         .onAppear {
             onRefreshTargets()
         }
+    }
+
+    private var resolvedFixedWidth: CGFloat {
+        if let fixedWidth {
+            return fixedWidth
+        }
+
+        return max(controlWidth ?? 0, PanelMetrics.stackCardColumnWidth)
     }
 
     private var filteredAvailableTargets: [CaptureSuggestedTarget] {
@@ -250,7 +258,7 @@ private struct SuggestedTargetChooserListView: View {
                                 target: target,
                                 rowState: rowState(for: target),
                                 isRecent: target == automaticTarget,
-                                controlWidth: fixedWidth
+                                controlWidth: resolvedFixedWidth
                             ) {
                                 if target == automaticTarget {
                                     if let onUseAutomaticTarget {

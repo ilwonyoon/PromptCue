@@ -664,7 +664,7 @@ private struct CaptureCardActionStyle {
         } else if selectionMode {
             primaryIconColor = SemanticTokens.Text.secondary.opacity(0.78)
         } else if isPrimaryCopyHover {
-            primaryIconColor = SemanticTokens.Text.primary
+            primaryIconColor = Color.accentColor
         } else {
             switch colorScheme {
             case .light:

@@ -37,7 +37,21 @@ final class AppCoordinator: AppLifecycleCoordinating {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshForInheritedAppearanceChange()
+            // Mark controllers immediately so a show() racing with this
+            // notification picks up the pending flag even before the
+            // dispatched block runs.
+            self?.stackPanelController.markAppearanceDirty()
+            self?.capturePanelController.markAppearanceDirty()
+
+            // Defer the actual refresh to the next runloop iteration.
+            // The distributed notification arrives *before* AppKit
+            // finishes propagating the new effective appearance to
+            // windows, so reading effectiveAppearance synchronously
+            // returns the stale value and deduplication skips the
+            // refresh — the root cause of the recurring regression.
+            DispatchQueue.main.async {
+                self?.refreshForInheritedAppearanceChange()
+            }
         }
     }
 

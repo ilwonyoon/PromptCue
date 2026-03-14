@@ -42,6 +42,34 @@ final class StackPanelAppearanceTests: XCTestCase {
         XCTAssertNil(panel.contentViewController?.view.appearance)
     }
 
+    func testMarkAppearanceDirtyFlushesOnShow() throws {
+        let controller = makeController()
+        controller.prepareForFirstPresentation()
+
+        let panel = try XCTUnwrap(stackPanel(from: controller))
+
+        // Simulate: panel is hidden, system switches to dark mode.
+        // The distributed notification calls markAppearanceDirty()
+        // before effectiveAppearance has propagated.
+        NSApp.appearance = NSAppearance(named: .aqua)
+        panel.appearance = NSAppearance(named: .aqua)
+        controller.refreshForInheritedAppearanceChange()
+
+        // Now theme flips while panel is NOT visible.
+        panel.orderOut(nil)
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        controller.markAppearanceDirty()
+
+        // On show(), the pending flag should trigger a refresh that
+        // clears any stale local overrides.
+        panel.appearance = NSAppearance(named: .aqua) // stale override
+        controller.show()
+
+        XCTAssertNil(panel.appearance, "show() must clear stale local appearance override")
+        XCTAssertNil(panel.contentView?.appearance)
+        XCTAssertNil(panel.contentViewController?.view.appearance)
+    }
+
     func testInheritedThemeRefreshClearsHostedLayerContentsWhenThemeChanges() throws {
         let controller = makeController()
         controller.prepareForFirstPresentation()

@@ -71,6 +71,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     private var isAnimatingClose = false
     private var hasWarmedFirstPresentation = false
     private var lastInheritedAppearanceSignature: String?
+    private var pendingAppearanceRefresh = false
 
     var isPresentedOrTransitioning: Bool {
         isVisible || isAnimatingClose || panel?.isVisible == true
@@ -111,6 +112,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
             return
         }
         PerformanceTrace.markStackOpenPhase("panel_ready")
+
+        // If the system theme changed while the panel was hidden,
+        // AppKit may not have propagated the new effective appearance
+        // to our offscreen views, so viewDidChangeEffectiveAppearance
+        // never fired.  Flush the pending refresh now, before we
+        // composite the first visible frame.
+        if pendingAppearanceRefresh {
+            refreshForInheritedAppearanceChange()
+        }
 
         model.beginStackSuggestedTargetPresentation()
         PerformanceTrace.markStackOpenPhase("suggested_target_presentation_started")
@@ -218,27 +228,37 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Called synchronously when the system theme notification arrives,
+    /// *before* AppKit has propagated the new effective appearance.
+    /// Sets a flag so that the next `show()` or deferred
+    /// `refreshForInheritedAppearanceChange()` picks up the change.
+    func markAppearanceDirty() {
+        pendingAppearanceRefresh = true
+    }
+
     func refreshForInheritedAppearanceChange() {
-        let appearanceSignature = Self.appearanceSignature(
-            for: panel?.effectiveAppearance ?? NSApp.effectiveAppearance
-        )
-        let hasLocalOverride = panel?.appearance != nil
-            || panel?.contentView?.appearance != nil
-            || panel?.contentViewController?.view.appearance != nil
-        let shouldRefresh = hasLocalOverride || lastInheritedAppearanceSignature != appearanceSignature
-        lastInheritedAppearanceSignature = appearanceSignature
+        pendingAppearanceRefresh = false
 
-        guard shouldRefresh else {
-            return
-        }
-
+        // Always clear local overrides — they pin the window to a
+        // stale appearance and prevent system inheritance.
         panel?.appearance = nil
         panel?.contentView?.appearance = nil
         panel?.contentViewController?.view.appearance = nil
+
+        let appearanceSignature = Self.appearanceSignature(
+            for: panel?.effectiveAppearance ?? NSApp.effectiveAppearance
+        )
+        let didChange = lastInheritedAppearanceSignature != appearanceSignature
+        lastInheritedAppearanceSignature = appearanceSignature
+
         panel?.invalidateShadow()
         panel?.contentView?.needsDisplay = true
         panel?.contentViewController?.view.needsDisplay = true
-        (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance()
+
+        // Always tell the content VC to refresh — it owns its own
+        // deduplication and the cost of a no-op pass is negligible
+        // compared to displaying stale theme colors.
+        (panel?.contentViewController as? StackPanelContentViewController<CardStackView>)?.refreshAppearance(forceRebuild: didChange)
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -623,13 +643,17 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
         refreshAppearance()
     }
 
-    func refreshAppearance() {
+    func refreshAppearance(forceRebuild: Bool = false) {
         let appearanceSignature = Self.appearanceSignature(for: view.window?.effectiveAppearance ?? view.effectiveAppearance)
-        let previousAppearanceSignature = lastAppearanceSignature
-        let didChangeAppearance = previousAppearanceSignature != nil && previousAppearanceSignature != appearanceSignature
+        let didChangeAppearance = lastAppearanceSignature != nil && lastAppearanceSignature != appearanceSignature
         lastAppearanceSignature = appearanceSignature
         shellView.refreshAppearance()
-        if didChangeAppearance {
+
+        // Rebuild the SwiftUI view hierarchy whenever the effective
+        // appearance actually changed, OR when the caller detected a
+        // change that our local signature comparison missed (e.g. the
+        // panel was offscreen and effectiveAppearance lagged behind).
+        if didChangeAppearance || forceRebuild {
             hostingController.rootView = rootViewBuilder()
             hostingController.view.layer?.contents = nil
             hostingController.view.needsLayout = true

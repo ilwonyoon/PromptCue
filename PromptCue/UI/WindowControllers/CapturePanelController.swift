@@ -142,6 +142,12 @@ final class CapturePanelController: NSObject, NSWindowDelegate {
         anchoredOriginX = nil
     }
 
+    func markAppearanceDirty() {
+        // Capture panel currently refreshes eagerly via the deferred
+        // coordinator call — stub kept for API symmetry with
+        // StackPanelController so the coordinator can call both.
+    }
+
     func refreshForInheritedAppearanceChange() {
         panel?.appearance = nil
         panel?.contentView?.appearance = nil

@@ -6,11 +6,10 @@ struct LocalImageThumbnail: View {
     @Environment(\.colorScheme) private var colorScheme
     private static let fileManager = FileManager.default
     private static let imageCache = NSCache<NSURL, NSImage>()
-    private static let loadDelaysNanos: [UInt64] = [80_000_000, 180_000_000, 320_000_000, 500_000_000, 800_000_000]
+    private static let loadDelaysNanos: [UInt64] = [80_000_000, 160_000_000, 280_000_000, 460_000_000, 760_000_000, 1_120_000_000]
     private enum LoadState {
         case idle
         case loading
-        case failed
     }
 
     let url: URL
@@ -89,25 +88,27 @@ struct LocalImageThumbnail: View {
     private func loadImage(from resolvedURL: URL) async {
         if loadedURL != resolvedURL {
             loadedURL = resolvedURL
-            if loadState == .loading {
-                return
-            }
-
             image = nil
-            loadState = .loading
 
             if let cachedImage = Self.imageCache.object(forKey: resolvedURL as NSURL) {
                 image = cachedImage
-                loadState = .idle
                 return
             }
         }
 
-        if image != nil || loadState == .failed {
+        if image != nil {
             return
         }
 
+        if loadState == .loading {
+            return
+        }
+
+        loadState = .loading
         let targetPixelSize = max((width ?? 320) * 2, height * 2)
+        defer {
+            loadState = .idle
+        }
 
         for attempt in 0..<Self.loadDelaysNanos.count {
             guard !Task.isCancelled else {
@@ -115,11 +116,6 @@ struct LocalImageThumbnail: View {
             }
 
             guard let readableURL = readableURL(for: resolvedURL) else {
-                if attempt == Self.loadDelaysNanos.count - 1 {
-                    loadState = .failed
-                    return
-                }
-
                 let delayNanos = Self.loadDelaysNanos[min(attempt, Self.loadDelaysNanos.count - 1)]
                 try? await Task.sleep(nanoseconds: delayNanos)
                 continue
@@ -139,12 +135,6 @@ struct LocalImageThumbnail: View {
             if let decodedImage {
                 Self.imageCache.setObject(decodedImage, forKey: resolvedURL as NSURL)
                 self.image = decodedImage
-                loadState = .idle
-                return
-            }
-
-            if attempt == Self.loadDelaysNanos.count - 1 {
-                loadState = .failed
                 return
             }
 

@@ -27,6 +27,7 @@ struct CaptureCardView: View {
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
+    @State private var pendingUnhoverTask: Task<Void, Never>?
 
     private var actionStyle: CaptureCardActionStyle {
         CaptureCardActionStyle.resolve(
@@ -35,7 +36,7 @@ struct CaptureCardView: View {
             isRecentlyCopied: isRecentlyCopied,
             selectionMode: selectionMode,
             colorScheme: colorScheme,
-            isCardHovered: isCardHovered,
+            isCardHovered: isCardHoveredState,
             isCopyHovered: isCopyHovered,
             isDeleteHovered: isDeleteHovered,
             isShowingCopyFeedback: isShowingCopyFeedback
@@ -201,14 +202,38 @@ struct CaptureCardView: View {
         .onHover { hovered in
             setCardHovered(hovered)
         }
+        .onDisappear {
+            pendingUnhoverTask?.cancel()
+        }
     }
 
     private func setCardHovered(_ hovered: Bool) {
-        guard isCardHovered != hovered else {
+        pendingUnhoverTask?.cancel()
+
+        if hovered {
+            isCardHovered = true
             return
         }
 
-        isCardHovered = hovered
+        guard isCardHovered else {
+            return
+        }
+
+        guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
+            return
+        }
+
+        pendingUnhoverTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(30))
+            guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
+                return
+            }
+            isCardHovered = false
+        }
+    }
+
+    private var isCardHoveredState: Bool {
+        isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback || isOverflowAffordanceHovered
     }
 
     private var contentSpacing: CGFloat {

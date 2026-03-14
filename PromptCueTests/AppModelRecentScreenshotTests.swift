@@ -37,8 +37,8 @@ final class AppModelRecentScreenshotTests: XCTestCase {
 
         model.beginCaptureSession()
 
-        XCTAssertTrue(model.showsRecentScreenshotSlot)
-        XCTAssertTrue(model.showsRecentScreenshotPlaceholder)
+        XCTAssertFalse(model.showsRecentScreenshotSlot)
+        XCTAssertFalse(model.showsRecentScreenshotPlaceholder)
     }
 
     func testStartDoesNotStartRecentScreenshotCoordinatorUntilCaptureSession() throws {
@@ -229,8 +229,8 @@ final class AppModelRecentScreenshotTests: XCTestCase {
         model.start()
         model.beginCaptureSession()
 
-        XCTAssertTrue(model.showsRecentScreenshotSlot)
-        XCTAssertTrue(model.showsRecentScreenshotPlaceholder)
+        XCTAssertFalse(model.showsRecentScreenshotSlot)
+        XCTAssertFalse(model.showsRecentScreenshotPlaceholder)
 
         let didSubmit = await model.submitCapture()
 

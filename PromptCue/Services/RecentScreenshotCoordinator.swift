@@ -695,11 +695,6 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return
         }
 
-        if let currentSession, currentSession.cacheURL == nil {
-            expireCurrentSession(currentSession)
-            return
-        }
-
         publishCurrentSessionState(referenceDate: referenceDate)
     }
 

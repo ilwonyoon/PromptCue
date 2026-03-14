@@ -3,18 +3,18 @@ import Foundation
 extension AppModel {
     var showsRecentScreenshotSlot: Bool {
         switch recentScreenshotState {
-        case .detected, .previewReady:
+        case .previewReady:
             return true
-        case .idle, .expired, .consumed:
+        case .idle, .detected, .expired, .consumed:
             return false
         }
     }
 
     var showsRecentScreenshotPlaceholder: Bool {
         switch recentScreenshotState {
-        case .detected, .previewReady(_, _, .loading):
+        case .previewReady(_, _, .loading):
             return true
-        case .idle, .previewReady(_, _, .ready), .expired, .consumed:
+        case .idle, .detected, .previewReady(_, _, .ready), .expired, .consumed:
             return false
         }
     }

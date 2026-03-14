@@ -266,14 +266,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             screenshotImageView.bottomAnchor.constraint(equalTo: screenshotSurface.bottomAnchor),
         ])
 
-        screenshotSpinner.translatesAutoresizingMaskIntoConstraints = false
-        screenshotSpinner.controlSize = .small
-        screenshotSpinner.style = .spinning
-        screenshotSurface.addSubview(screenshotSpinner)
-        NSLayoutConstraint.activate([
-            screenshotSpinner.centerXAnchor.constraint(equalTo: screenshotSurface.centerXAnchor),
-            screenshotSpinner.centerYAnchor.constraint(equalTo: screenshotSurface.centerYAnchor),
-        ])
+        screenshotSpinner.isHidden = true
 
         removeScreenshotButton.translatesAutoresizingMaskIntoConstraints = false
         removeScreenshotButton.bezelStyle = .regularSquare
@@ -404,7 +397,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.textView.isEditable = !isSubmitting
         removeScreenshotButton.isEnabled = !isSubmitting
         if isSubmitting {
-            screenshotSpinner.startAnimation(nil)
+            screenshotSpinner.stopAnimation(nil)
         } else if !model.showsRecentScreenshotPlaceholder {
             screenshotSpinner.stopAnimation(nil)
         }
@@ -416,18 +409,12 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotHeightConstraint.constant = shouldShow ? PrimitiveTokens.Size.captureAttachmentPreviewSize : 0
 
         switch state {
-        case .idle, .expired, .consumed:
+        case .idle, .detected, .expired, .consumed:
             imageLoadTask?.cancel()
             displayedPreviewImageKey = nil
             screenshotImageView.image = nil
             screenshotSpinner.stopAnimation(nil)
             screenshotSurface.showLoading(false)
-        case .detected:
-            imageLoadTask?.cancel()
-            displayedPreviewImageKey = nil
-            screenshotImageView.image = nil
-            screenshotSurface.showLoading(true)
-            screenshotSpinner.startAnimation(nil)
         case .previewReady(let sessionID, let cacheURL, let thumbnailState):
             switch thumbnailState {
             case .loading:
@@ -435,7 +422,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 displayedPreviewImageKey = nil
                 screenshotImageView.image = nil
                 screenshotSurface.showLoading(true)
-                screenshotSpinner.startAnimation(nil)
+                screenshotSpinner.stopAnimation(nil)
             case .ready:
                 loadImage(from: cacheURL, sessionID: sessionID)
             }
@@ -469,7 +456,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         displayedPreviewImageKey = cacheKey
         screenshotImageView.image = nil
         screenshotSurface.showLoading(true)
-        screenshotSpinner.startAnimation(nil)
+        screenshotSpinner.stopAnimation(nil)
 
         imageLoadTask = Task.detached(priority: .utility) { [weak self, cacheKey, url] in
             let image = CapturePreviewImageCache.loadUncachedImage(from: url)

@@ -126,11 +126,7 @@ struct CaptureComposerView: View {
             .fill(SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.faint))
             .opacity(shouldShowScreenshotPlaceholder ? 1 : 0)
             .overlay {
-                if shouldShowScreenshotPlaceholder {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Loading screenshot")
-                }
+                EmptyView()
             }
             .overlay {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)

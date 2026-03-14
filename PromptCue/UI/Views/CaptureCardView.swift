@@ -1,4 +1,5 @@
 import AppKit
+import Foundation
 import PromptCueCore
 import SwiftUI
 
@@ -25,9 +26,17 @@ struct CaptureCardView: View {
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
+    @State private var isImageHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
     @State private var pendingUnhoverTask: Task<Void, Never>?
+    #if DEBUG
+    @State private var lastRawHoverNanos: UInt64?
+    @State private var lastEmphasizedNanos: UInt64?
+    private var isCardHoverTraceEnabled: Bool {
+        ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_CARD_HOVER"] == "1"
+    }
+    #endif
 
     private var actionStyle: CaptureCardActionStyle {
         CaptureCardActionStyle.resolve(
@@ -102,7 +111,7 @@ struct CaptureCardView: View {
 
         StackNotificationCardSurface(
             isSelected: isSelected,
-            isEmphasized: isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback
+            isEmphasized: isCardHoveredState
         ) {
             ZStack(alignment: .topTrailing) {
                 VStack(alignment: .leading, spacing: contentSpacing) {
@@ -110,7 +119,20 @@ struct CaptureCardView: View {
                         LocalImageThumbnail(
                             url: screenshotURL,
                             height: PrimitiveTokens.Size.notificationThumbnailHeight
-                        )
+                        ) { hovered in
+                            #if DEBUG
+                            if isCardHoverTraceEnabled {
+                                print(
+                                    String(
+                                        format: "PROMPTCUE_CARD_IMAGE_HOVER_EVENT card=%@ hovered=%d raw_nanos=%llu",
+                                        card.id.uuidString,
+                                        hovered ? 1 : 0,
+                                        DispatchTime.now().uptimeNanoseconds
+                                    )
+                                )
+                            }
+                            isImageHovered = hovered
+                        }
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
@@ -205,6 +227,50 @@ struct CaptureCardView: View {
         .onDisappear {
             pendingUnhoverTask?.cancel()
         }
+        #if DEBUG
+        .onChange(of: isCardHoveredState) { isEmphasized in
+            guard isCardHoverTraceEnabled else {
+                return
+            }
+
+            let now = DispatchTime.now().uptimeNanoseconds
+            if isEmphasized, let rawNanos = lastRawHoverNanos {
+                let latencyMs = Double(now - rawNanos) / 1_000_000
+                print(
+                    String(
+                        format: "PROMPTCUE_CARD_HOVER_LATENCY_MS card=%@ hasImage=%d latency_ms=%.3f",
+                        card.id.uuidString,
+                        card.screenshotURL != nil ? 1 : 0,
+                        latencyMs
+                    )
+                )
+            }
+
+            if let lastEmphasizedNanos {
+                let sinceMs = Double(now - lastEmphasizedNanos) / 1_000_000
+                print(
+                    String(
+                        format: "PROMPTCUE_CARD_HOVER_STATE card=%@ hasImage=%d emphasized=%d changed_since_ms=%.3f",
+                        card.id.uuidString,
+                        card.screenshotURL != nil ? 1 : 0,
+                        isEmphasized ? 1 : 0,
+                        sinceMs
+                    )
+                )
+            } else {
+                print(
+                    String(
+                        format: "PROMPTCUE_CARD_HOVER_STATE card=%@ hasImage=%d emphasized=%d changed_since_ms=NA",
+                        card.id.uuidString,
+                        card.screenshotURL != nil ? 1 : 0,
+                        isEmphasized ? 1 : 0
+                    )
+                )
+            }
+
+            lastEmphasizedNanos = now
+        }
+        #endif
     }
 
     private func setCardHovered(_ hovered: Bool) {
@@ -212,14 +278,31 @@ struct CaptureCardView: View {
 
         if hovered {
             isCardHovered = true
+            #if DEBUG
+            if isCardHoverTraceEnabled {
+                let now = DispatchTime.now().uptimeNanoseconds
+                lastRawHoverNanos = now
+                print(
+                    String(
+                        format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=entered raw_nanos=%llu",
+                        card.id.uuidString,
+                        card.screenshotURL != nil ? 1 : 0,
+                        now
+                    )
+                )
+            }
+            #endif
             return
         }
 
-        guard isCardHovered else {
+        if !isCardHovered {
             return
         }
 
         guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
+            return
+        }
+        guard !isImageHovered else {
             return
         }
 
@@ -228,12 +311,33 @@ struct CaptureCardView: View {
             guard !isCopyHovered, !isDeleteHovered, !isOverflowAffordanceHovered else {
                 return
             }
+            guard !isImageHovered else {
+                return
+            }
             isCardHovered = false
+            #if DEBUG
+            if isCardHoverTraceEnabled {
+                let now = DispatchTime.now().uptimeNanoseconds
+                print(
+                    String(
+                        format: "PROMPTCUE_CARD_HOVER_EVENT card=%@ hasImage=%d state=exited raw_nanos=%llu",
+                        card.id.uuidString,
+                        card.screenshotURL != nil ? 1 : 0,
+                        now
+                    )
+                )
+            }
+            #endif
         }
     }
 
     private var isCardHoveredState: Bool {
-        isCardHovered || isCopyHovered || isDeleteHovered || isShowingCopyFeedback || isOverflowAffordanceHovered
+        isCardHovered
+            || isImageHovered
+            || isCopyHovered
+            || isDeleteHovered
+            || isShowingCopyFeedback
+            || isOverflowAffordanceHovered
     }
 
     private var contentSpacing: CGFloat {

@@ -15,6 +15,7 @@ struct LocalImageThumbnail: View {
     let url: URL
     let width: CGFloat?
     let height: CGFloat
+    let onHoverChanged: (Bool) -> Void
     @State private var image: NSImage?
     @State private var loadedURL: URL?
     @State private var loadState: LoadState = .idle
@@ -22,11 +23,13 @@ struct LocalImageThumbnail: View {
     init(
         url: URL,
         width: CGFloat? = nil,
-        height: CGFloat = PrimitiveTokens.Size.thumbnailHeight
+        height: CGFloat = PrimitiveTokens.Size.thumbnailHeight,
+        onHoverChanged: @escaping (Bool) -> Void = { _ in }
     ) {
         self.url = url
         self.width = width
         self.height = height
+        self.onHoverChanged = onHoverChanged
         let resolvedURL = url.standardizedFileURL
         _image = State(initialValue: Self.imageCache.object(forKey: resolvedURL as NSURL))
         _loadedURL = State(initialValue: resolvedURL)
@@ -56,15 +59,19 @@ struct LocalImageThumbnail: View {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .fill(thumbnailBackdropColor)
         )
+        .contentShape(Rectangle())
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
                 .stroke(thumbnailBorderColor)
         }
-        .allowsHitTesting(false)
+        .onHover(perform: onHoverChanged)
         .task(id: resolvedURL.path) {
             await loadImage(from: resolvedURL)
+        }
+        .onDisappear {
+            onHoverChanged(false)
         }
     }
 

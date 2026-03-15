@@ -46,7 +46,7 @@ struct StackNotificationCardSurface<Content: View>: View {
             }
             .overlay {
                 shape
-                    .stroke(borderColor, lineWidth: isSelected ? PrimitiveTokens.Stroke.emphasis : PrimitiveTokens.Stroke.subtle)
+                    .stroke(borderColor, lineWidth: isSelected ? 2.0 : PrimitiveTokens.Stroke.subtle)
             }
             .clipShape(shape)
 
@@ -62,7 +62,7 @@ struct StackNotificationCardSurface<Content: View>: View {
 
     private var backgroundFill: Color {
         if isSelected {
-            return SemanticTokens.Surface.accentFill
+            return SemanticTokens.Surface.notificationCardEmphasizedFill
         }
 
         if isEmphasized {
@@ -82,7 +82,14 @@ struct StackNotificationCardSurface<Content: View>: View {
 
     private var borderColor: Color {
         if isSelected {
-            return SemanticTokens.Border.emphasis
+            switch colorScheme {
+            case .light:
+                return Color.black.opacity(0.5)
+            case .dark:
+                return Color.white.opacity(0.7)
+            @unknown default:
+                return Color.white.opacity(0.7)
+            }
         }
 
         if isEmphasized {

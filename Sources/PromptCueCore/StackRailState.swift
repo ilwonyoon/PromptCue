@@ -36,18 +36,16 @@ public struct StackRailState: Equatable, Sendable {
     }
 
     public var summaryLabel: String {
-        "\(activeCount) On Stage · \(copiedCount) Off Stage"
+        let promptsPart = activeCount == 1 ? "1 prompt" : "\(activeCount) prompts"
+        if copiedCount > 0 {
+            return "\(promptsPart) · \(copiedCount) copied"
+        }
+        return promptsPart
     }
 
     public var headerTitle: String {
-        switch filter {
-        case .all:
-            return "On Stage \(activeCount) · Off Stage \(copiedCount)"
-        case .onStage:
-            return "On Stage \(activeCount)"
-        case .offstage:
-            return "Off Stage \(copiedCount)"
-        }
+        let count = activeCount
+        return count == 1 ? "1 prompt" : "\(count) prompts"
     }
 
     public var headerCountLabel: String {

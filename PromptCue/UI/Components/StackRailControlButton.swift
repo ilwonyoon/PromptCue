@@ -17,7 +17,7 @@ struct StackRailControlButton: View {
         systemName: String,
         accessibilityLabel: String,
         glyphSize: CGFloat = 20,
-        controlSize: CGFloat = 36,
+        controlSize: CGFloat = 32,
         isActive: Bool = false,
         isDestructive: Bool = false,
         rotationDegrees: Double = 0,
@@ -58,5 +58,53 @@ struct StackRailControlButton: View {
         return isActive || isHovered
             ? SemanticTokens.Text.primary
             : SemanticTokens.Text.secondary
+    }
+}
+
+struct CmdIndicatorButton: View {
+    let isActive: Bool
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: PrimitiveTokens.Space.xxs) {
+                Image(systemName: "command")
+                    .font(.system(size: PrimitiveTokens.FontSize.micro - 1, weight: .semibold))
+                Text("Select")
+                    .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .medium))
+            }
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, PrimitiveTokens.Space.xs + 2)
+            .padding(.vertical, PrimitiveTokens.Space.xxs + 2)
+            .background(
+                Capsule()
+                    .fill(backgroundFill)
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isActive)
+        .onHover { hovered in
+            isHovered = hovered
+        }
+        .accessibilityLabel("Select multiple prompts")
+        .help("Cmd+Click to select multiple")
+    }
+
+    private var foregroundColor: Color {
+        isActive || isHovered
+            ? SemanticTokens.Text.primary
+            : SemanticTokens.Text.secondary
+    }
+
+    private var backgroundFill: Color {
+        if isActive {
+            return SemanticTokens.Text.secondary.opacity(0.15)
+        }
+        if isHovered {
+            return SemanticTokens.Text.secondary.opacity(0.12)
+        }
+        return SemanticTokens.Text.secondary.opacity(0.06)
     }
 }

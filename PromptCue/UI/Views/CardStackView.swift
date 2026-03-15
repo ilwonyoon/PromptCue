@@ -13,11 +13,12 @@ struct CardStackView: View {
     @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
     @State private var expandedCardIDs = Set<CaptureCard.ID>()
     @State private var isCopiedStackHovered = false
-    @State private var isFilterPopoverPresented = false
     @State private var isConfirmingOffstageDelete = false
     @State private var classificationCache: [CaptureCard.ID: ContentClassification]
     @State private var cardSections: CardSections
     @State private var stagedCopiedCardIDSet: Set<CaptureCard.ID>
+    @State private var isCmdPressed = false
+    @State private var flagsMonitor: Any?
     @State private var ttlNow = Date()
 
     init(
@@ -107,6 +108,16 @@ struct CardStackView: View {
                 filter: stackFilter,
                 isCopiedStackExpanded: isCopiedStackExpanded
             )
+            flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
+                isCmdPressed = event.modifierFlags.contains(.command)
+                return event
+            }
+        }
+        .onDisappear {
+            if let monitor = flagsMonitor {
+                NSEvent.removeMonitor(monitor)
+                flagsMonitor = nil
+            }
         }
         .onChange(of: model.cards) { _, newCards in
             refreshDerivedState(
@@ -143,83 +154,34 @@ struct CardStackView: View {
 
     private func header(railState: StackRailState) -> some View {
         HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
-            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                Text(railState.headerTitle)
+            if selectionMode {
+                Text("\(railState.stagedCount) Copied")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(SemanticTokens.Text.secondary)
+                    .foregroundStyle(SemanticTokens.Text.primary)
                     .lineLimit(1)
-                    .layoutPriority(1)
-
-                if let actionFeedbackLabel = railState.actionFeedbackLabel {
-                    Text(actionFeedbackLabel)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(SemanticTokens.Text.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                    Text(railState.headerTitle)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(SemanticTokens.Text.secondary)
                         .lineLimit(1)
+                        .layoutPriority(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if !selectionMode {
+                CmdIndicatorButton(isActive: isCmdPressed) {
+                    isCmdPressed.toggle()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            filterTrigger
         }
         .padding(.leading, PrimitiveTokens.Space.xxxs)
-        .padding(.trailing, PrimitiveTokens.Size.notificationCardPadding - PrimitiveTokens.Space.xxs)
+        .padding(.trailing, PrimitiveTokens.Space.xs)
         .padding(.vertical, PrimitiveTokens.Space.xxxs)
+        .frame(height: 32)
         .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
-    }
-
-    private var filterTrigger: some View {
-        StackRailControlButton(
-            systemName: stackFilter == .all
-                ? "line.3.horizontal.decrease.circle"
-                : "line.3.horizontal.decrease.circle.fill",
-            accessibilityLabel: "Filter stack",
-            glyphSize: 20,
-            controlSize: 32,
-            isActive: stackFilter != .all || isFilterPopoverPresented
-        ) {
-            isFilterPopoverPresented.toggle()
-        }
-        .popover(isPresented: $isFilterPopoverPresented, arrowEdge: Edge.top) {
-            stackFilterPopover
-        }
-    }
-
-    private var stackFilterPopover: some View {
-        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-            ForEach(StackRailFilter.allCases, id: \.self) { filter in
-                Button {
-                    stackFilter = filter
-                    if filter == .offstage {
-                        isCopiedStackExpanded = true
-                    } else if filter == .all {
-                        isCopiedStackExpanded = false
-                    }
-                    isFilterPopoverPresented = false
-                } label: {
-                    HStack(spacing: PrimitiveTokens.Space.sm) {
-                        Text(filter.title)
-                            .font(PrimitiveTokens.Typography.body)
-                            .foregroundStyle(SemanticTokens.Text.primary)
-                        Spacer(minLength: PrimitiveTokens.Space.sm)
-                        if stackFilter == filter {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(SemanticTokens.Text.primary)
-                        }
-                    }
-                    .padding(.horizontal, PrimitiveTokens.Space.sm)
-                    .padding(.vertical, PrimitiveTokens.Space.sm)
-                    .frame(minHeight: 36, alignment: .center)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(filterRowBackground(for: filter))
-                    .clipShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.sm, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(PrimitiveTokens.Space.xs)
-        .frame(width: 188, alignment: .leading)
     }
 
     private var emptyState: some View {
@@ -309,8 +271,8 @@ struct CardStackView: View {
 
     private func copiedSectionHeader(copiedCards: [CaptureCard], isExpanded: Bool, isCollapsible: Bool) -> some View {
         HStack(spacing: PrimitiveTokens.Space.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: PrimitiveTokens.Space.xs) {
-                Text("Off Stage")
+            HStack(alignment: .firstTextBaseline, spacing: PrimitiveTokens.Space.xxs) {
+                Text("Copied")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(SemanticTokens.Text.secondary)
 
@@ -326,7 +288,7 @@ struct CardStackView: View {
                 isCollapsible: isCollapsible
             )
         }
-        .accessibilityLabel("Off Stage section, \(copiedCards.count) cues")
+        .accessibilityLabel("Copied section, \(copiedCards.count) cues")
     }
 
     private func collapsedCopiedStack(copiedCards: [CaptureCard]) -> some View {
@@ -368,7 +330,7 @@ struct CardStackView: View {
         .onTapGesture {
             isCopiedStackExpanded = true
         }
-        .accessibilityLabel("Off Stage cues, \(copiedCards.count) items")
+        .accessibilityLabel("Copied prompts, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
     }
 
@@ -471,14 +433,6 @@ struct CardStackView: View {
             }
         }
         .frame(height: 16, alignment: .center)
-    }
-
-    private func filterRowBackground(for filter: StackRailFilter) -> Color {
-        if stackFilter == filter {
-            return SemanticTokens.Surface.captureChooserRowSelectedFill
-        }
-
-        return .clear
     }
 
     private func copiedSummaryMetrics(copiedCards: [CaptureCard]) -> StackCardOverflowPolicy.Metrics? {

@@ -3,12 +3,17 @@ import Testing
 
 struct StackRailStateTests {
     @Test
-    func summaryUsesStageMetaphor() {
+    func headerShowsPromptCount() {
         let state = StackRailState(activeCount: 4, copiedCount: 2, stagedCount: 0)
 
-        #expect(state.summaryLabel == "4 On Stage · 2 Off Stage")
-        #expect(state.headerTitle == "On Stage 4 · Off Stage 2")
-        #expect(state.headerCountLabel == "4 On Stage · 2 Off Stage")
+        #expect(state.headerTitle == "4 prompts")
+    }
+
+    @Test
+    func headerShowsSingularPrompt() {
+        let state = StackRailState(activeCount: 1, copiedCount: 0, stagedCount: 0)
+
+        #expect(state.headerTitle == "1 prompt")
     }
 
     @Test
@@ -32,8 +37,7 @@ struct StackRailStateTests {
         #expect(state.showsActiveCards)
         #expect(state.showsCopiedCards == false)
         #expect(state.forcesExpandedCopiedSection == false)
-        #expect(state.headerTitle == "On Stage 4")
-        #expect(state.headerCountLabel == "4")
+        #expect(state.headerTitle == "4 prompts")
     }
 
     @Test
@@ -48,7 +52,6 @@ struct StackRailStateTests {
         #expect(state.showsActiveCards == false)
         #expect(state.showsCopiedCards)
         #expect(state.forcesExpandedCopiedSection)
-        #expect(state.headerTitle == "Off Stage 2")
-        #expect(state.headerCountLabel == "2")
+        #expect(state.headerTitle == "4 prompts")
     }
 }

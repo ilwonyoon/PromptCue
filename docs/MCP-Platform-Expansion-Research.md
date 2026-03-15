@@ -177,24 +177,75 @@ Database: `project_documents` table with FTS5 full-text search.
 
 ### MCP tools for Warm
 
-Added to the same BacktickMCP server alongside existing Hot tools:
+Full CRUD + project management. Referencing Muninn's tool set but adapted for Backtick.
 
-| Tool | Purpose |
-|------|---------|
-| `save_document` | Upsert project document by projectName. AI calls this at end of session. |
-| `recall_document` | Get one project's doc (by name) or list all active projects. AI calls at start. |
-| `search_documents` | Full-text search across all documents. |
-| `manage_document` | Set status, rename, delete. |
+#### Muninn's tools (reference)
 
-**AI workflow:**
+| Muninn tool | What it does |
+|-------------|-------------|
+| `muninn_save` | Replace entire project summary (full document swap) |
+| `muninn_save_memory` | Append a progress entry to timeline (additive, not replacement) |
+| `muninn_recall` | Read one project or list all active projects |
+| `muninn_search` | FTS keyword search across all documents |
+| `muninn_status` | List all projects with metadata (no content) |
+| `muninn_manage` | Lifecycle: set_status, create_project, delete_project, set_github_repo |
+| `muninn_sync` | Pull GitHub data (commits, issues, PRs) into memory |
+
+#### Backtick Warm tools (proposed)
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `save_document` | Create or **replace** a project's document | Upsert by projectName. Full document swap. |
+| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc for small changes. Key gap in Muninn. |
+| `recall_document` | Read one project's document, or list all active projects | AI calls at session start for context |
+| `delete_document` | Remove a document (or entire project) | Clean deletion with confirmation |
+| `search_documents` | Full-text search across all documents | FTS5 keyword search |
+| `list_projects` | List all projects with status + last updated (no content) | Lightweight inventory, like `muninn_status` |
+| `manage_project` | Create project, set status (active/paused/archived), rename | Project lifecycle management |
+
+**Why `update_document` matters:** In Muninn, the only way to update was `muninn_save` which replaces the entire document. For a 2-page doc, AI has to recall the full text, modify it, and save it all back — expensive and error-prone. A partial update tool (append a section, replace a section by header, delete a section) makes incremental updates cheap.
+
+```
+// Append a new session log:
+update_document(project: "PromptCue", action: "append", content: "## Session 2026-03-16\n...")
+
+// Replace a specific section:
+update_document(project: "PromptCue", action: "replace_section", section: "Next", content: "- New task 1\n- New task 2")
+
+// Remove a section:
+update_document(project: "PromptCue", action: "delete_section", section: "Resolved Issues")
+```
+
+#### Multi-document per project: the hard problem
+
+Muninn intended multiple documents per project (folder concept) but it was too hard to build well, so everything collapsed into one summary document.
+
+**Why it's hard:**
+- AI needs to know which document to read/write → requires naming/addressing scheme
+- Document discovery: AI asks "what docs exist?" → needs listing per project
+- Cross-document references: "the architecture doc mentions X" → search scope
+- UX: displaying multiple docs per project in a menu bar panel
+
+**Pragmatic start:** One document per project (same as Muninn's landing point). The `update_document` partial-update tool compensates — a single doc with `## sections` is effectively multiple documents in one file. If a document grows too large, that's the signal to revisit multi-doc.
+
+**Future path if needed:** Project becomes a folder, documents become pages within it. `save_document` gains a `title` parameter to address specific pages. But don't build this until the single-doc model breaks.
+
+#### AI workflow
+
 ```
 Session start (any client, any thread):
-  → recall_document(projectName: "PromptCue")
+  → list_projects()
+  → recall_document(project: "PromptCue")
   → AI has full project context
 
+During session:
+  → update_document(project: "PromptCue", action: "replace_section",
+       section: "Status", content: "Working on HTTP transport...")
+
 Session end:
-  → save_document(projectName: "PromptCue", summary: "<updated markdown>")
-  → Context persists for next session
+  → update_document(project: "PromptCue", action: "append",
+       content: "## Session 2026-03-15\n### Done\n- ...")
+  → Context persists for next session, any client
 ```
 
 ### UX: Memory tab

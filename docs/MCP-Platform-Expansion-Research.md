@@ -428,6 +428,114 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 
 ---
 
+## Competitive Analysis & Positioning
+
+### Landscape: Who's solving AI memory?
+
+#### 1. Mem0 / OpenMemory MCP — "Developer Infrastructure"
+
+Memory layer for AI coding agents. Stores atomic facts ("user prefers dark mode") in vector DB. Requires Docker + Postgres + Qdrant + OpenAI API key.
+
+- **Target:** Developers building AI agents
+- **Weakness:** [Memory corruption bugs](https://github.com/mem0ai/mem0/issues/3322) (names stripped from facts), [Claude Desktop compatibility issues](https://github.com/mem0ai/mem0/issues/3400), no consumer UX, stores memory fragments not readable documents
+- **Gap:** Normal people can't install this. And atomic facts ≠ project context.
+
+#### 2. Pluro — "Consumer Memory Aggregator"
+
+Unifies ChatGPT/Claude/Gemini conversations via auto-indexing. Vector embeddings for search. Local encryption.
+
+- **Target:** Consumers
+- **Weakness:** Early stage (not in [Top 10 AI Memory Products 2026](https://medium.com/@bumurzaqov2/top-10-ai-memory-products-2026-09d7900b5ab1)), auto-collects everything (no curation), unclear if MCP-based, no native app
+- **Gap:** Collects conversations but doesn't structure them. Information overload without organization.
+
+#### 3. Obsidian + Claude Code — "DIY Knowledge Base"
+
+Local markdown files + Claude Code reads `CLAUDE.md` + `memory.md`. [Popular setup](https://www.whytryai.com/p/claude-code-obsidian).
+
+- **Target:** Developers who use Obsidian
+- **Weakness:** ChatGPT not connected, fully manual maintenance, requires technical literacy, not an app but a workflow
+- **Gap:** Only works with Claude Code. Manual curation is the user's job.
+
+#### 4. Amir Klein / Lenny's Newsletter — "Manual Second Brain"
+
+[PM at monday.com dumps project context into ChatGPT Projects](https://www.lennysnewsletter.com/p/how-to-build-your-pm-second-brain). Manual copy-paste from Slack, Notion, Google Docs.
+
+- **Target:** PMs, non-technical power users
+- **Weakness:** 100% manual, no cross-platform sync (ChatGPT Project ≠ Claude Project), doesn't scale past 5 projects
+- **Gap:** The pain is real (his article went viral), but the solution is brute-force.
+
+#### 5. MCP Memory Keeper / mcp-memory-service — "Coding Agent Tools"
+
+SQLite/semantic memory for coding assistants. CLI-only.
+
+- **Target:** Coding agents exclusively
+- **Gap:** Not relevant to non-developers.
+
+#### 6. Platform-native memory (ChatGPT Memory, Claude Memory)
+
+Built-in memory features in each platform.
+
+- **Target:** Everyone
+- **Weakness:** Siloed within each platform, auto-extracted (user can't control what's saved), no cross-platform sharing, saves preferences not project documents
+- **Gap:** Won't solve cross-tool context. Each vendor has no incentive to share with competitors.
+
+### Gap map
+
+```
+                    Developer ←——————————→ Consumer
+                       │                      │
+  Structured docs      │                      │
+  (project/topic)      │    ← EMPTY →         │
+                       │                      │
+  Memory fragments     │  Mem0                │
+  (atomic facts)       │                      │
+                       │                      │
+  Auto-collected       │              Pluro   │
+  (everything)         │                      │
+                       │                      │
+  Manual dump          │       Obsidian  Amir │
+                       │       +Claude  Klein │
+```
+
+**The empty quadrant:** Structured, readable project documents × consumer/prosumer UX. No product occupies this space.
+
+### Target user: Vibe-coding solopreneurs
+
+Not developers at tech companies (they have scoped work, limited context switching). The target is **non-developer vibe coders building their own products** — people who:
+
+- Use ChatGPT for business decisions (pricing, branding, marketing)
+- Use Claude for writing and research
+- Use Claude Code / Codex for vibe-coding their product
+- Run 3-5 projects simultaneously, each with wildly different context
+- Context-switch constantly because they're solo — no team to delegate to
+- Have no engineering background to set up Docker, Postgres, or manage config files
+
+**Why this user needs Backtick specifically:**
+
+1. **Most context switching of anyone** — A solopreneur building a SaaS discusses logo in ChatGPT, debates pricing in Claude, vibe-codes the feature in Claude Code, drafts marketing copy in ChatGPT — all in one day, across 4 different AI clients
+2. **Can't use developer tools** — Mem0 requires Docker. Obsidian+Claude Code requires terminal literacy. These users install .app files, not run `docker-compose up`
+3. **Manual dump doesn't scale** — Amir Klein's approach works for 1-2 projects. A solopreneur with 3 side projects and a freelance gig has 4+ active contexts
+4. **Needs both Hot and Warm** — "deploy the fix" (Hot, today) AND "we decided on freemium pricing" (Warm, persists) live in the same workflow
+
+### Backtick's positioning
+
+**"AI가 정리하고, 사람이 확인하는 프로젝트 메모리"**
+
+| Dimension | Mem0 | Pluro | Obsidian+CC | Manual dump | **Backtick** |
+|---|---|---|---|---|---|
+| Install | Docker+DB | Easy? | Medium | None | **One .app** |
+| Info unit | Memory fragment | Auto-collected chat | Markdown file | Copy-paste | **project × topic doc** |
+| Curation | AI auto-extracts | AI auto-collects | Human manual | Human manual | **AI saves + human reviews** |
+| ChatGPT | Limited | Yes | No | ChatGPT only | **MCP (HTTP)** |
+| Claude | Buggy | Yes | Claude Code only | Claude only | **MCP (stdio+HTTP)** |
+| Native app | No (web dashboard) | Web? | Obsidian | None | **macOS native** |
+| Today's tasks | No | No | No | No | **Stack (Hot)** |
+| Target | Developers | Consumers | Dev+Obsidian | PMs | **Vibe-coding solopreneurs** |
+
+**One-liner:** Backtick is the project memory for people who build with AI but aren't engineers.
+
+---
+
 ## Implementation Plan
 
 | # | Task | Effort | What it unlocks |

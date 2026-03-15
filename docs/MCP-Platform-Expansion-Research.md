@@ -388,20 +388,43 @@ Backtick app target
 
 ### Design system compliance
 
-Memory panel UI must follow the existing two-layer token system:
+Memory panel UI must follow the existing two-layer token system AND the system-inherit theme model.
 
-- **`PrimitiveTokens`** → `FontSize`, `LineHeight`, `Space`, `Radius`, `Shadow`
-- **`SemanticTokens`** → `Surface`, `Text`, `Border`, `Accent`, `Shadow`, `MaterialStyle`
+#### Token layers
 
-**Specifics for Memory panel:**
-- Panel chrome: same `Surface.panel` + `MaterialStyle` as Stack panel
-- Project list rows: use `Space`, `Radius`, `Text.primary`/`Text.secondary` tokens
-- Topic chips: use `Accent` + `Radius.small` tokens
-- Document viewer: `Text.primary` for body, `Text.secondary` for metadata
+- **`PrimitiveTokens`** → `FontSize`, `LineHeight`, `Space`, `Radius`, `Shadow`, `Size`, `Stroke`, `Opacity`, `Motion`, `Typography`
+- **`SemanticTokens`** → `Surface`, `Text`, `Border`, `Accent`, `Shadow`, `MaterialStyle`, `Classification`
+- **`PanelBackdropFamily`** → Panel-specific shell fills, strokes, highlights (light/dark variants)
+- **`SettingsSemanticTokens`** → Settings-specific tokens (if Memory settings needed)
+
+#### System-inherit theme model (latest)
+
+The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS system appearance via `NSApp.appearance = nil`.
+
+**What Memory panel must implement:**
+1. **`adaptiveColor(light:, dark:)`** — All new semantic colors must use this helper, which resolves at runtime based on `NSAppearance.bestMatch()`. Never use static `Color.white`/`Color.black`.
+2. **`refreshForInheritedAppearanceChange()`** — `MemoryPanelController` must implement this method (same as `StackPanelController`). Called by `AppCoordinator` when system theme flips. Must: set `panel.appearance = nil`, invalidate shadows, clear cached layer contents, force re-render.
+3. **`@Environment(\.colorScheme)`** — SwiftUI views that need appearance-conditional logic use this environment value, not manual appearance checks.
+4. **`PanelBackdropFamily`** — Memory panel needs its own backdrop entry (or reuses Stack's if visually identical). Light/dark fill + stroke + highlight variants.
+5. **`AppleInterfaceThemeChangedNotification`** — Already observed by `AppCoordinator`. Just add `memoryPanelController.refreshForInheritedAppearanceChange()` to the existing handler.
+
+**Key files to reference:**
+- `SemanticTokens.swift` — `adaptiveColor()` helper, all semantic color definitions
+- `PanelBackdropFamily.swift` — Panel backdrop light/dark variants
+- `StackPanelController.swift` — Reference implementation of `refreshForInheritedAppearanceChange()`
+- `AppCoordinator.swift` (lines 32-47, 223-248) — Theme change observer
+
+#### Specifics for Memory panel
+
+- Panel chrome: `PanelBackdropFamily` backdrop (define Memory variant or reuse Stack's)
+- Project list rows: `Space`, `Radius`, `Text.primary`/`Text.secondary`
+- Topic chips: `Accent` + `Radius.small`
+- Document viewer: `Text.primary` for body, `Text.secondary` for metadata, `Typography` for markdown heading styles
 - Edit button: same button style tokens as Stack
-- No hardcoded colors, spacing, radius, fonts, or shadows — enforced by `validate_ui_tokens.py`
+- Status badges (active/paused/archived): `Classification` tokens
+- No hardcoded colors, spacing, radius, fonts, or shadows
 
-**Validation:** `python3 scripts/validate_ui_tokens.py` must pass with Memory panel views included.
+**Validation:** `python3 scripts/validate_ui_tokens.py` must pass with all new Memory panel views included.
 
 ---
 

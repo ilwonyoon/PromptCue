@@ -294,7 +294,7 @@ Warm documents need reading/editing, not glancing. Stack's narrow card-list UX d
 
 ```
 Menu bar icon
-├── Cmd+`  → Capture panel (existing)
+├── Cmd+`  → Capture panel (existing, Quick Capture)
 ├── Cmd+2  → Stack panel (existing, Hot)
 └── Cmd+3  → Memory panel (new, Warm)
 ```
@@ -348,6 +348,60 @@ click topic chip → document detail:
 - Memory panel can be wider (documents need horizontal space)
 - Both panels can be open simultaneously (Hot cards on one side, reading a doc on the other)
 - Same pattern already established (Capture panel + Stack panel are separate)
+
+---
+
+## Architecture: Zero Regression on Capture & Stack
+
+Memory is additive. Capture and Stack must not be touched, broken, or slowed down.
+
+### Isolation boundaries
+
+```
+PromptCueCore (pure Swift package, no AppKit)
+├── CaptureCard, CaptureDraft, ...        ← existing, UNCHANGED
+├── CardStackOrdering, ContentClassifier  ← existing, UNCHANGED
+├── Project, ProjectDocument              ← NEW models, own files
+└── ProjectDocumentStore                  ← NEW service, own file
+
+BacktickMCPServer (MCP JSON-RPC handler)
+├── Hot tools (list/get/create/update/delete_note, ...) ← existing, UNCHANGED
+└── Warm tools (save/recall/update/list/delete_document, ...) ← NEW, own file
+
+Backtick app target
+├── AppCoordinator         ← adds MemoryPanelController, same pattern as Stack
+├── AppModel               ← gains @Published projectDocuments, no change to cards/draft
+├── CapturePanelController ← UNCHANGED
+├── StackPanelController   ← UNCHANGED
+├── MemoryPanelController  ← NEW, own NSPanel, own window controller
+└── MemoryViews/           ← NEW SwiftUI views, own directory
+```
+
+**Rules:**
+1. No edits to `CapturePanelController`, `StackPanelController`, or their SwiftUI views
+2. No changes to `CaptureCard`, `CaptureDraft`, `CardStore`, `CopyEventStore`
+3. `AppModel` gains new `@Published` properties for projects/documents — existing properties untouched
+4. `AppCoordinator` gains `MemoryPanelController` — same lifecycle pattern as existing panels
+5. New DB tables (`projects`, `project_documents`) — no migration touches existing `cards` table
+6. MCP: new tools registered in `BacktickMCPServerSession` — existing tool handlers untouched
+7. All new files go in clearly separated directories (`MemoryViews/`, `MemoryServices/`)
+
+### Design system compliance
+
+Memory panel UI must follow the existing two-layer token system:
+
+- **`PrimitiveTokens`** → `FontSize`, `LineHeight`, `Space`, `Radius`, `Shadow`
+- **`SemanticTokens`** → `Surface`, `Text`, `Border`, `Accent`, `Shadow`, `MaterialStyle`
+
+**Specifics for Memory panel:**
+- Panel chrome: same `Surface.panel` + `MaterialStyle` as Stack panel
+- Project list rows: use `Space`, `Radius`, `Text.primary`/`Text.secondary` tokens
+- Topic chips: use `Accent` + `Radius.small` tokens
+- Document viewer: `Text.primary` for body, `Text.secondary` for metadata
+- Edit button: same button style tokens as Stack
+- No hardcoded colors, spacing, radius, fonts, or shadows — enforced by `validate_ui_tokens.py`
+
+**Validation:** `python3 scripts/validate_ui_tokens.py` must pass with Memory panel views included.
 
 ---
 

@@ -814,6 +814,119 @@ No setup. No API keys. No terminal commands. Install the app, click Connect, don
 
 ---
 
+## Deep Dive: Felix (OpenClaw) — Autonomous AI Agent Memory
+
+Research date: 2026-03-15. Felix is the most visible example of an autonomous AI agent with persistent memory. Not a direct competitor (different category), but the memory architecture has lessons for Backtick.
+
+### What Felix is
+
+Felix is an "AI CEO" persona built on **OpenClaw** (open-source autonomous AI agent framework, Peter Steinberger, 187K+ GitHub stars). Created by Nat Eliason (nateliason.com — content marketer, author of *Crypto Confidential* and *Husk*). Runs on a Mac Mini, $400/month (Claude Max + Codex Max). Claims ~$134K+ revenue from PDF sales, Claw Mart marketplace fees, and $FELIX crypto token.
+
+Felix codes (via Codex in tmux), handles email, posts to X/Twitter, manages sub-agents (Iris for support, Remy for sales), and runs autonomously for 4-6 hours on task lists.
+
+### Three-Layer Memory Architecture
+
+**Not RAG. Not vector DB. Plain markdown files on local filesystem.**
+
+| Layer | Storage | Purpose |
+|---|---|---|
+| **Knowledge Base** | `~/life/` folder (PARA structure: projects/areas/resources/archives) | Entity folders. Each entity: `summary.md` (current state, 3-5 sentences) + `items.json` (append-only fact history) |
+| **Daily Notes** | `memory/YYYY-MM-DD.md` | Raw timeline of each day's conversations. Fallback if extraction misses something |
+| **Tacit Knowledge** | `SOUL.md` + `USER.md` | Communication preferences, workflow rules, personality. Injected into system prompt every session |
+
+#### Entity creation threshold
+
+Create entity folder only if: mentioned 3+ times, has direct relationship to user, or is a significant project/company. Otherwise facts stay in daily notes. **Prevents knowledge base bloat.**
+
+#### Temporal decay
+
+Exponential multiplier on search scores based on age. Default half-life: 30 days. Recent memories rank higher, old ones fade but are never deleted. Tiers: Hot (last 7 days, auto-loaded) → Warm (consolidated from daily notes) → Cold (searchable but not auto-loaded).
+
+#### Consolidation cadence
+
+- **Heartbeat (every 30 min):** Cron job scans recent conversations, extracts "durable facts" (decisions, new people, status changes). Skips casual chat. Uses cheap model (~$0.005/day).
+- **Nightly review:** Felix writes a diary, updates SOUL.md, re-examines and reprograms sub-agents (Iris, Remy), consolidates daily notes into entity files.
+- **Not a wholesale rebuild** — incremental extraction. Stale summaries refreshed, completed projects archived.
+
+#### Graceful degradation — the key design insight
+
+```
+Knowledge Base summary stale?  → items.json has full fact history
+Heartbeat extraction missed it? → Daily notes have the raw timeline
+Daily notes incomplete?         → Conversation history itself is preserved
+```
+
+Every layer is a fallback for the layer above. Data is never lost even when individual layers fail.
+
+#### Search backend
+
+Default: SQLite-based indexing of markdown files. Optional upgrade: QMD (local-first BM25 + vector embeddings + reranking). Markdown stays source of truth either way.
+
+### Technical stack
+
+| Component | Detail |
+|---|---|
+| Framework | OpenClaw (open source, local-first) |
+| LLM (conversation) | Claude Pro Max ($200/month) |
+| LLM (coding) | Codex Max ($200/month) |
+| Communication | Telegram (primary), X/Twitter (public) |
+| Coding | tmux sessions + "Ralph loops" (execution harnesses for Codex/Claude Code) |
+| Memory | Plain markdown + JSON, local filesystem, SQLite indexing |
+| Scheduling | OpenClaw cron jobs (heartbeat 30 min, nightly reviews) |
+| Personality | SOUL.md injected into system prompt every message |
+
+### What Backtick should learn
+
+| Felix pattern | Backtick application | Priority |
+|---|---|---|
+| **Graceful degradation** | If a Memory doc is stale, show "last updated X ago" warning. AI recalls + offers to update. Data never lost. | High — design principle |
+| **Entity creation threshold** | Topic explosion prevention: "fit existing topics first, create new only if clearly distinct" — already in our tool descriptions. Validated by Felix's 3-mention rule. | High — already planned |
+| **Temporal decay** | `updatedAt`-based weighting in `search_documents` results. Recent docs rank higher. 30-day half-life is a pragmatic default. | Medium — add to search |
+| **Markdown as source of truth** | Felix validates that plain text + FTS is sufficient. No vector DB needed. Our SQLite + FTS5 approach is correct. | High — confidence boost |
+| **Tool descriptions as behavior instructions** | Felix's SOUL.md = Backtick's MCP tool descriptions. Same mechanism, different form factor. Both shape AI behavior proactively. | High — already planned |
+
+### What Backtick should NOT adopt
+
+| Felix pattern | Why it doesn't fit |
+|---|---|
+| Heartbeat (30-min autonomous execution) | Backtick is a user tool, not an autonomous agent. No self-initiated actions. |
+| Sub-agent management (Iris, Remy) | Out of scope. Backtick is memory, not an agent orchestrator. |
+| PARA folder hierarchy | Over-structured for our use case. Flat `project × topic` is simpler and sufficient. |
+| Cron-based extraction | Backtick saves in real-time via MCP tool calls. No need for batch extraction. |
+| SOUL.md personality file | Backtick has no persona. Tool descriptions carry the behavioral instructions. |
+| Nightly self-review / diary | Requires agent autonomy. Backtick's "review loop" is the human checking Memory panel. |
+
+### Felix vs Backtick — fundamental difference
+
+| | Felix | Backtick |
+|---|---|---|
+| **What** | AI that works for you | Tool you work with |
+| **Memory purpose** | Agent remembers its own context | User's project context shared across AI tools |
+| **Storage** | Markdown files (local) | SQLite + FTS5 (local) |
+| **Consolidation** | 30-min heartbeat + nightly review (autonomous) | Real-time via MCP tool calls (user-triggered) |
+| **Quality control** | Nat occasionally checks | **Required** — Memory panel for human review |
+| **Target** | Delegate business to AI | Build with AI yourself |
+| **Cost** | $400/month | Free app (uses user's existing AI subscriptions) |
+
+### Key takeaway
+
+Felix's memory works because **every layer degrades gracefully into the layer below**. The three-layer structure is overkill for a user tool, but the degradation principle applies directly: Backtick should never lose data, and stale data should be visibly flagged so the user (or AI) can refresh it.
+
+The revenue claims ($134K+) should be viewed with caution — crypto token activity, self-reported numbers, and Bankless/crypto audience amplification muddy the picture. The technical approach is legitimate regardless.
+
+### Sources
+
+- [Nat Eliason X thread: Inside Felix](https://x.com/nateliason/status/2024953009524932705)
+- [Nat Eliason X thread: Agentic PKM with PARA and QMD](https://x.com/nateliason/status/2017636775347331276)
+- [Bankless podcast: Building a Million Dollar Zero Human Company](https://www.bankless.com/podcast/building-a-million-dollar-zero-human-company-with-openclaw-nat-eliason)
+- [CreatorEconomy.so full tutorial](https://creatoreconomy.so/p/use-openclaw-to-build-a-business-that-runs-itself-nat-eliason)
+- [OpenClaw docs: memory](https://docs.openclaw.ai/concepts/memory)
+- [OpenClaw docs: heartbeat](https://docs.openclaw.ai/gateway/heartbeat)
+- [Felix on Claw Mart](https://www.shopclawmart.com/listings/felix-04f42dee)
+- [BetterClaw: OpenClaw Memory Fix](https://www.betterclaw.io/blog/openclaw-memory-fix)
+
+---
+
 ## Implementation Plan
 
 ### Critical constraint: Warm must not block app launch

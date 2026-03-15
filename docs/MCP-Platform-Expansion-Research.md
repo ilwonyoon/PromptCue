@@ -95,153 +95,172 @@ ChatGPT has **native MCP client support** since September 2025 (Developer Mode).
 
 ---
 
-## Part 2: Information Temperature Architecture
+## Part 2: AI Second Brain — Hot + Warm Memory Architecture
 
-### Problem
+### Context
 
-Backtick is optimized for **Hot** information (today's tasks, 8h TTL). But AI workflows produce information at three temperature levels that all need a home:
+The journey: Muninn (project memory, but unstable localhost-only + unclear what to store) → Backtick (nailed Hot: short-lived execution queue). Now the goal is to combine both into one product — an AI Second Brain that holds project context across all AI clients and threads.
 
-| Temperature | Lifespan | Examples | Current Support |
-|-------------|----------|----------|----------------|
-| **Hot** | Hours | "Fix this API", "Run these tests" | Stack (exists) |
-| **Warm** | Days–Weeks | Refactoring plan from Claude conversation, sprint notes | None |
-| **Cold** | Permanent | Architecture docs, recurring prompts, reference material | None |
+**The core problem:** AI conversations are scattered across ChatGPT, Claude, Claude Code, Codex. Even within the same app, opening a new thread loses all context. There is no persistent memory layer that bridges these tools.
 
-### Decision: Integrated in Backtick
+**Scope:** Hot + Warm only. Cold (secrets, permanent config) is a convenience feature, not core — excluded for now.
 
-All three tiers live in Backtick, accessible through the same MCP server.
+### Hot vs Warm: Fundamentally Different UX
 
-### Proposed Data Model Changes
+| | Hot (Stack — exists) | Warm (new) |
+|---|---|---|
+| **Unit** | Short card (1-3 lines) | Long document (markdown, sections, pages) |
+| **Lifespan** | Hours (8h TTL) | Days → weeks → months |
+| **Primary action** | Copy → paste → done | Read / review / update |
+| **Input** | Human captures quickly | AI saves via MCP (+ human edits) |
+| **Consumption** | Glance (scan a list) | Scroll / expand / deep read |
+| **Mutation** | Rarely edited | Continuously updated |
+| **Identity** | Disposable (no title needed) | Named per project/topic |
 
-#### CaptureCard gets a `tier` field:
+**Key insight:** Warm items cannot be cards in a list. A document that's 3 pages long needs a viewer, not a card slot. The UX for Warm is closer to a notes app than a clipboard manager.
+
+### Data Model
+
+#### Warm documents: separate from CaptureCard
+
+Hot cards and Warm documents are different enough to warrant distinct models rather than overloading CaptureCard with a `tier` field.
 
 ```swift
-public enum CardTier: String, Codable, Sendable {
-    case hot    // default, current behavior
-    case warm   // days-to-weeks, manual expiry
-    case cold   // permanent, reference
+// New model in PromptCueCore
+public struct ProjectDocument: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public var projectName: String           // e.g. "PromptCue", "muninn"
+    public var summary: String               // markdown body (can be long)
+    public var tags: [CaptureTag]
+    public var status: DocumentStatus        // active, paused, archived
+    public var createdAt: Date
+    public var updatedAt: Date
+}
+
+public enum DocumentStatus: String, Codable, Sendable {
+    case active     // current work
+    case paused     // on hold
+    case archived   // done, kept for reference
 }
 ```
 
-**Database migration:**
+**Database:** New `project_documents` table alongside existing `cards` table.
+
 ```sql
-ALTER TABLE cards ADD COLUMN tier TEXT NOT NULL DEFAULT 'hot';
+CREATE TABLE project_documents (
+    id TEXT PRIMARY KEY NOT NULL,
+    projectName TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    tagsJSON TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    createdAt DATETIME NOT NULL,
+    updatedAt DATETIME NOT NULL
+);
+CREATE INDEX idx_project_documents_projectName ON project_documents(projectName);
+CREATE VIRTUAL TABLE project_documents_fts USING fts5(projectName, summary);
 ```
 
-**TTL behavior by tier:**
+#### Inheriting from Muninn
 
-| Tier | TTL | Auto-expire | Sorting |
-|------|-----|-------------|---------|
-| Hot | 8h (configurable) | Yes (if enabled) | By sortOrder/created |
-| Warm | None (manual archive/delete) | No | By last modified |
-| Cold | Never | No | By title/category |
+Muninn's document-first model (`projects.summary` = one markdown doc per project) is the right abstraction for Warm. The key improvements over Muninn:
 
-#### MCP Tool Changes
+1. **Native macOS UI** instead of localhost web dashboard
+2. **Bundled into Backtick** — single app, single process
+3. **Shared MCP server** — one server exposes both Hot and Warm tools
+4. **Stable transport** — stdio for local clients, HTTP for remote
 
-**`create_note` gains a `tier` parameter:**
-```json
-{
-  "name": "create_note",
-  "inputSchema": {
-    "properties": {
-      "text": { "type": "string" },
-      "tier": { "type": "string", "enum": ["hot", "warm", "cold"], "default": "hot" },
-      "tags": { "type": "array" }
-    }
-  }
-}
+### MCP Tool Design
+
+Existing Hot tools remain unchanged. New Warm tools added to the same server:
+
+| Tool | Purpose |
+|------|---------|
+| `save_document` | Create or update a project document (upsert by projectName) |
+| `recall_document` | Retrieve one project's document, or list all active projects |
+| `search_documents` | Full-text search across all project documents |
+| `manage_document` | Set status (active/paused/archived), rename, delete |
+
+**Naming convention:** `*_note` = Hot (existing), `*_document` = Warm (new). Clear separation for AI clients.
+
+**AI usage pattern:**
+```
+// Claude Code finishing a session:
+save_document(projectName: "PromptCue", summary: "## Session 2026-03-15\n### Done\n- Added HTTP transport...\n### Next\n- Wire up auth...")
+
+// ChatGPT starting a new thread:
+recall_document(projectName: "PromptCue")
+// → Gets full project context, continues where the last session left off
 ```
 
-**New tool: `promote_note`**
-Move a note between tiers (e.g., hot → warm when a conversation summary is worth keeping longer).
+### UX: How Warm Fits Into Backtick
 
-**`list_notes` gains `tier` filter:**
-```json
-{ "scope": "active", "tier": "warm" }
-```
-
-### UX Integration
-
-The Stack panel currently has two sections: Active / Copied.
-
-**Proposed navigation:**
+#### Option A: Drawer/sidebar within Stack panel
 
 ```
-Stack (default view — Hot tier)
-├── Active
-└── Copied
+┌─────────────────────────────┐
+│ [Stack]  [Memory]           │  ← tab/segment switcher
+├─────────────────────────────┤
+│                             │
+│  PromptCue          active  │  ← project row (collapsed)
+│  muninn             paused  │
+│  client-project-x   active  │
+│                             │
+│  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │
+│  + New Project              │
+└─────────────────────────────┘
 
-Library (new view — Warm + Cold)
-├── Warm: Recent documents (collapsible by week)
-└── Cold: Pinned references (collapsible by tag/category)
+click on project row → expands inline or opens detail view:
+
+┌─────────────────────────────┐
+│ ← Back    PromptCue         │
+├─────────────────────────────┤
+│ ## Session 2026-03-15       │
+│ ### Done                    │
+│ - Added HTTP transport      │
+│ - Fixed auth flow           │
+│ ### Next                    │
+│ - Wire up tunnel setup      │
+│ - Test ChatGPT connection   │
+│                             │
+│ Updated: 2 hours ago        │
+│ [Edit]                      │
+└─────────────────────────────┘
 ```
 
-**Key UX principles:**
-1. Stack remains "오늘 할 것" — zero friction, no change
-2. Library is a second panel/tab, not clutter in Stack
-3. AI auto-saves to warm/cold via MCP `create_note` with `tier` param
-4. Promote button: Hot → Warm (or drag)
-5. Cold items can be "pulled" into Hot as copies when needed
+**Pros:** Single panel, familiar location. Tab switch is low friction.
+**Cons:** Long documents in a narrow panel may feel cramped.
 
-### MCP-Driven AI Workflow
+#### Option B: Separate Memory panel (like Stack has its own panel)
+
+A second NSPanel, wider, optimized for reading. Hotkey: `Cmd + 3`.
+
+**Pros:** More room for long documents. Reading-optimized layout.
+**Cons:** Another window to manage. May feel disconnected from Stack.
+
+#### Option C: Stack panel with popover/sheet for document detail
+
+Project rows appear in Stack (below Hot cards or in a collapsible section). Clicking opens a popover or sheet overlay for the full document.
+
+**Pros:** One panel, documents feel connected to the daily workflow.
+**Cons:** Popover size limits. Complex interaction model.
+
+**Recommendation:** Start with **Option A** (tab switcher in Stack panel). It keeps everything in one place, matches the "single app" goal, and the detail view can expand to fill the panel. If reading experience is insufficient, graduate to Option B later.
+
+### Information Flow
 
 ```
-Claude/ChatGPT conversation
+AI conversation (any client, any thread)
     │
-    ├── AI calls create_note(tier: "hot", text: "Run migration script")
-    │   └── Appears in Stack immediately
+    ├── create_note(text: "run migration")     → Hot (Stack, today)
     │
-    ├── AI calls create_note(tier: "warm", text: "<conversation summary>", tags: ["#refactor", "#auth"])
-    │   └── Appears in Library > Warm
-    │
-    └── AI calls create_note(tier: "cold", text: "<architecture decision record>", tags: ["#adr"])
-        └── Appears in Library > Cold (permanent)
+    └── save_document(projectName: "X",        → Warm (Memory, persists)
+         summary: "## Context\n...")
+              │
+              ├── Next session: recall_document("X") → AI has full context
+              └── Human: opens Memory tab → reads/reviews/edits
 ```
 
-### Information Flow Between Tiers
-
-```
-Hot ──promote──→ Warm ──promote──→ Cold
- ↑                                  │
- └────── pull (creates copy) ───────┘
-```
-
-- **Promote**: Move up in permanence (removes TTL)
-- **Pull**: Copy cold reference into hot for today's use
-- **Demote**: Not needed — hot items naturally expire
-
----
-
-### Relationship with Muninn
-
-`ilwonyoon/muninn` is an existing MCP memory server that already solves Warm/Cold storage with a document-first model. Before building Warm/Cold tiers into Backtick, consider:
-
-| | Backtick (BacktickMCP) | Muninn |
-|---|---|---|
-| **Focus** | Hot — today's execution queue | Warm/Cold — project memory |
-| **Data model** | Atomic cards (short text) | Structured markdown docs per project |
-| **TTL** | 8h default | Manual lifecycle (active/paused/archived) |
-| **Transport** | stdio only (currently) | stdio + HTTP (dual) |
-| **Clients** | Claude Code, Codex | Claude Code, Claude Desktop, ChatGPT, Codex |
-| **Storage** | SQLite (GRDB, Swift) | SQLite (libSQL, Python) |
-
-**Option A: Build Warm/Cold into Backtick** (original plan)
-- Unified experience, single app
-- But duplicates what Muninn already does
-- Backtick's card model (short text, TTL) may not fit long documents well
-
-**Option B: Backtick stays Hot, Muninn stays Warm/Cold, connect via MCP**
-- Each tool does what it's best at
-- AI clients can use both MCP servers simultaneously
-- No duplication of effort
-- Trade-off: two separate apps/processes
-
-**Option C: Backtick integrates Muninn as a backend**
-- Backtick UI shows Muninn data via Muninn's MCP tools
-- Backtick becomes the unified frontend, Muninn provides Warm/Cold storage
-- Best of both worlds but more complex integration
-
-**Recommendation:** Start with Option B (both tools coexist, AI uses both). Evaluate whether unified UI (Option C) adds enough value to justify the integration work.
+**Hot → Warm promotion:** A Stack card can be promoted to a document (append to project summary). But this is a nice-to-have, not launch-critical.
 
 ---
 
@@ -250,8 +269,12 @@ Hot ──promote──→ Warm ──promote──→ Cold
 | # | Task | Effort | Dependencies |
 |---|------|--------|-------------|
 | 1 | Claude Desktop stdio registration in Settings | Small | None |
-| 2 | HTTP transport for BacktickMCP (enables ChatGPT + Claude Web) | Large | None |
-| 3 | Auth + tunnel documentation | Medium | #2 |
-| 4 | Evaluate Warm/Cold: build into Backtick vs. coexist with Muninn | Decision | None |
+| 2 | `ProjectDocument` model + DB migration + CRUD services | Medium | None |
+| 3 | MCP Warm tools: save/recall/search/manage_document | Medium | #2 |
+| 4 | Memory tab UI in Stack panel (list + detail view) | Medium | #2 |
+| 5 | HTTP transport for BacktickMCP (enables ChatGPT + Claude Web) | Large | None |
+| 6 | Auth + tunnel documentation | Medium | #5 |
 
-Tasks 1 and 4 can start immediately. Task 2-3 is the main engineering track.
+**Phase 1 (ship together):** Tasks 1-4. Backtick becomes Hot + Warm, accessible from Claude Desktop + Claude Code + Codex via stdio.
+
+**Phase 2:** Tasks 5-6. HTTP transport unlocks ChatGPT and Claude Web/Mobile.

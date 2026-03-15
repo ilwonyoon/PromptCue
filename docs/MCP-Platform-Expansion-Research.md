@@ -155,25 +155,35 @@ This is **not** a full conversation transcript. It's a distilled project documen
 
 ### Data model
 
+Two-level structure: Project (folder) → Documents (by topic).
+
 ```swift
+public struct Project: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public var name: String              // "backtick" — unique key
+    public var status: ProjectStatus     // active, paused, archived
+    public var createdAt: Date
+    public var updatedAt: Date           // latest across all docs
+}
+
 public struct ProjectDocument: Codable, Sendable, Identifiable {
     public let id: UUID
-    public var projectName: String           // unique key for upsert
-    public var summary: String               // markdown body
-    public var tags: [CaptureTag]
-    public var status: DocumentStatus        // active, paused, archived
+    public var project: String           // FK → Project.name
+    public var topic: String             // "branding" — slug
+    public var content: String           // markdown body
     public var createdAt: Date
     public var updatedAt: Date
 }
+// DB unique constraint: (project, topic)
 
-public enum DocumentStatus: String, Codable, Sendable {
+public enum ProjectStatus: String, Codable, Sendable {
     case active
     case paused
     case archived
 }
 ```
 
-Database: `project_documents` table with FTS5 full-text search.
+Database: `projects` table + `project_documents` table with FTS5 full-text search on content.
 
 ### MCP tools for Warm
 
@@ -195,95 +205,149 @@ Full CRUD + project management. Referencing Muninn's tool set but adapted for Ba
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| `save_document` | Create or **replace** a project's document | Upsert by projectName. Full document swap. |
-| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc for small changes. Key gap in Muninn. |
-| `recall_document` | Read one project's document, or list all active projects | AI calls at session start for context |
-| `delete_document` | Remove a document (or entire project) | Clean deletion with confirmation |
+| `save_document` | Create or **replace** a document | Upsert by `(project, topic)`. Full content swap. |
+| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc. Key gap in Muninn. |
+| `recall_document` | Read one document by `(project, topic)` | Returns full content for AI context |
+| `list_documents` | List all topics in a project, or all projects | Lightweight: titles + status + updatedAt, no content |
+| `delete_document` | Remove a specific topic document | Clean deletion |
 | `search_documents` | Full-text search across all documents | FTS5 keyword search |
-| `list_projects` | List all projects with status + last updated (no content) | Lightweight inventory, like `muninn_status` |
-| `manage_project` | Create project, set status (active/paused/archived), rename | Project lifecycle management |
+| `manage_project` | Create project, set status, rename, delete project (and all its docs) | Project lifecycle |
 
 **Why `update_document` matters:** In Muninn, the only way to update was `muninn_save` which replaces the entire document. For a 2-page doc, AI has to recall the full text, modify it, and save it all back — expensive and error-prone. A partial update tool (append a section, replace a section by header, delete a section) makes incremental updates cheap.
 
 ```
-// Append a new session log:
-update_document(project: "PromptCue", action: "append", content: "## Session 2026-03-16\n...")
+// Append to branding doc:
+update_document(project: "backtick", topic: "branding", action: "append",
+  content: "## 2026-03-16 Color revision\nChanged primary to...")
 
-// Replace a specific section:
-update_document(project: "PromptCue", action: "replace_section", section: "Next", content: "- New task 1\n- New task 2")
+// Replace a section in pricing doc:
+update_document(project: "backtick", topic: "pricing", action: "replace_section",
+  section: "Competitor Analysis", content: "- Raycast: free tier + $8/mo...")
 
-// Remove a section:
-update_document(project: "PromptCue", action: "delete_section", section: "Resolved Issues")
+// Remove resolved section:
+update_document(project: "backtick", topic: "architecture", action: "delete_section",
+  section: "Resolved Questions")
 ```
 
-#### Multi-document per project: the hard problem
+#### Document structure: project × topic
 
-Muninn intended multiple documents per project (folder concept) but it was too hard to build well, so everything collapsed into one summary document.
+Muninn collapsed everything into one document per project. In practice this breaks — a project like Backtick has discussions about logo, pricing, website, architecture, launch that don't belong in one file.
 
-**Why it's hard:**
-- AI needs to know which document to read/write → requires naming/addressing scheme
-- Document discovery: AI asks "what docs exist?" → needs listing per project
-- Cross-document references: "the architecture doc mentions X" → search scope
-- UX: displaying multiple docs per project in a menu bar panel
+**Solution: `project × topic` as the document unit.**
 
-**Pragmatic start:** One document per project (same as Muninn's landing point). The `update_document` partial-update tool compensates — a single doc with `## sections` is effectively multiple documents in one file. If a document grows too large, that's the signal to revisit multi-doc.
+```
+Project: backtick
+├── branding       ← logo, colors, tone (accumulated across multiple conversations)
+├── pricing        ← pricing model, competitor analysis
+├── website        ← landing page, docs structure
+├── architecture   ← MCP expansion, Hot/Warm design
+└── launch         ← release plan, marketing
+```
 
-**Future path if needed:** Project becomes a folder, documents become pages within it. `save_document` gains a `title` parameter to address specific pages. But don't build this until the single-doc model breaks.
+- **AI can classify by topic** — it knows a logo conversation is "branding". This is the right granularity for AI to handle.
+- **Same topic updates across sessions** — discuss logo Monday, revisit Wednesday → branding doc gets updated, not duplicated.
+- **Each doc stays bounded** — no single doc grows to unmanageable size.
+- **Topic explosion prevention** — AI instruction: "fit into existing topics first, only create new topic if clearly distinct". If a project gets >10 topics, suggest consolidation.
+
+**Addressing scheme:** `(project, topic)` is the unique key. Simple, flat, no nesting.
+
+```swift
+public struct ProjectDocument: Codable, Sendable, Identifiable {
+    public let id: UUID
+    public var project: String       // "backtick"
+    public var topic: String         // "branding" — slug, kebab-case
+    public var content: String       // markdown body
+    public var status: DocumentStatus
+    public var createdAt: Date
+    public var updatedAt: Date
+}
+// DB unique constraint: (project, topic)
+```
+
+**Excluded from scope:** Coding session logs (git history already covers this). Warm is for **discussions and decisions** from ChatGPT/Claude conversations, not development progress from Codex/Claude Code.
 
 #### AI workflow
 
 ```
-Session start (any client, any thread):
-  → list_projects()
-  → recall_document(project: "PromptCue")
-  → AI has full project context
+Session start:
+  → list_documents(project: "backtick")
+  → ["branding", "pricing", "architecture", "launch"]
+  → recall_document(project: "backtick", topic: "pricing")  // relevant to today's discussion
 
-During session:
-  → update_document(project: "PromptCue", action: "replace_section",
-       section: "Status", content: "Working on HTTP transport...")
+During session (2h pricing discussion):
+  → update_document(project: "backtick", topic: "pricing", action: "replace_section",
+       section: "Decision", content: "Freemium + $9/mo premium...")
 
-Session end:
-  → update_document(project: "PromptCue", action: "append",
-       content: "## Session 2026-03-15\n### Done\n- ...")
-  → Context persists for next session, any client
+New topic emerges:
+  → save_document(project: "backtick", topic: "distribution",
+       content: "## App Store vs Direct\n### Pros/Cons\n...")
+
+Next day, different AI client, new thread:
+  → list_documents(project: "backtick")
+  → recall_document(project: "backtick", topic: "distribution")
+  → Continues where yesterday left off
 ```
 
-### UX: Memory tab
+### UX: Memory panel
 
-Warm documents need reading/review, not just glancing. Stack's card list UX doesn't fit. Options explored:
-
-**Chosen approach: Tab switcher in Stack panel**
+Warm documents need reading/editing, not glancing. Stack's narrow card-list UX doesn't fit long markdown. Memory gets its **own panel** — same pattern as Capture and Stack (separate NSPanel, own hotkey).
 
 ```
-┌─────────────────────────────┐
-│ [Stack]  [Memory]           │  ← segment control
-├─────────────────────────────┤
-│                             │
-│  PromptCue          active  │  ← project list
-│  muninn             paused  │
-│  client-project     active  │
-│                             │
-└─────────────────────────────┘
-
-tap project → detail view:
-
-┌─────────────────────────────┐
-│ ← Back    PromptCue         │
-├─────────────────────────────┤
-│ ## Session 2026-03-15       │
-│ ### Decisions               │
-│ - HTTP transport in app...  │
-│ ### Done                    │
-│ - Claude Desktop config...  │
-│ ### Next                    │
-│ - Wire up HTTP server...    │
-│                        Edit │
-│                             │
-│ Updated: 2 hours ago        │
-└─────────────────────────────┘
+Menu bar icon
+├── Cmd+`  → Capture panel (existing)
+├── Cmd+2  → Stack panel (existing, Hot)
+└── Cmd+3  → Memory panel (new, Warm)
 ```
 
-Can graduate to a separate wider panel later if the narrow panel proves insufficient for long documents. Start simple.
+**One app, three panels.** Each optimized for its purpose.
+
+#### Memory panel: project list → topic list → document viewer
+
+```
+┌──────────────────────────────────────────┐
+│ Memory                            Cmd+3  │
+├──────────────────────────────────────────┤
+│                                          │
+│  backtick                       active   │
+│    branding · pricing · architecture     │  ← topic chips
+│    website · launch                      │
+│    Updated: 2 hours ago                  │
+│                                          │
+│  muninn                         paused   │
+│    architecture · connection             │
+│    Updated: 1 week ago                   │
+│                                          │
+│  + New Project                           │
+└──────────────────────────────────────────┘
+
+click topic chip → document detail:
+
+┌──────────────────────────────────────────┐
+│ ← backtick / pricing                    │
+├──────────────────────────────────────────┤
+│                                          │
+│ ## Decision                              │
+│ Freemium + $9/mo premium tier.           │
+│ Free: 5 projects, Hot only.              │
+│ Premium: unlimited, Warm memory, HTTP.   │
+│                                          │
+│ ## Competitor Analysis                   │
+│ - Raycast: free + $8/mo                  │
+│ - Paste: $1.99/mo                        │
+│                                          │
+│ ## Open Questions                        │
+│ - Annual discount?                       │
+│ - Student pricing?                       │
+│                                          │
+│ Updated: 3 hours ago            [Edit]   │
+└──────────────────────────────────────────┘
+```
+
+**Why separate panel, not tab in Stack:**
+- Stack stays untouched — zero risk to existing Hot UX
+- Memory panel can be wider (documents need horizontal space)
+- Both panels can be open simultaneously (Hot cards on one side, reading a doc on the other)
+- Same pattern already established (Capture panel + Stack panel are separate)
 
 ---
 
@@ -292,9 +356,9 @@ Can graduate to a separate wider panel later if the narrow panel proves insuffic
 | # | Task | Effort | What it unlocks |
 |---|------|--------|-----------------|
 | 1 | Claude Desktop stdio registration in Settings | S | Claude Desktop as MCP client |
-| 2 | `ProjectDocument` model + DB migration + services in PromptCueCore | M | Warm storage layer |
-| 3 | MCP Warm tools (save/recall/search/manage_document) | M | AI can save/recall project context |
-| 4 | Memory tab UI in Stack panel | M | Human can review/edit documents |
+| 2 | `Project` + `ProjectDocument` models + DB migration + services | M | Warm storage layer |
+| 3 | MCP Warm tools (save/update/recall/list/delete/search/manage) | M | AI can save/recall project context |
+| 4 | Memory panel (NSPanel, project list → topic list → doc viewer) | M | Human can review/edit documents |
 | 5 | HTTP server in Backtick app process | L | ChatGPT Mac App connection |
 | 6 | Auth (Bearer token) + Settings UI for HTTP | M | Secure HTTP connections |
 

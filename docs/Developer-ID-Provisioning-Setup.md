@@ -1,6 +1,25 @@
 # Developer ID Provisioning Profile Setup for DMG Distribution with iCloud
 
-This guide creates a provisioning profile that allows the DMG build to use iCloud/CloudKit with Developer ID signing.
+## About Backtick
+
+Backtick is a macOS menu-bar utility (LSUIElement) for capturing and staging prompts for AI workflows. Users press Cmd+` to capture thoughts, screenshots, and notes, then route them to AI tools like Claude Code, Cursor, or ChatGPT.
+
+- **Product name**: Backtick
+- **Bundle ID**: `com.promptcue.promptcue`
+- **Code-level name**: PromptCue (temporary technical identifier)
+- **CloudKit container**: `iCloud.com.promptcue.promptcue`
+- **Distribution**: DMG (direct download), not Mac App Store
+- **Key dependency**: iCloud/CloudKit for cross-device sync of captured prompts
+
+## Why This Guide
+
+The DMG release build uses Developer ID signing with Manual code sign style. iCloud/CloudKit entitlements require a provisioning profile. Without it, the archive fails with:
+
+```
+"PromptCue" requires a provisioning profile with the iCloud feature.
+```
+
+This guide creates and installs that provisioning profile.
 
 ## Prerequisites
 

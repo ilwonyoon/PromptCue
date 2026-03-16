@@ -749,8 +749,18 @@ final class AppModel: ObservableObject {
         cloudSyncEngine?.handleRemoteNotification()
     }
 
+    private static let hasCloudEntitlements: Bool = {
+        FileManager.default.fileExists(
+            atPath: Bundle.main.bundlePath + "/Contents/embedded.provisionprofile"
+        )
+    }()
+
     func setSyncEnabled(_ enabled: Bool) {
         if enabled, cloudSyncEngine == nil {
+            guard Self.hasCloudEntitlements else {
+                NSLog("CloudSync: skipped — no provisioning profile")
+                return
+            }
             let engine = cloudSyncEngineFactory()
             cloudSyncEngine = engine
             startCloudSync(initialFetchMode: .immediate)

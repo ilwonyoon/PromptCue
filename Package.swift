@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "PromptCue",
+    defaultLocalization: "en",
     platforms: [
         .macOS(.v14),
     ],
@@ -70,6 +71,7 @@ let package = Package(
                 "docs",
                 "project.yml",
                 "scripts",
+                "build",
             ],
             sources: [
                 "PromptCue/Services/AttachmentStore.swift",

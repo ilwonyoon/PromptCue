@@ -988,6 +988,7 @@
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.promptcue.promptcue;
 				PRODUCT_NAME = "Prompt Cue";
+				PROVISIONING_PROFILE_SPECIFIER = "Backtick Developer ID";
 				SDKROOT = macosx;
 			};
 			name = Release;

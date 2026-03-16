@@ -95,6 +95,9 @@ targets:
         INFOPLIST_KEY_NSHighResolutionCapable: YES
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
+      configs:
+        Release:
+          PROVISIONING_PROFILE_SPECIFIER: Backtick Developer ID
   PromptCueTests:
     type: bundle.unit-test
     platform: macOS

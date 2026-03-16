@@ -399,11 +399,13 @@ struct CaptureCardView: View {
             guard window != nil else {
                 isMouseInside = false
                 removeTrackingAreaIfNeeded()
+                #if DEBUG
                 if cardHoverTracingEnabled() {
                     logCardHoverTrace(
                         "PROMPTCUE_HOVER_TRACKER_EVENT state=window_missing_card_area_released"
                     )
                 }
+                #endif
                 return
             }
 
@@ -441,6 +443,7 @@ struct CaptureCardView: View {
 
                 isMouseInside = cursorInside
                 onHover(cursorInside)
+                #if DEBUG
                 if cardHoverTracingEnabled() {
                     logCardHoverTrace(
                         String(
@@ -449,6 +452,7 @@ struct CaptureCardView: View {
                         )
                     )
                 }
+                #endif
             }
 
             override func hitTest(_ point: NSPoint) -> NSView? {

@@ -51,7 +51,7 @@ final class BacktickMCPServerTests: XCTestCase {
         let tools = try XCTUnwrap(toolsResult["tools"] as? [[String: Any]])
         XCTAssertEqual(
             tools.compactMap { $0["name"] as? String },
-            ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed", "classify_notes", "group_notes"]
+            ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed", "classify_notes", "group_notes", "get_started"]
         )
 
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])

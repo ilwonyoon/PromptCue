@@ -360,6 +360,15 @@ final class BacktickMCPServerSession {
                     "additionalProperties": false,
                 ],
             ],
+            [
+                "name": "get_started",
+                "description": "Introduction to Backtick. Call this when the user first connects or asks what Backtick can do. Returns a guide explaining all available tools and example usage.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [:] as [String: Any],
+                    "additionalProperties": false,
+                ],
+            ],
         ]
     }
 
@@ -419,6 +428,8 @@ final class BacktickMCPServerSession {
                 value = try classifyNotes(arguments: arguments)
             case "group_notes":
                 value = try groupNotes(arguments: arguments)
+            case "get_started":
+                value = getStartedGuide()
             default:
                 return toolErrorResult("Unsupported tool \(name)")
             }
@@ -574,6 +585,31 @@ final class BacktickMCPServerSession {
             "archivedCount": result.archivedNotes.count,
             "archivedNotes": result.archivedNotes.map(noteDictionary),
             "copyEvents": result.copyEvents.map(copyEventDictionary),
+        ]
+    }
+
+    private func getStartedGuide() -> [String: Any] {
+        let noteCount = (try? readService.listNotes(scope: .all).count) ?? 0
+
+        return [
+            "welcome": "Backtick is your AI-connected prompt stack — capture thoughts with Cmd+`, organize them in Stack, and access them from any AI tool.",
+            "concepts": [
+                "Stack": "Your prompt queue. Capture ideas, tasks, and context. Notes auto-expire after 8 hours unless pinned.",
+                "Pinned": "Permanent prompts that never expire. Pin your most-used prompts, project context, or reusable instructions.",
+                "Copied": "Notes you've already used. They move to the Copied section so your active stack stays clean.",
+            ],
+            "tools": [
+                ["name": "list_notes", "use": "See all your notes grouped by pinned, active, and copied."],
+                ["name": "create_note", "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],
+                ["name": "update_note", "use": "Edit a note's text, tags, or pin status."],
+                ["name": "mark_notes_executed", "use": "Mark notes as used after you've acted on them."],
+                ["name": "get_note", "use": "Fetch a single note with its full copy history."],
+                ["name": "classify_notes", "use": "Group notes by repository, session, or app for organized context."],
+            ],
+            "tryIt": noteCount > 0
+                ? "You have \(noteCount) notes. Try: \"List my Backtick notes\" or \"Show my pinned prompts\""
+                : "Your stack is empty. Try: \"Create a Backtick note: remember to review PR before merge\"",
+            "tip": "Capture with Cmd+` from anywhere on your Mac. Your notes appear here instantly.",
         ]
     }
 

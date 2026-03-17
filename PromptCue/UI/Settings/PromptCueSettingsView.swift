@@ -620,6 +620,10 @@ struct PromptCueSettingsView: View {
 
         switch mcpConnectorSettingsModel.connectionState {
         case .idle:
+            if client.client.usesDirectConfig {
+                return "Config saved. Restart \(client.client.title), then ask: \"List my Backtick notes\""
+            }
+
             return "Backtick is configured and ready to verify."
         case .running:
             return "Checking the connection now."

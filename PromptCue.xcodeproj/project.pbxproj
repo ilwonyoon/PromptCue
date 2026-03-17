@@ -42,6 +42,7 @@
 		37D57FC253B5046F190BA892 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4CF254A438D83F481A437DC2 /* Assets.xcassets */; };
 		38F03C44188BD6D5398400C8 /* CloudSyncControlling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */; };
 		3B168095136F3A970CE62663 /* StackReadServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55FC1B586DA811FE9010A33 /* StackReadServiceTests.swift */; };
+		3F945B7C91C8B004AC72F207 /* ConnectorClientBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85BC8B96D95208C66779764 /* ConnectorClientBadge.swift */; };
 		45507280A2DC00305873B351 /* SettingsSemanticTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29E54E69AEF465C0EC9A2699 /* SettingsSemanticTokens.swift */; };
 		48BC05C40A0A6AE034840FD1 /* StackNotificationCardSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEB6C15D81F9C8F2C4A411A /* StackNotificationCardSurface.swift */; };
 		4C3EBD00780FCCB62BC81BAC /* PromptCueChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54D9E96EF212A4261A3D196 /* PromptCueChip.swift */; };
@@ -241,7 +242,6 @@
 		6FA4D7EE3F2A66184B933C93 /* CaptureCardRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCardRenderingTests.swift; sourceTree = "<group>"; };
 		704D4D9C68EDE16302085CDD /* AppModelCloudSyncLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelCloudSyncLifecycleTests.swift; sourceTree = "<group>"; };
 		74A3C1459F488509BEDE3CAA /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
-		74D5F3042111C6313DAE26AD /* PromptCue-pin */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-pin"; path = .; sourceTree = SOURCE_ROOT; };
 		7887BBB2E24D918B70BA2496 /* StackCardOverflowPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCardOverflowPolicyTests.swift; sourceTree = "<group>"; };
 		7978F231B668E619892B7258 /* PerformanceTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceTrace.swift; sourceTree = "<group>"; };
 		7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueSettingsView.swift; sourceTree = "<group>"; };
@@ -270,6 +270,7 @@
 		9BD5E156028526C47C73E7A4 /* ScreenshotDirectoryResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryResolverTests.swift; sourceTree = "<group>"; };
 		9BF569996ACD466F0A9F0D65 /* StackPanelAppearanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelAppearanceTests.swift; sourceTree = "<group>"; };
 		9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncControlling.swift; sourceTree = "<group>"; };
+		A3682BA7911969E8AE39234D /* Local.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Local.xcconfig; sourceTree = "<group>"; };
 		A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorResolvedHeight.swift; sourceTree = "<group>"; };
 		A3BAAF04096830B510376E3E /* DevSigned.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevSigned.xcconfig; sourceTree = "<group>"; };
 		A50539CFB15DD7757BC97835 /* CaptureEditorLayoutCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculator.swift; sourceTree = "<group>"; };
@@ -295,6 +296,7 @@
 		C3AF65D17E0E0A80CFBE4E86 /* CardSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardSurface.swift; sourceTree = "<group>"; };
 		C55FC1B586DA811FE9010A33 /* StackReadServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackReadServiceTests.swift; sourceTree = "<group>"; };
 		C6A30FD7A3904EC5C110484F /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
+		C85BC8B96D95208C66779764 /* ConnectorClientBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectorClientBadge.swift; sourceTree = "<group>"; };
 		C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsModel.swift; sourceTree = "<group>"; };
 		CA2879AA171EC8A6059D6871 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPConnectorSettingsModel.swift; sourceTree = "<group>"; };
@@ -316,6 +318,7 @@
 		EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalImageThumbnail.swift; sourceTree = "<group>"; };
 		ECBCAD08F6EF428AD0BFFA79 /* CapturePanelRuntimeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePanelRuntimeViewController.swift; sourceTree = "<group>"; };
 		F1FABC33B332039515080670 /* StackWriteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackWriteService.swift; sourceTree = "<group>"; };
+		F287F749BFB619B9796E0FE2 /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyCenter.swift; sourceTree = "<group>"; };
 		F50F3545344096FAFA3E2BFE /* AppUIConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUIConstants.swift; sourceTree = "<group>"; };
 		F792E0662541E86F69E0A48A /* PromptCue.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PromptCue.entitlements; sourceTree = "<group>"; };
@@ -400,6 +403,7 @@
 				5AA5C22F578C532BE63D3B27 /* Base.xcconfig */,
 				C14A3EAFD6C150B033EBBB9C /* Debug.xcconfig */,
 				A3BAAF04096830B510376E3E /* DevSigned.xcconfig */,
+				A3682BA7911969E8AE39234D /* Local.xcconfig */,
 				22A517CA41EFD91211A8E67E /* Local.xcconfig.example */,
 				BF6260CA3B20DC36344E1BBD /* Release.xcconfig */,
 			);
@@ -481,7 +485,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				74D5F3042111C6313DAE26AD /* PromptCue-pin */,
+				F287F749BFB619B9796E0FE2 /* PromptCue */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -623,6 +627,7 @@
 				A50539CFB15DD7757BC97835 /* CaptureEditorLayoutCalculator.swift */,
 				3CD4260DC605F38E47233FB0 /* CaptureShellChromeRecipe.swift */,
 				C3AF65D17E0E0A80CFBE4E86 /* CardSurface.swift */,
+				C85BC8B96D95208C66779764 /* ConnectorClientBadge.swift */,
 				555610D30704EB582FD86953 /* CopiedStackRecipe.swift */,
 				47233D95CF58604EC1CA8325 /* CueTextEditor.swift */,
 				91B9CDCE0290CBC1B005127A /* GlassPanel.swift */,
@@ -888,6 +893,7 @@
 				38F03C44188BD6D5398400C8 /* CloudSyncControlling.swift in Sources */,
 				E6815A9F153933127DE1163E /* CloudSyncEngine.swift in Sources */,
 				27CAB09D5BA59322FBD7770B /* CloudSyncSettingsModel.swift in Sources */,
+				3F945B7C91C8B004AC72F207 /* ConnectorClientBadge.swift in Sources */,
 				0902195B84CD5FC12B925979 /* CopiedStackRecipe.swift in Sources */,
 				30E8EE2178AF99F43D1B11DE /* CopyEventStore.swift in Sources */,
 				362B4858B43D2298B5D84303 /* CueTextEditor.swift in Sources */,

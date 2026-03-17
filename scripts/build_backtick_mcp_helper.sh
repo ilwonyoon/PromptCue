@@ -183,15 +183,35 @@ resolve_codesign_strategy() {
   esac
 }
 
+fallback_helper_path_for_architecture() {
+  local arch="$1"
+  local -a candidates=(
+    "${PROJECT_ROOT}/.build/${arch}-apple-macosx/${SWIFT_BUILD_CONFIGURATION}/${HELPER_NAME}"
+    "${PROJECT_ROOT}/.build/${SWIFT_BUILD_CONFIGURATION}/${HELPER_NAME}"
+  )
+
+  local candidate=""
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 build_for_architecture() {
   local arch="$1"
   local triple="${arch}-apple-macosx${DEPLOYMENT_TARGET}"
   local arch_scratch="${SCRATCH_ROOT}/${SWIFT_BUILD_CONFIGURATION}-${arch}"
   local bin_path=""
+  local build_log="${SCRATCH_ROOT}/swift-build-${arch}.log"
+  local fallback_path=""
 
   mkdir -p "${arch_scratch}"
 
-  "${SWIFT_BIN}" build \
+  if ! "${SWIFT_BIN}" build \
     --disable-sandbox \
     --package-path "${PROJECT_ROOT}" \
     --cache-path "${SWIFTPM_CACHE_PATH}" \
@@ -202,7 +222,17 @@ build_for_architecture() {
     --only-use-versions-from-resolved-file \
     --configuration "${SWIFT_BUILD_CONFIGURATION}" \
     --triple "${triple}" \
-    --product "${HELPER_NAME}" >/dev/null
+    --product "${HELPER_NAME}" > /dev/null 2> "${build_log}"; then
+    fallback_path="$(fallback_helper_path_for_architecture "${arch}" || true)"
+    if [[ -n "${fallback_path}" ]]; then
+      echo "build_backtick_mcp_helper: falling back to existing helper artifact for ${arch}: ${fallback_path}"
+      BUILT_HELPER_PATHS+=("${fallback_path}")
+      return
+    fi
+
+    cat "${build_log}" >&2
+    fail "swift build failed for ${arch}"
+  fi
 
   bin_path="$("${SWIFT_BIN}" build \
     --disable-sandbox \
@@ -217,8 +247,16 @@ build_for_architecture() {
     --triple "${triple}" \
     --show-bin-path)/${HELPER_NAME}"
 
-  [[ -x "${bin_path}" ]] \
-    || fail "built helper for ${arch} is missing or not executable: ${bin_path}"
+  if [[ ! -x "${bin_path}" ]]; then
+    fallback_path="$(fallback_helper_path_for_architecture "${arch}" || true)"
+    if [[ -n "${fallback_path}" ]]; then
+      echo "build_backtick_mcp_helper: using existing helper artifact for ${arch}: ${fallback_path}"
+      BUILT_HELPER_PATHS+=("${fallback_path}")
+      return
+    fi
+
+    fail "built helper for ${arch} is missing or not executable: ${bin_path}"
+  fi
 
   BUILT_HELPER_PATHS+=("${bin_path}")
 }

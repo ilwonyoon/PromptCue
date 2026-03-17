@@ -69,12 +69,13 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
 
     public static func encodeJSONArray(_ tags: [CaptureTag]) -> String? {
         let canonicalTags = deduplicatePreservingOrder(tags)
-        guard !canonicalTags.isEmpty,
-              let data = try? JSONEncoder().encode(canonicalTags) else {
-            return nil
+        guard let data = try? JSONEncoder().encode(canonicalTags),
+              let json = String(data: data, encoding: .utf8) else {
+            assertionFailure("Failed to encode capture tags JSON")
+            return "[]"
         }
 
-        return String(data: data, encoding: .utf8)
+        return json
     }
 
     public static func decodeJSONArray(_ json: String?) -> [CaptureTag] {

@@ -290,6 +290,68 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertEqual(normalizedTagsJSON, #"["bug","mcp"]"#)
     }
 
+    func testCardStoreUpsertPersistsEmptyTagsJSONArrayWhenLegacySchemaRequiresNonNullTags() throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let cardID = UUID()
+        let createdAt = Date(timeIntervalSinceReferenceDate: 250)
+        let legacyQueue = try DatabaseQueue(path: databaseURL.path)
+
+        try legacyQueue.write { db in
+            try db.create(table: "grdb_migrations") { table in
+                table.column("identifier", .text).notNull().primaryKey()
+            }
+            try db.execute(
+                sql: """
+                INSERT INTO grdb_migrations (identifier) VALUES (?), (?), (?), (?), (?), (?), (?), (?)
+                """,
+                arguments: [
+                    "createCards",
+                    "addLastCopiedAt",
+                    "addSortOrder",
+                    "addSuggestedTargetJSON",
+                    "addTagsJSON",
+                    "normalizeCanonicalTagsJSON",
+                    "createCopyEvents",
+                    "addIsPinned",
+                ]
+            )
+            try db.create(table: "cards") { table in
+                table.column("id", .text).notNull().primaryKey()
+                table.column("text", .text).notNull()
+                table.column("createdAt", .datetime).notNull()
+                table.column("screenshotPath", .text)
+                table.column("lastCopiedAt", .datetime)
+                table.column("sortOrder", .double).notNull()
+                table.column("suggestedTargetJSON", .text)
+                table.column("tagsJSON", .text).notNull().defaults(to: "[]")
+                table.column("isPinned", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        let store = CardStore(databaseURL: databaseURL)
+        let card = CaptureCard(
+            id: cardID,
+            text: "Plain capture",
+            createdAt: createdAt,
+            sortOrder: createdAt.timeIntervalSinceReferenceDate
+        )
+
+        try store.upsert(card)
+
+        let database = PromptCueDatabase(databaseURL: databaseURL)
+        let persistedTagsJSON = try XCTUnwrap(database.dbQueue).read { db in
+            try String.fetchOne(
+                db,
+                sql: "SELECT tagsJSON FROM cards WHERE id = ?",
+                arguments: [cardID.uuidString]
+            )
+        }
+        let loadedCards = try store.load()
+
+        XCTAssertEqual(persistedTagsJSON, #"[]"#)
+        XCTAssertEqual(loadedCards, [card])
+    }
+
     func testCardStoreAndCopyEventStoreShareDatabaseWhenBootstrappedSeparately() throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let cardStore = CardStore(databaseURL: databaseURL)

@@ -467,153 +467,137 @@ struct PromptCueSettingsView: View {
         _ client: MCPConnectorClientStatus,
         showsDivider: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
-                connectorClientBadge(
-                    for: client.client,
-                    tone: connectorStatusTone(for: client)
-                )
-
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
-                    HStack(alignment: .center, spacing: PrimitiveTokens.Space.xxs) {
-                        Text(client.client.title)
-                            .font(PrimitiveTokens.Typography.bodyStrong)
-                            .foregroundStyle(SemanticTokens.Text.primary)
-
-                        if shouldShowConnectorStatusBadge(for: client) {
-                            SettingsStatusBadge(
-                                title: connectorStatusTitle(for: client),
-                                tone: connectorStatusBadgeTone(for: client)
-                            )
-                        }
-                    }
-
-                    Text(focusedConnectorDetail(for: client))
-                        .font(PrimitiveTokens.Typography.body)
-                        .foregroundStyle(SemanticTokens.Text.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Spacer(minLength: PrimitiveTokens.Space.xs)
-
-                focusedConnectorAccessory(for: client)
-            }
-
-            if shouldShowInlineSetup(for: client) {
-                connectorInlinePanel {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                        Text(configuredSetupPrompt(for: client))
-                            .font(PrimitiveTokens.Typography.meta)
-                            .foregroundStyle(SemanticTokens.Text.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        if let addCommand = client.addCommand {
-                            advancedValueBlock(addCommand, emphasized: true)
-                        }
-
-                        HStack(spacing: PrimitiveTokens.Space.xs) {
-                            Button(didCopySetupCommand ? "Copied" : "Copy Command") {
-                                mcpConnectorSettingsModel.copyAddCommand(for: client.client)
-                                showSetupCommandCopiedFeedback()
-                            }
-                            .controlSize(.small)
-                            .buttonStyle(.borderedProminent)
-
-                            Button(
-                                isManualSetupExpanded(for: client)
-                                    ? "Hide Manual Setup"
-                                    : "Use Config File Instead"
-                            ) {
-                                toggleManualSetup(for: client)
-                            }
-                            .controlSize(.small)
-                            .buttonStyle(.bordered)
-                        }
-
-                        if isManualSetupExpanded(for: client),
-                           let configSnippet = client.configSnippet {
+        SettingsConnectorClientRow(
+            title: client.client.title,
+            detail: focusedConnectorDetail(for: client),
+            showsDivider: showsDivider,
+            statusTitle: shouldShowConnectorStatusBadge(for: client)
+                ? connectorStatusTitle(for: client)
+                : nil,
+            statusTone: shouldShowConnectorStatusBadge(for: client)
+                ? connectorStatusBadgeTone(for: client)
+                : nil
+        ) {
+            connectorClientBadge(
+                for: client.client,
+                tone: connectorStatusTone(for: client)
+            )
+        } accessory: {
+            focusedConnectorAccessory(for: client)
+        } footer: {
+            if shouldShowInlineSetup(for: client)
+                || shouldShowRepairBlock(for: client)
+                || shouldShowConnectedTools(for: client) {
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                    if shouldShowInlineSetup(for: client) {
+                        connectorInlinePanel {
                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                                Text(manualSetupDestinationSummary(for: client))
+                                Text(configuredSetupPrompt(for: client))
                                     .font(PrimitiveTokens.Typography.meta)
                                     .foregroundStyle(SemanticTokens.Text.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                advancedValueBlock(configSnippet)
+                                if let addCommand = client.addCommand {
+                                    advancedValueBlock(addCommand, emphasized: true)
+                                }
 
                                 HStack(spacing: PrimitiveTokens.Space.xs) {
-                                    Button(didCopyConfigSnippet ? "Copied" : "Copy Config") {
-                                        mcpConnectorSettingsModel.copyConfigSnippet(for: client.client)
-                                        showConfigSnippetCopiedFeedback()
+                                    Button(didCopySetupCommand ? "Copied" : "Copy Command") {
+                                        mcpConnectorSettingsModel.copyAddCommand(for: client.client)
+                                        showSetupCommandCopiedFeedback()
                                     }
                                     .controlSize(.small)
+                                    .buttonStyle(.borderedProminent)
 
-                                    if client.projectConfig != nil {
-                                        Button(projectConfigButtonTitle(for: client.client)) {
-                                            mcpConnectorSettingsModel.openProjectConfig(for: client.client)
-                                        }
-                                        .controlSize(.small)
+                                    Button(
+                                        isManualSetupExpanded(for: client)
+                                            ? "Hide Manual Setup"
+                                            : "Use Config File Instead"
+                                    ) {
+                                        toggleManualSetup(for: client)
                                     }
+                                    .controlSize(.small)
+                                    .buttonStyle(.bordered)
+                                }
 
-                                    Button(homeConfigButtonTitle(for: client.client)) {
-                                        mcpConnectorSettingsModel.openHomeConfig(for: client.client)
+                                if isManualSetupExpanded(for: client),
+                                   let configSnippet = client.configSnippet {
+                                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                        Text(manualSetupDestinationSummary(for: client))
+                                            .font(PrimitiveTokens.Typography.meta)
+                                            .foregroundStyle(SemanticTokens.Text.secondary)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                                        advancedValueBlock(configSnippet)
+
+                                        HStack(spacing: PrimitiveTokens.Space.xs) {
+                                            Button(didCopyConfigSnippet ? "Copied" : "Copy Config") {
+                                                mcpConnectorSettingsModel.copyConfigSnippet(for: client.client)
+                                                showConfigSnippetCopiedFeedback()
+                                            }
+                                            .controlSize(.small)
+
+                                            if client.projectConfig != nil {
+                                                Button(projectConfigButtonTitle(for: client.client)) {
+                                                    mcpConnectorSettingsModel.openProjectConfig(for: client.client)
+                                                }
+                                                .controlSize(.small)
+                                            }
+
+                                            Button(homeConfigButtonTitle(for: client.client)) {
+                                                mcpConnectorSettingsModel.openHomeConfig(for: client.client)
+                                            }
+                                            .controlSize(.small)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if shouldShowRepairBlock(for: client) {
+                        connectorInlinePanel {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                Text("\(client.client.title) needs one repair before Backtick can respond again.")
+                                    .font(PrimitiveTokens.Typography.metaStrong)
+                                    .foregroundStyle(ConnectorChipTone.danger.foreground)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                                if let failureDetail = mcpConnectorSettingsModel.clientFailureDetail(for: client) {
+                                    advancedMessageBlock(failureDetail)
+                                }
+
+                                HStack(spacing: PrimitiveTokens.Space.xs) {
+                                    Button("Verify Again") {
+                                        mcpConnectorSettingsModel.runServerTest()
+                                    }
+                                    .controlSize(.small)
+                                    .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
+
+                                    Button("Open \(client.client.title) Config") {
+                                        mcpConnectorSettingsModel.openPreferredConfig(for: client.client)
                                     }
                                     .controlSize(.small)
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            if shouldShowRepairBlock(for: client) {
-                connectorInlinePanel {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                        Text("\(client.client.title) needs one repair before Backtick can respond again.")
-                            .font(PrimitiveTokens.Typography.metaStrong)
-                            .foregroundStyle(ConnectorChipTone.danger.foreground)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if shouldShowConnectedTools(for: client) {
+                        connectorInlinePanel {
+                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                Text("\(mcpConnectorSettingsModel.connectedToolNames(for: client).count) tools are ready in \(client.client.title).")
+                                    .font(PrimitiveTokens.Typography.metaStrong)
+                                    .foregroundStyle(SemanticTokens.Text.primary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                        if let failureDetail = mcpConnectorSettingsModel.clientFailureDetail(for: client) {
-                            advancedMessageBlock(failureDetail)
-                        }
-
-                        HStack(spacing: PrimitiveTokens.Space.xs) {
-                            Button("Verify Again") {
-                                mcpConnectorSettingsModel.runServerTest()
+                                connectorToolGrid(toolNames: mcpConnectorSettingsModel.connectedToolNames(for: client))
                             }
-                            .controlSize(.small)
-                            .disabled(mcpConnectorSettingsModel.connectionState.isRunning)
-
-                            Button("Open \(client.client.title) Config") {
-                                mcpConnectorSettingsModel.openPreferredConfig(for: client.client)
-                            }
-                            .controlSize(.small)
                         }
                     }
                 }
-            }
-
-            if shouldShowConnectedTools(for: client) {
-                connectorInlinePanel {
-                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
-                        Text("\(mcpConnectorSettingsModel.connectedToolNames(for: client).count) tools are ready in \(client.client.title).")
-                            .font(PrimitiveTokens.Typography.metaStrong)
-                            .foregroundStyle(SemanticTokens.Text.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        connectorToolGrid(toolNames: mcpConnectorSettingsModel.connectedToolNames(for: client))
-                    }
-                }
-            }
-
-            if showsDivider {
-                Rectangle()
-                    .fill(SettingsSemanticTokens.Border.rowSeparator)
-                    .frame(height: 1)
             }
         }
-        .padding(.horizontal, SettingsTokens.Layout.groupInset)
-        .padding(.vertical, PrimitiveTokens.Space.xs)
     }
 
     private func focusedConnectorDetail(for client: MCPConnectorClientStatus) -> String {
@@ -1518,7 +1502,7 @@ struct PromptCueSettingsView: View {
         case .claudeDesktop:
             return "ClaudeDesktopIcon"
         case .claudeCode:
-            return "ClaudeCodeIcon"
+            return "ClaudeDesktopIcon"
         case .codex:
             return "CodexIcon"
         }
@@ -1705,6 +1689,82 @@ struct PromptCueSettingsView: View {
         set: @escaping (Value) -> Void
     ) -> Binding<Value> {
         Binding(get: get, set: set)
+    }
+}
+
+private struct SettingsConnectorClientRow<Badge: View, Accessory: View, Footer: View>: View {
+    let title: String
+    let detail: String
+    let showsDivider: Bool
+    let statusTitle: String?
+    let statusTone: SettingsStatusBadge.Tone?
+    private let badge: Badge
+    private let accessory: Accessory
+    private let footer: Footer?
+
+    init(
+        title: String,
+        detail: String,
+        showsDivider: Bool = true,
+        statusTitle: String? = nil,
+        statusTone: SettingsStatusBadge.Tone? = nil,
+        @ViewBuilder badge: () -> Badge,
+        @ViewBuilder accessory: () -> Accessory,
+        @ViewBuilder footer: () -> Footer? = { nil }
+    ) {
+        self.title = title
+        self.detail = detail
+        self.showsDivider = showsDivider
+        self.statusTitle = statusTitle
+        self.statusTone = statusTone
+        self.badge = badge()
+        self.accessory = accessory()
+        self.footer = footer()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.xs) {
+                badge
+
+                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxxs) {
+                    HStack(alignment: .center, spacing: PrimitiveTokens.Space.xxs) {
+                        Text(title)
+                            .font(PrimitiveTokens.Typography.bodyStrong)
+                            .foregroundStyle(SemanticTokens.Text.primary)
+
+                        if let statusTitle, let statusTone {
+                            SettingsStatusBadge(
+                                title: statusTitle,
+                                tone: statusTone
+                            )
+                        }
+                    }
+
+                    Text(detail)
+                        .font(PrimitiveTokens.Typography.body)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Spacer(minLength: PrimitiveTokens.Space.xs)
+
+                accessory
+            }
+
+            if let footer {
+                footer
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if showsDivider {
+                Rectangle()
+                    .fill(SettingsSemanticTokens.Border.rowSeparator)
+                    .frame(height: 1)
+            }
+        }
+        .padding(.horizontal, SettingsTokens.Layout.groupInset)
+        .padding(.vertical, PrimitiveTokens.Space.xs)
     }
 }
 

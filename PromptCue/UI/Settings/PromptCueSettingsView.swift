@@ -1506,41 +1506,11 @@ struct PromptCueSettingsView: View {
         for client: MCPConnectorClient,
         tone: ConnectorChipTone = .neutral
     ) -> some View {
-        let badgeShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
-
-        return ZStack {
-            if let assetName = clientBadgeAssetName(for: client) {
-                Image(assetName)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-                    .frame(width: 44, height: 44)
-                    .clipShape(badgeShape)
-            } else {
-                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .fill(SemanticTokens.Text.primary.opacity(0.9))
-
-                RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)
-                    .stroke(SemanticTokens.Text.primary.opacity(0.08), lineWidth: PrimitiveTokens.Stroke.subtle)
-
-                Image(systemName: clientBadgeSymbol(for: client))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(SemanticTokens.Surface.previewBackdropBottom)
-            }
-        }
-        .overlay(alignment: .bottomTrailing) {
-            ZStack {
-                Circle()
-                    .fill(SemanticTokens.Surface.previewBackdropBottom)
-                    .frame(width: 12, height: 12)
-
-                Circle()
-                    .fill(connectorStatusDotColor(for: tone))
-                    .frame(width: 9, height: 9)
-            }
-                .offset(x: 1, y: 1)
-        }
-        .frame(width: 44, height: 44)
+        ConnectorClientBadge(
+            assetName: clientBadgeAssetName(for: client),
+            fallbackSymbol: clientBadgeSymbol(for: client),
+            statusColor: connectorStatusDotColor(for: tone)
+        )
     }
 
     private func clientBadgeAssetName(for client: MCPConnectorClient) -> String? {

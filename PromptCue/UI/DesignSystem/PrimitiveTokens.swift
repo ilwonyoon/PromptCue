@@ -57,6 +57,13 @@ enum PrimitiveTokens {
         static let compactCardPaddingHorizontal: CGFloat = 12
         static let pinnedCardWidth: CGFloat = 170
         static let copiedControlClusterSpacing: CGFloat = 16
+
+        static let connectorBadge: CGFloat = 44
+        static let connectorBadgeCornerRadius: CGFloat = 10
+        static let connectorStatusDot: CGFloat = 9
+        static let connectorStatusDotRing: CGFloat = 12
+        static let connectorStatusDotOffset: CGFloat = 1
+        static let connectorFallbackIconSize: CGFloat = 18
     }
 
     enum Stroke {

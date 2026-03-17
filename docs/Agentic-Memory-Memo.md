@@ -42,7 +42,7 @@ Three things are happening simultaneously:
 
 **2. MCP made cross-platform delivery possible.**
 
-Before MCP, connecting a local memory store to multiple AI clients required custom integrations for each one. Now, one MCP server can serve Claude Desktop, Claude Code, Codex, and ChatGPT (Mac) with the same protocol. stdio for CLI tools, HTTP localhost for desktop apps.
+Before MCP, connecting a local memory store to multiple AI clients required custom integrations for each one. Now, one MCP surface can serve Claude Desktop, Claude Code, Codex, and potentially ChatGPT through a remote HTTP connector. stdio fits CLI tools today; ChatGPT should be treated as a separate remote-MCP path rather than a localhost desktop assumption.
 
 **3. Platform memory is necessary but insufficient.**
 
@@ -219,7 +219,7 @@ That's the gap. That's Backtick.
 
 ### Phase 2: Cross-Platform Reach (Q3 2026)
 
-- HTTP transport for ChatGPT Mac App (localhost, no tunnel)
+- Remote HTTP transport for ChatGPT web-first connector flow
 - One-click setup for Claude Desktop, Claude Code, Codex
 - Bearer token auth for HTTP connections
 - Connection status in Settings

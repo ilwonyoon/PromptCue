@@ -333,6 +333,13 @@ Next rollout:
    - keep source-checkout fallback for local development
    - make connector setup usable outside a Swift package checkout
 
+ChatGPT note:
+
+- current landed MCP scope is `Claude Desktop`, `Claude Code`, and `Codex`
+- treat ChatGPT as a separate remote-MCP track
+- do not assume localhost registration from the Backtick app into ChatGPT
+- do not promise write-capable ChatGPT support on `Plus` / `Pro` until OpenAI plan support is verified at implementation time
+
 Current landed slices:
 
 - `MCP2` Stack read bridge is on `main`

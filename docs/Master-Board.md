@@ -182,6 +182,12 @@ Active MCP rollout:
    - ship a launchable `BacktickMCP` helper with release builds
    - keep the source-checkout path as the developer fallback
 
+ChatGPT track note:
+
+- current shipped connector surface is `Claude Desktop`, `Claude Code`, and `Codex`
+- ChatGPT remains a separate remote-MCP track, not part of the landed stdio connector scope
+- do not plan against localhost ChatGPT registration
+
 Current landed slices:
 
 - `MCP2` read bridge landed on `main`

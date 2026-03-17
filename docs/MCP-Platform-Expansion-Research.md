@@ -2,6 +2,13 @@
 
 Research doc — 2026-03-15 (v4, updated 2026-03-17)
 
+ChatGPT transport note — 2026-03-17:
+
+- this doc previously assumed ChatGPT Mac App could attach to `http://127.0.0.1:<port>/`
+- current OpenAI docs now describe ChatGPT custom MCP as a remote-server flow, not a local localhost flow
+- treat all ChatGPT sections below as `web-first remote MCP` unless explicitly marked historical
+- do not plan product work around localhost-only ChatGPT registration
+
 ## Vision
 
 Backtick is the project memory for people who build with AI but aren't engineers. It bridges ChatGPT, Claude, Claude Code, Codex — so that opening a new thread in any app doesn't mean starting from scratch.
@@ -29,11 +36,11 @@ Muninn (`ilwonyoon/muninn`) validated the connection model. Key lessons:
 | Claude Code CLI | stdio | `claude mcp add backtick -- <binary>` |
 | Claude Desktop (Mac) | stdio | `claude_desktop_config.json` → spawns process |
 | Codex CLI | stdio | `codex mcp add backtick -- <binary>` |
-| ChatGPT Mac App | **HTTP localhost** | `http://127.0.0.1:<port>/` — no tunnel needed |
-| Claude Web / Mobile | HTTP + tunnel | Cloudflare Tunnel or ngrok required |
-| ChatGPT Web | HTTP + tunnel | Same as above |
+| ChatGPT (web-first) | **Remote HTTP MCP** | public HTTPS endpoint registered in ChatGPT Developer Mode |
+| Claude Web / Mobile | HTTP + tunnel | Cloudflare Tunnel, ngrok, or Backtick-hosted remote endpoint |
+| ChatGPT mobile / desktop apps | Account/app rollout dependent | do not assume parity from the initial connector flow |
 
-**Key correction:** ChatGPT Mac App connects to localhost directly. No tunnel required for same-machine usage.
+**Current correction:** treat ChatGPT as remote-only for product planning. Localhost experiments may have worked historically, but current official docs do not describe localhost MCP as a supported ChatGPT path.
 
 ### Stability analysis
 
@@ -54,7 +61,7 @@ Muninn's localhost web dashboard was unstable. Why? Separate Python process that
 ```
 BacktickMCP (bundled in app)
 ├── stdio mode  → Claude Desktop, Claude Code, Codex (spawned per-client)
-└── http mode   → ChatGPT Mac App, Claude Web, ChatGPT Web (long-running server)
+└── http mode   → Claude Web, ChatGPT Web, and any future app surfaces that inherit remote MCP connectors
 ```
 
 The app runs the HTTP server as an in-process component (not a child process). This eliminates the "separate process" instability that plagued Muninn.
@@ -76,23 +83,28 @@ Config: `~/Library/Application Support/Claude/claude_desktop_config.json`
 ```
 Backtick Settings UI: detect Claude Desktop → generate config → one-click write.
 
-#### ChatGPT Mac App (HTTP localhost)
+#### ChatGPT (remote MCP — experimental future)
 
-1. Backtick starts HTTP server on `127.0.0.1:8321` (configurable)
-2. ChatGPT: Settings > Apps > Advanced > Developer Mode
-3. Add MCP server URL: `http://127.0.0.1:8321/`
-4. Auth: Bearer token (generated in Backtick Settings, copied to ChatGPT)
+1. Backtick exposes an HTTP MCP server locally while the app is running
+2. User provides a public HTTPS URL that forwards to that local service, or Backtick hosts the remote endpoint directly
+3. ChatGPT Developer Mode registers that public URL as a custom connector
+4. Auth is mandatory
+5. Start with web-only expectations; app/mobile behavior is a secondary outcome, not the setup baseline
 
-Requires: ChatGPT Pro/Team/Enterprise/Edu plan for Developer Mode.
+Requires:
 
-#### Claude Web / ChatGPT Web (HTTP + tunnel — future)
+- a ChatGPT plan and rollout that actually exposes custom MCP connectors
+- a public HTTPS endpoint
+- Backtick running continuously if the endpoint is still backed by the local Mac
 
-For accessing from phone or non-local machine:
-1. Backtick HTTP server running locally
-2. Cloudflare Tunnel or ngrok exposes it
-3. Public URL registered in Claude Web or ChatGPT Web
+#### Claude Web / ChatGPT Web (HTTP remote)
 
-This is Phase 2. Local-first (stdio + HTTP localhost) comes first.
+For remote use:
+1. Backtick HTTP server running locally or a Backtick-hosted remote service
+2. Public HTTPS URL exposed through tunnel, relay, or hosted service
+3. Public URL registered in Claude Web or ChatGPT web settings
+
+This is a separate remote-MCP track. It should not be framed as a localhost follow-up to the current stdio connector work.
 
 ### Connection UX — what the user actually sees
 
@@ -116,9 +128,9 @@ The user never sees "MCP", "stdio", or "HTTP". They see Connect buttons.
 | Claude Desktop | Writes `claude_desktop_config.json` automatically | **One click** |
 | Claude Code | Runs `claude mcp add` automatically | **One click** |
 | Codex | Runs `codex mcp add` automatically | **One click** |
-| ChatGPT Mac | Starts HTTP server + copies URL to clipboard + opens ChatGPT settings | **One click + paste URL** |
+| ChatGPT | Starts or exposes a remote MCP endpoint, then hands the user a URL and auth flow for ChatGPT web | **Experimental setup** |
 
-ChatGPT is the only one that can't be fully automated (ChatGPT doesn't provide an auto-registration API). But "click Connect → paste URL" is still zero-config for the user — no terminal, no JSON editing, no API keys to generate.
+ChatGPT is the only connector here that should be treated as a separate remote setup track. Do not promise zero-config onboarding until Backtick owns the remote endpoint and auth flow.
 
 **Principle: the app absorbs the complexity.** Same MCP protocol underneath, but the user never touches it.
 
@@ -148,11 +160,11 @@ Following Muninn's pattern:
 
 ```
 Priority:
-1. Bearer token (BACKTICK_API_KEY or generated in Settings)
-2. No auth (localhost dev only, with warning)
+1. OAuth or Bearer token for remote MCP
+2. no-auth localhost only for internal development, never for user-facing ChatGPT setup
 ```
 
-Token generated once in Settings, displayed for user to copy into ChatGPT config. Stored in Keychain.
+Any ChatGPT-facing remote path must require auth. If Backtick ships a self-hosted experimental mode, store the secret in Keychain and present clear risk copy before exposing any public URL.
 
 ---
 
@@ -181,7 +193,7 @@ The core use case: AI finishes a meaningful conversation → saves a structured 
 
 ### Next
 - Wire up HTTP server in AppDelegate
-- Test ChatGPT localhost connection
+- Test ChatGPT remote MCP connection against a public HTTPS endpoint
 ```
 
 This is **not** a full conversation transcript. It's a distilled project document that an AI (or human) can update incrementally.
@@ -958,10 +970,10 @@ Claude Desktop connector: one-click config write to `claude_desktop_config.json`
 
 | # | Task | Effort | Status | What it unlocks |
 |---|------|--------|--------|-----------------|
-| 5 | HTTP server in Backtick app process | L | Not started | ChatGPT Mac App connection |
-| 6 | Auth (Bearer token) + Settings UI for HTTP | M | Not started | Secure HTTP connections |
+| 5 | HTTP server in Backtick app process | L | Not started | Remote MCP foundation for ChatGPT / Claude web |
+| 6 | Auth (OAuth or Bearer) + Settings UI for HTTP | M | Not started | Secure remote MCP connections |
 
-→ ChatGPT Mac App connects via localhost HTTP. Both Hot and Warm tools available.
+→ This unlocks an experimental remote ChatGPT connector. Do not assume localhost registration or app/mobile parity.
 
-**Post-launch Phase 3 (remote access):**
-Tunnel setup for Claude Web / ChatGPT Web / Mobile. Only if demand exists. Not started.
+**Post-launch Phase 3 (distribution + stability):**
+Hosted relay or BYO tunnel flow for Claude Web / ChatGPT Web, plus reconnect and health UX. Only if demand exists. Not started.

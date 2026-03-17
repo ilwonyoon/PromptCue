@@ -191,6 +191,7 @@ struct MCPConnectorInspection: Equatable {
 
 enum MCPConnectorPrimaryAction: Equatable {
     case writeConfig
+    case launchTerminalSetup
     case copyAddCommand
     case openDocumentation
     case runServerTest
@@ -198,6 +199,8 @@ enum MCPConnectorPrimaryAction: Equatable {
     var title: String {
         switch self {
         case .writeConfig:
+            return "Connect"
+        case .launchTerminalSetup:
             return "Connect"
         case .copyAddCommand:
             return "Set Up"
@@ -244,6 +247,10 @@ struct MCPServerConnectionReport: Equatable {
     var detail: String {
         "Backtick MCP launched and answered initialize/tools/list for \(toolNames.count) tools."
     }
+}
+
+protocol MCPConnectorTerminalLaunching {
+    func launchInTerminal(command: String) -> Bool
 }
 
 enum MCPServerConnectionFailure: Error, Equatable {
@@ -390,13 +397,14 @@ struct MCPConnectorInspector {
             projectConfigURL = nil
         }
         let homeConfigURL = homeDirectoryURL.appendingPathComponent(client.homeConfigRelativePath)
+        let cliPath = client.executableName.flatMap { locateExecutable(named: $0) }
 
         return MCPConnectorClientStatus(
             client: client,
-            cliPath: client.executableName.flatMap { locateExecutable(named: $0) },
+            cliPath: cliPath,
             projectConfig: projectConfigURL.map { configStatus(for: client, url: $0) },
             homeConfig: configStatus(for: client, url: homeConfigURL),
-            addCommand: launchSpec.flatMap { addCommand(for: client, launchSpec: $0) },
+            addCommand: launchSpec.flatMap { addCommand(for: client, cliPath: cliPath, launchSpec: $0) },
             configSnippet: launchSpec.map { configSnippet(for: client, launchSpec: $0) }
         )
     }
@@ -531,15 +539,21 @@ struct MCPConnectorInspector {
 
     private func addCommand(
         for client: MCPConnectorClient,
+        cliPath: String?,
         launchSpec: MCPServerLaunchSpec
     ) -> String? {
+        let cliCommand = MCPServerLaunchSpec(
+            command: cliPath ?? (client.executableName ?? client.rawValue),
+            arguments: ["mcp", "add"]
+        ).commandLine
+
         switch client {
         case .claudeDesktop:
             return nil
         case .claudeCode:
-            return "claude mcp add --transport stdio --scope project backtick -- \(launchSpec.commandLine)"
+            return "\(cliCommand) --transport stdio --scope user backtick -- \(launchSpec.commandLine)"
         case .codex:
-            return "codex mcp add backtick -- \(launchSpec.commandLine)"
+            return "\(cliCommand) backtick -- \(launchSpec.commandLine)"
         }
     }
 
@@ -584,6 +598,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     private let inspector: MCPConnectorInspector
     private let connectionTester: MCPServerConnectionTesting
+    private let terminalLauncher: MCPConnectorTerminalLaunching
     private let workspace: NSWorkspace
     private let pasteboard: NSPasteboard
     private var connectionTask: Task<Void, Never>?
@@ -591,11 +606,13 @@ final class MCPConnectorSettingsModel: ObservableObject {
     init(
         inspector: MCPConnectorInspector = MCPConnectorInspector(),
         connectionTester: MCPServerConnectionTesting = MCPServerSelfTester(),
+        terminalLauncher: MCPConnectorTerminalLaunching = MCPConnectorTerminalLauncher(),
         workspace: NSWorkspace = .shared,
         pasteboard: NSPasteboard = .general
     ) {
         self.inspector = inspector
         self.connectionTester = connectionTester
+        self.terminalLauncher = terminalLauncher
         self.workspace = workspace
         self.pasteboard = pasteboard
         self.inspection = inspector.inspect()
@@ -769,6 +786,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return "Click Connect to add Backtick to \(client.client.title) automatically."
             }
 
+            if client.client == .claudeCode {
+                if client.hasOtherConfigFiles {
+                    return "Backtick is not in Claude Code yet. Click Connect to run the global setup command, or use the config-file fallback."
+                }
+
+                return "Click Connect and Backtick will open Terminal to add itself to Claude Code globally."
+            }
+
             if client.hasOtherConfigFiles {
                 return "Backtick is not in this client's config yet. Add it to your project or home config."
             }
@@ -829,6 +854,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
                 return "Connect to \(client.client.title)"
             }
 
+            if client.client == .claudeCode {
+                return "Connect to Claude Code"
+            }
+
             return "Add Backtick to \(client.client.title)"
         }
 
@@ -852,6 +881,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if !client.hasConfiguredScope {
             if client.client.usesDirectConfig {
                 return "Click Connect and Backtick will write the config file automatically. Restart \(client.client.title) to pick up the change."
+            }
+
+            if client.client == .claudeCode {
+                return "Click Connect and Backtick will open Terminal and run the global Claude Code setup command. Then return here and verify."
             }
 
             if client.hasOtherConfigFiles {
@@ -880,6 +913,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func primaryActionTitle(for client: MCPConnectorClientStatus) -> String? {
         switch primaryAction(for: client) {
         case .writeConfig:
+            return "Connect"
+        case .launchTerminalSetup:
             return "Connect"
         case .copyAddCommand:
             return "Set Up"
@@ -962,7 +997,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         if !client.hasConfiguredScope {
-            return inspection.status(for: client.client).addCommand == nil ? nil : .copyAddCommand
+            guard inspection.status(for: client.client).addCommand != nil else {
+                return nil
+            }
+
+            if client.client == .claudeCode {
+                return .launchTerminalSetup
+            }
+
+            return .copyAddCommand
         }
 
         if case .passed = connectionState {
@@ -972,16 +1015,23 @@ final class MCPConnectorSettingsModel: ObservableObject {
         return .runServerTest
     }
 
-    func performPrimaryAction(_ action: MCPConnectorPrimaryAction, for client: MCPConnectorClientStatus) {
+    @discardableResult
+    func performPrimaryAction(_ action: MCPConnectorPrimaryAction, for client: MCPConnectorClientStatus) -> Bool {
         switch action {
         case .writeConfig:
             writeDirectConfig(for: client.client)
+            return true
+        case .launchTerminalSetup:
+            return launchAddCommandInTerminal(for: client.client)
         case .copyAddCommand:
             copyAddCommand(for: client.client)
+            return true
         case .openDocumentation:
             openDocumentation(for: client.client)
+            return true
         case .runServerTest:
             runServerTest()
+            return true
         }
     }
 
@@ -1027,6 +1077,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func copyAddCommand(for client: MCPConnectorClient) {
         copy(inspection.status(for: client).addCommand)
+    }
+
+    @discardableResult
+    func launchAddCommandInTerminal(for client: MCPConnectorClient) -> Bool {
+        guard let addCommand = inspection.status(for: client).addCommand else {
+            return false
+        }
+
+        return terminalLauncher.launchInTerminal(command: addCommand)
     }
 
     func writeDirectConfig(for client: MCPConnectorClient) {
@@ -1193,6 +1252,35 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return standardizedURL.deletingLastPathComponent()
+    }
+}
+
+struct MCPConnectorTerminalLauncher: MCPConnectorTerminalLaunching {
+    func launchInTerminal(command: String) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = [
+            "-e", "tell application \"Terminal\"",
+            "-e", "activate",
+            "-e", "do script \(appleScriptStringLiteral(command))",
+            "-e", "end tell",
+        ]
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            NSLog("MCPConnectorTerminalLauncher failed: %@", error.localizedDescription)
+            return false
+        }
+    }
+
+    private func appleScriptStringLiteral(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }
 

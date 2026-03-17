@@ -651,6 +651,14 @@ struct PromptCueSettingsView: View {
                 Button("Connect") {
                     mcpConnectorSettingsModel.writeDirectConfig(for: client.client)
                 }
+            case .launchTerminalSetup:
+                Button("Connect") {
+                    _ = mcpConnectorSettingsModel.launchAddCommandInTerminal(for: client.client)
+                    expandedSetupClient = client.client
+                    expandedManualSetupClient = nil
+                    expandedToolsClient = nil
+                    didCopySetupCommand = false
+                }
             case .copyAddCommand:
                 Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
                     let wasExpanded = isSetupExpanded(for: client)
@@ -781,12 +789,12 @@ struct PromptCueSettingsView: View {
     }
 
     private func configuredSetupPrompt(for client: MCPConnectorClientStatus) -> String {
-        if client.hasOtherConfigFiles {
-            return "Run this in Terminal and \(client.client.title) will pick up Backtick from the existing config."
+        if client.client == .claudeCode {
+            return "Connect opens Terminal and runs the global Claude Code setup command. If Terminal did not open, run this command manually, or use Config File Instead for ~/.claude.json."
         }
 
-        if client.client == .claudeCode {
-            return "Copy this command for project setup. If you want Claude Code available everywhere, use Config File Instead and paste the snippet into ~/.claude.json."
+        if client.hasOtherConfigFiles {
+            return "Run this in Terminal and \(client.client.title) will pick up Backtick from the existing config."
         }
 
         return "Copy this command, paste it into Terminal, and press Return."
@@ -1221,6 +1229,12 @@ struct PromptCueSettingsView: View {
         switch action {
         case .writeConfig:
             mcpConnectorSettingsModel.performPrimaryAction(action, for: client)
+        case .launchTerminalSetup:
+            _ = mcpConnectorSettingsModel.performPrimaryAction(action, for: client)
+            expandedSetupClient = client.client
+            expandedManualSetupClient = nil
+            expandedToolsClient = nil
+            didCopySetupCommand = false
         case .copyAddCommand:
             setupGuideClient = client.client
         case .openDocumentation:

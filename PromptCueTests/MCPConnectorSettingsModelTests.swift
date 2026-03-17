@@ -90,6 +90,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             .configured
         )
         XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains("claude mcp add") == true)
+        XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains("--scope user") == true)
         XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains("codex mcp add") == true)
     }
 
@@ -322,7 +323,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
-    func testModelPrefersCopyAddCommandWhenClientNeedsSetup() throws {
+    func testModelPrefersTerminalSetupWhenClaudeCodeNeedsSetup() throws {
         let executableURL = repositoryRootURL
             .appendingPathComponent(".build/debug", isDirectory: true)
             .appendingPathComponent("BacktickMCP")
@@ -344,9 +345,40 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Needs setup")
         XCTAssertEqual(model.clientScopeTitle(for: claude), nil)
-        XCTAssertEqual(model.primaryAction(for: claude), .copyAddCommand)
-        XCTAssertEqual(model.primaryActionTitle(for: claude), "Set Up")
-        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Add Backtick to Claude Code")
+        XCTAssertEqual(model.primaryAction(for: claude), .launchTerminalSetup)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Connect")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Connect to Claude Code")
+    }
+
+    @MainActor
+    func testLaunchAddCommandInTerminalUsesClaudeCodeUserScopeCommand() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let launcher = TestTerminalLauncher()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            terminalLauncher: launcher
+        )
+
+        let didLaunch = model.launchAddCommandInTerminal(for: .claudeCode)
+
+        XCTAssertTrue(didLaunch)
+        XCTAssertEqual(launcher.commands.count, 1)
+        XCTAssertTrue(launcher.commands[0].contains("claude mcp add"))
+        XCTAssertTrue(launcher.commands[0].contains("--scope user"))
+        XCTAssertTrue(launcher.commands[0].contains(executableURL.path))
     }
 
     @MainActor
@@ -651,5 +683,15 @@ private struct TestConnectionTester: MCPServerConnectionTesting {
 
     func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
         state
+    }
+}
+
+private final class TestTerminalLauncher: MCPConnectorTerminalLaunching {
+    var commands: [String] = []
+    var result = true
+
+    func launchInTerminal(command: String) -> Bool {
+        commands.append(command)
+        return result
     }
 }

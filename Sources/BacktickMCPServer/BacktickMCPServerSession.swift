@@ -195,7 +195,7 @@ final class BacktickMCPServerSession {
         [
             [
                 "name": "list_notes",
-                "description": "List Stack notes directly from Backtick storage.",
+                "description": "List Stack notes grouped by category: pinned (permanent prompts), active (today's work), and copied (used prompts). Each group is returned separately.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -434,10 +434,26 @@ final class BacktickMCPServerSession {
     private func listNotes(arguments: [String: Any]) throws -> [String: Any] {
         let scope = try parseScope(arguments["scope"])
         let notes = try readService.listNotes(scope: scope)
+
+        let pinned = notes.filter { $0.isPinned }
+        let active = notes.filter { !$0.isPinned && !$0.isCopied }
+        let copied = notes.filter { !$0.isPinned && $0.isCopied }
+
         return [
             "scope": scope.serializedValue,
             "count": notes.count,
-            "notes": notes.map(noteDictionary),
+            "pinned": [
+                "count": pinned.count,
+                "notes": pinned.map(noteDictionary),
+            ],
+            "active": [
+                "count": active.count,
+                "notes": active.map(noteDictionary),
+            ],
+            "copied": [
+                "count": copied.count,
+                "notes": copied.map(noteDictionary),
+            ],
         ]
     }
 

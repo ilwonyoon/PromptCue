@@ -583,6 +583,14 @@ final class BacktickMCPServerTests: XCTestCase {
 
     private func notesPayload(from response: [String: Any]) throws -> [[String: Any]] {
         let payload = try toolPayload(from: response)
-        return try XCTUnwrap(payload["notes"] as? [[String: Any]])
+
+        var allNotes: [[String: Any]] = []
+        for group in ["pinned", "active", "copied"] {
+            if let section = payload[group] as? [String: Any],
+               let notes = section["notes"] as? [[String: Any]] {
+                allNotes.append(contentsOf: notes)
+            }
+        }
+        return allNotes
     }
 }

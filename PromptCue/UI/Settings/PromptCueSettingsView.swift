@@ -645,14 +645,8 @@ struct PromptCueSettingsView: View {
         } else {
             switch focusedPrimaryAction(for: client) {
             case .writeConfig:
-                Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
-                    let wasExpanded = isSetupExpanded(for: client)
-                    expandedSetupClient = wasExpanded ? nil : client.client
-                    expandedManualSetupClient = nil
-                    expandedToolsClient = nil
-                    if !wasExpanded {
-                        didCopySetupCommand = false
-                    }
+                Button("Connect") {
+                    mcpConnectorSettingsModel.writeDirectConfig(for: client.client)
                 }
             case .copyAddCommand:
                 Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
@@ -1533,7 +1527,7 @@ struct PromptCueSettingsView: View {
     private func clientBadgeAssetName(for client: MCPConnectorClient) -> String? {
         switch client {
         case .claudeDesktop:
-            return nil
+            return "ClaudeDesktopIcon"
         case .claudeCode:
             return "ClaudeCodeIcon"
         case .codex:

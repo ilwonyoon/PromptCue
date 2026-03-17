@@ -55,7 +55,7 @@ enum SettingsTab: Int, CaseIterable, Hashable {
         case .stack:
             return "Retention and export defaults."
         case .connectors:
-            return "Connect Claude Code and Codex to Backtick."
+            return "Connect Claude Desktop, Claude Code, and Codex to Backtick."
         }
     }
 }

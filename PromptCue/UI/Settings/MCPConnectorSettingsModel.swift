@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 
 enum MCPConnectorClient: String, CaseIterable, Identifiable {
+    case claudeDesktop
     case claudeCode
     case codex
 
@@ -9,6 +10,8 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .claudeDesktop:
+            return "Claude Desktop"
         case .claudeCode:
             return "Claude Code"
         case .codex:
@@ -18,6 +21,8 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
 
     var documentationURL: URL {
         switch self {
+        case .claudeDesktop:
+            return URL(string: "https://modelcontextprotocol.io/quickstart/user")!
         case .claudeCode:
             return URL(string: "https://docs.anthropic.com/en/docs/claude-code/mcp")!
         case .codex:
@@ -25,8 +30,20 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
         }
     }
 
-    var executableName: String {
+    /// Whether this client uses a CLI command (`claude mcp add`) vs direct config file writing.
+    var usesDirectConfig: Bool {
         switch self {
+        case .claudeDesktop:
+            return true
+        case .claudeCode, .codex:
+            return false
+        }
+    }
+
+    var executableName: String? {
+        switch self {
+        case .claudeDesktop:
+            return nil
         case .claudeCode:
             return "claude"
         case .codex:
@@ -36,6 +53,8 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
 
     var homeConfigRelativePath: String {
         switch self {
+        case .claudeDesktop:
+            return "Library/Application Support/Claude/claude_desktop_config.json"
         case .claudeCode:
             return ".claude.json"
         case .codex:
@@ -43,8 +62,10 @@ enum MCPConnectorClient: String, CaseIterable, Identifiable {
         }
     }
 
-    var projectConfigRelativePath: String {
+    var projectConfigRelativePath: String? {
         switch self {
+        case .claudeDesktop:
+            return nil
         case .claudeCode:
             return ".mcp.json"
         case .codex:
@@ -149,6 +170,12 @@ struct MCPConnectorClientStatus: Equatable {
     var hasDetectedCLI: Bool {
         cliPath != nil
     }
+
+    /// Whether this client is ready for setup. Direct-config clients (Claude Desktop)
+    /// don't need a CLI; CLI-based clients (Claude Code, Codex) do.
+    var isClientAvailable: Bool {
+        client.usesDirectConfig || hasDetectedCLI
+    }
 }
 
 struct MCPConnectorInspection: Equatable {
@@ -163,12 +190,15 @@ struct MCPConnectorInspection: Equatable {
 }
 
 enum MCPConnectorPrimaryAction: Equatable {
+    case writeConfig
     case copyAddCommand
     case openDocumentation
     case runServerTest
 
     var title: String {
         switch self {
+        case .writeConfig:
+            return "Connect"
         case .copyAddCommand:
             return "Set Up"
         case .openDocumentation:
@@ -353,15 +383,20 @@ struct MCPConnectorInspector {
         for client: MCPConnectorClient,
         launchSpec: MCPServerLaunchSpec?
     ) -> MCPConnectorClientStatus {
-        let projectConfigURL = repositoryRootURL?.appendingPathComponent(client.projectConfigRelativePath)
+        let projectConfigURL: URL?
+        if let relativePath = client.projectConfigRelativePath {
+            projectConfigURL = repositoryRootURL?.appendingPathComponent(relativePath)
+        } else {
+            projectConfigURL = nil
+        }
         let homeConfigURL = homeDirectoryURL.appendingPathComponent(client.homeConfigRelativePath)
 
         return MCPConnectorClientStatus(
             client: client,
-            cliPath: locateExecutable(named: client.executableName),
+            cliPath: client.executableName.flatMap { locateExecutable(named: $0) },
             projectConfig: projectConfigURL.map { configStatus(for: client, url: $0) },
             homeConfig: configStatus(for: client, url: homeConfigURL),
-            addCommand: launchSpec.map { addCommand(for: client, launchSpec: $0) },
+            addCommand: launchSpec.flatMap { addCommand(for: client, launchSpec: $0) },
             configSnippet: launchSpec.map { configSnippet(for: client, launchSpec: $0) }
         )
     }
@@ -390,7 +425,7 @@ struct MCPConnectorInspector {
         url: URL
     ) -> Bool {
         switch client {
-        case .claudeCode:
+        case .claudeDesktop, .claudeCode:
             return hasBacktickConfigurationInClaudeJSON(url: url)
         case .codex:
             return hasBacktickConfigurationInCodexTOML(url: url)
@@ -497,8 +532,10 @@ struct MCPConnectorInspector {
     private func addCommand(
         for client: MCPConnectorClient,
         launchSpec: MCPServerLaunchSpec
-    ) -> String {
+    ) -> String? {
         switch client {
+        case .claudeDesktop:
+            return nil
         case .claudeCode:
             return "claude mcp add --transport stdio --scope project backtick -- \(launchSpec.commandLine)"
         case .codex:
@@ -511,7 +548,7 @@ struct MCPConnectorInspector {
         launchSpec: MCPServerLaunchSpec
     ) -> String {
         switch client {
-        case .claudeCode:
+        case .claudeDesktop, .claudeCode:
             let object: [String: Any] = [
                 "mcpServers": [
                     "backtick": [
@@ -617,11 +654,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     var serverSummary: String {
         if inspection.bundledHelperPath != nil {
-            return "Backtick is already built into this app. Choose Claude Code or Codex below to finish setup."
+            return "Backtick is already built into this app. Choose a client below to finish setup."
         }
 
         if inspection.repositoryRootPath != nil {
-            return "Backtick can launch its MCP helper from this source checkout. Choose Claude Code or Codex below to finish setup."
+            return "Backtick can launch its MCP helper from this source checkout. Choose a client below to finish setup."
         }
 
         return "Backtick cannot generate setup commands until its MCP helper is available."
@@ -654,14 +691,14 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     var serverOverviewDetail: String {
         if !isServerAvailable {
-            return "Backtick itself is unavailable right now. Open the fix section below before trying Claude Code or Codex."
+            return "Backtick itself is unavailable right now. Open the fix section below before trying any client."
         }
 
         if hasConfiguredClients {
             return "Backtick is ready in this build. Each client below will tell you whether to verify setup or fix a problem."
         }
 
-        return "Backtick is ready in this build. Pick Claude Code or Codex below and follow the next step shown there."
+        return "Backtick is ready in this build. Pick any client below and follow the next step shown there."
     }
 
     var serverTroubleshootingTitle: String {
@@ -681,7 +718,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func clientSetupTitle(for client: MCPConnectorClientStatus) -> String {
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "CLI not found"
         }
 
@@ -722,11 +759,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func clientSummary(for client: MCPConnectorClientStatus) -> String {
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title) on this Mac first, then come back to set up Backtick."
         }
 
         if !client.hasConfiguredScope {
+            if client.client.usesDirectConfig {
+                return "Click Connect to add Backtick to \(client.client.title) automatically."
+            }
+
             if client.hasOtherConfigFiles {
                 return "Backtick is not in this client's config yet. Add it to your project or home config."
             }
@@ -751,7 +792,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func clientProgressSummary(for client: MCPConnectorClientStatus) -> String {
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "\(client.client.title) is required before Backtick can connect here."
         }
 
@@ -778,11 +819,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func clientNextStepTitle(for client: MCPConnectorClientStatus) -> String {
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install \(client.client.title)"
         }
 
         if !client.hasConfiguredScope {
+            if client.client.usesDirectConfig {
+                return "Connect to \(client.client.title)"
+            }
+
             return "Add Backtick to \(client.client.title)"
         }
 
@@ -799,11 +844,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func clientNextStepDetail(for client: MCPConnectorClientStatus) -> String {
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Backtick works through \(client.client.title). Install it first, then come back here to finish setup."
         }
 
         if !client.hasConfiguredScope {
+            if client.client.usesDirectConfig {
+                return "Click Connect and Backtick will write the config file automatically. Restart \(client.client.title) to pick up the change."
+            }
+
             if client.hasOtherConfigFiles {
                 return "Open setup steps, then either run the terminal command or add Backtick manually in the config file."
             }
@@ -829,6 +878,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func primaryActionTitle(for client: MCPConnectorClientStatus) -> String? {
         switch primaryAction(for: client) {
+        case .writeConfig:
+            return "Connect"
         case .copyAddCommand:
             return "Set Up"
         case .openDocumentation:
@@ -861,7 +912,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return "Fix This"
         }
 
-        if !client.hasDetectedCLI {
+        if !client.client.usesDirectConfig, !client.hasDetectedCLI {
             return "Install Help"
         }
 
@@ -893,6 +944,18 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func primaryAction(for client: MCPConnectorClientStatus) -> MCPConnectorPrimaryAction? {
+        if client.client.usesDirectConfig {
+            if !client.hasConfiguredScope {
+                return inspection.launchSpec == nil ? nil : .writeConfig
+            }
+
+            if case .passed = connectionState {
+                return nil
+            }
+
+            return .runServerTest
+        }
+
         if !client.hasDetectedCLI {
             return .openDocumentation
         }
@@ -910,6 +973,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func performPrimaryAction(_ action: MCPConnectorPrimaryAction, for client: MCPConnectorClientStatus) {
         switch action {
+        case .writeConfig:
+            writeDirectConfig(for: client.client)
         case .copyAddCommand:
             copyAddCommand(for: client.client)
         case .openDocumentation:
@@ -922,7 +987,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     var serverTestDetail: String {
         switch connectionState {
         case .idle:
-            return "This checks the Backtick MCP launch command directly. It validates initialize/tools/list without depending on Claude Code or Codex auth state."
+            return "This checks the Backtick MCP launch command directly. It validates initialize/tools/list without depending on any client auth state."
         case .running:
             return "Launching Backtick MCP and waiting for initialize/tools/list…"
         case .passed(let report):
@@ -961,6 +1026,51 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     func copyAddCommand(for client: MCPConnectorClient) {
         copy(inspection.status(for: client).addCommand)
+    }
+
+    func writeDirectConfig(for client: MCPConnectorClient) {
+        guard client.usesDirectConfig else {
+            assertionFailure("writeDirectConfig called for CLI-based client \(client)")
+            return
+        }
+
+        guard let launchSpec = inspection.launchSpec else { return }
+
+        let configURL = URL(fileURLWithPath: inspection.status(for: client).homeConfig.path)
+
+        let serverEntry: [String: Any] = [
+            "command": launchSpec.command,
+            "args": launchSpec.arguments,
+        ]
+
+        var root: [String: Any] = [:]
+
+        if let existingData = try? Data(contentsOf: configURL),
+           let existingJSON = try? JSONSerialization.jsonObject(with: existingData) as? [String: Any] {
+            root = existingJSON
+        }
+
+        var servers = (root["mcpServers"] as? [String: Any]) ?? [:]
+        servers["backtick"] = serverEntry
+        root["mcpServers"] = servers
+
+        let data: Data
+        do {
+            data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+        } catch {
+            NSLog("writeDirectConfig: failed to serialize config: %@", error.localizedDescription)
+            return
+        }
+
+        do {
+            let parentDirectory = configURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
+            try data.write(to: configURL, options: .atomic)
+        } catch {
+            NSLog("writeDirectConfig: failed to write %@: %@", configURL.path, error.localizedDescription)
+        }
+
+        refresh()
     }
 
     func copyConfigSnippet(for client: MCPConnectorClient) {
@@ -1025,7 +1135,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
     func automationExample(for client: MCPConnectorClient) -> String? {
         switch client {
         case .claudeCode:
-            let executable = inspection.status(for: client).cliPath ?? client.executableName
+            let executable = inspection.status(for: client).cliPath ?? (client.executableName ?? "claude")
             let allowedTools = [
                 "mcp__backtick__list_notes",
                 "mcp__backtick__get_note",
@@ -1039,7 +1149,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             \(executable) -p --permission-mode dontAsk --allowedTools "\(allowedTools)" "List active Backtick notes."
             """
 
-        case .codex:
+        case .claudeDesktop, .codex:
             return nil
         }
     }

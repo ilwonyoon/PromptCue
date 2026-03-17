@@ -606,11 +606,15 @@ struct PromptCueSettingsView: View {
             return "Restart Backtick, then verify again."
         }
 
-        if !client.hasDetectedCLI {
+        if !client.isClientAvailable {
             return "Install \(client.client.title) on this Mac."
         }
 
         if !client.hasConfiguredScope {
+            if client.client.usesDirectConfig {
+                return "Click Connect to set up \(client.client.title)."
+            }
+
             return "Add Backtick to \(client.client.title) to connect it."
         }
 
@@ -640,6 +644,16 @@ struct PromptCueSettingsView: View {
             EmptyView()
         } else {
             switch focusedPrimaryAction(for: client) {
+            case .writeConfig:
+                Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
+                    let wasExpanded = isSetupExpanded(for: client)
+                    expandedSetupClient = wasExpanded ? nil : client.client
+                    expandedManualSetupClient = nil
+                    expandedToolsClient = nil
+                    if !wasExpanded {
+                        didCopySetupCommand = false
+                    }
+                }
             case .copyAddCommand:
                 Button(isSetupExpanded(for: client) ? "Hide" : "Connect") {
                     let wasExpanded = isSetupExpanded(for: client)
@@ -690,7 +704,7 @@ struct PromptCueSettingsView: View {
             return .warning
         }
 
-        if !client.hasDetectedCLI {
+        if !client.isClientAvailable {
             return .warning
         }
 
@@ -722,7 +736,7 @@ struct PromptCueSettingsView: View {
             return "Restart"
         }
 
-        if !client.hasDetectedCLI {
+        if !client.isClientAvailable {
             return "Install"
         }
 
@@ -743,7 +757,7 @@ struct PromptCueSettingsView: View {
     }
 
     private func shouldShowConnectorStatusBadge(for client: MCPConnectorClientStatus) -> Bool {
-        client.hasConfiguredScope || !client.hasDetectedCLI || !mcpConnectorSettingsModel.isServerAvailable
+        client.hasConfiguredScope || !client.isClientAvailable || !mcpConnectorSettingsModel.isServerAvailable
     }
 
     private func connectorStatusBadgeTone(for client: MCPConnectorClientStatus) -> SettingsStatusBadge.Tone {
@@ -751,7 +765,7 @@ struct PromptCueSettingsView: View {
             return .warning
         }
 
-        if !client.hasDetectedCLI {
+        if !client.isClientAvailable {
             return .warning
         }
 
@@ -783,6 +797,9 @@ struct PromptCueSettingsView: View {
 
     private func manualSetupDestinationSummary(for client: MCPConnectorClientStatus) -> String {
         switch client.client {
+        case .claudeDesktop:
+            return "Backtick writes this config automatically. Edit only if you need to customize."
+
         case .claudeCode:
             if client.projectConfig != nil {
                 return "Paste this into ~/.claude.json for global use, or .mcp.json in this project for project-only use."
@@ -801,6 +818,10 @@ struct PromptCueSettingsView: View {
 
     private func projectConfigButtonTitle(for client: MCPConnectorClient) -> String {
         switch client {
+        case .claudeDesktop:
+            // Claude Desktop has no project config (projectConfigRelativePath is nil),
+            // so this case is unreachable in practice.
+            return "Open Config"
         case .claudeCode:
             return "Open .mcp.json"
         case .codex:
@@ -810,6 +831,8 @@ struct PromptCueSettingsView: View {
 
     private func homeConfigButtonTitle(for client: MCPConnectorClient) -> String {
         switch client {
+        case .claudeDesktop:
+            return "Open claude_desktop_config.json"
         case .claudeCode:
             return "Open ~/.claude.json"
         case .codex:
@@ -818,6 +841,10 @@ struct PromptCueSettingsView: View {
     }
 
     private func shouldShowInlineSetup(for client: MCPConnectorClientStatus) -> Bool {
+        if client.client.usesDirectConfig {
+            return false
+        }
+
         guard client.hasDetectedCLI, !client.hasConfiguredScope else {
             return false
         }
@@ -977,7 +1004,7 @@ struct PromptCueSettingsView: View {
                     }
 
                     HStack(spacing: PrimitiveTokens.Space.xs) {
-                        if client.hasDetectedCLI {
+                        if client.isClientAvailable {
                             Button(mcpConnectorSettingsModel.configButtonTitle(for: client)) {
                                 mcpConnectorSettingsModel.revealPreferredConfig(for: client.client)
                             }
@@ -1079,7 +1106,7 @@ struct PromptCueSettingsView: View {
                                     }
                                     .controlSize(.small)
 
-                                    if client.hasDetectedCLI {
+                                    if client.isClientAvailable {
                                         Button("Open Config File") {
                                             mcpConnectorSettingsModel.revealPreferredConfig(for: client.client)
                                         }
@@ -1195,6 +1222,8 @@ struct PromptCueSettingsView: View {
         for client: MCPConnectorClientStatus
     ) {
         switch action {
+        case .writeConfig:
+            mcpConnectorSettingsModel.performPrimaryAction(action, for: client)
         case .copyAddCommand:
             setupGuideClient = client.client
         case .openDocumentation:
@@ -1239,7 +1268,7 @@ struct PromptCueSettingsView: View {
                             }
                         }
 
-                        if status.hasDetectedCLI || status.configSnippet != nil {
+                        if status.isClientAvailable || status.configSnippet != nil {
                             HStack {
                                 Button("Need another way?") {
                                     alternateSetupClient = client
@@ -1319,7 +1348,7 @@ struct PromptCueSettingsView: View {
                             }
                         }
 
-                        if status.hasDetectedCLI {
+                        if status.isClientAvailable {
                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.sm) {
                                 Button("Open \(client.title) Config") {
                                     mcpConnectorSettingsModel.openPreferredConfig(for: client)
@@ -1428,7 +1457,7 @@ struct PromptCueSettingsView: View {
     }
 
     private func manualSetupVisible(for client: MCPConnectorClientStatus) -> Bool {
-        guard client.hasDetectedCLI else {
+        guard client.isClientAvailable else {
             return false
         }
 
@@ -1436,7 +1465,7 @@ struct PromptCueSettingsView: View {
     }
 
     private func troubleshootingVisible(for client: MCPConnectorClientStatus) -> Bool {
-        if !client.hasDetectedCLI {
+        if !client.isClientAvailable {
             return false
         }
 
@@ -1503,6 +1532,8 @@ struct PromptCueSettingsView: View {
 
     private func clientBadgeAssetName(for client: MCPConnectorClient) -> String? {
         switch client {
+        case .claudeDesktop:
+            return nil
         case .claudeCode:
             return "ClaudeCodeIcon"
         case .codex:
@@ -1512,6 +1543,8 @@ struct PromptCueSettingsView: View {
 
     private func clientBadgeSymbol(for client: MCPConnectorClient) -> String {
         switch client {
+        case .claudeDesktop:
+            return "message"
         case .claudeCode:
             return "chevron.left.forwardslash.chevron.right"
         case .codex:

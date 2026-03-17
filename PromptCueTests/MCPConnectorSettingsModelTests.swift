@@ -410,6 +410,183 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertTrue(model.serverStatusFootnote.contains(bundledHelperURL.path))
     }
 
+    func testInspectorDetectsClaudeDesktopConfiguredStatus() throws {
+        let claudeDesktopConfigURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
+        try FileManager.default.createDirectory(
+            at: claudeDesktopConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "/Applications/Backtick.app/Contents/Helpers/BacktickMCP",
+              "args": []
+            }
+          }
+        }
+        """.write(to: claudeDesktopConfigURL, atomically: true, encoding: .utf8)
+
+        let inspection = makeInspector().inspect()
+
+        XCTAssertEqual(inspection.status(for: .claudeDesktop).homeConfig.presence, .configured)
+        XCTAssertNil(inspection.status(for: .claudeDesktop).projectConfig)
+        XCTAssertNil(inspection.status(for: .claudeDesktop).cliPath)
+        XCTAssertNil(inspection.status(for: .claudeDesktop).addCommand)
+        XCTAssertTrue(inspection.status(for: .claudeDesktop).configSnippet?.contains("BacktickMCP") == true)
+    }
+
+    func testInspectorDetectsClaudeDesktopMissingConfig() throws {
+        let inspection = makeInspector().inspect()
+
+        XCTAssertEqual(inspection.status(for: .claudeDesktop).homeConfig.presence, .missing)
+        XCTAssertNil(inspection.status(for: .claudeDesktop).projectConfig)
+    }
+
+    func testInspectorDetectsClaudeDesktopPresentWithoutBacktick() throws {
+        let claudeDesktopConfigURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
+        try FileManager.default.createDirectory(
+            at: claudeDesktopConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "mcpServers": {
+            "somethingElse": { "command": "node", "args": ["server.js"] }
+          }
+        }
+        """.write(to: claudeDesktopConfigURL, atomically: true, encoding: .utf8)
+
+        let inspection = makeInspector().inspect()
+
+        XCTAssertEqual(inspection.status(for: .claudeDesktop).homeConfig.presence, .presentWithoutBacktick)
+    }
+
+    @MainActor
+    func testClaudeDesktopIsClientAvailableWithoutCLI() throws {
+        let freshHomeDirectoryURL = tempDirectoryURL.appendingPathComponent("FreshHome", isDirectory: true)
+        try FileManager.default.createDirectory(at: freshHomeDirectoryURL, withIntermediateDirectories: true)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: MCPConnectorInspector(
+                environment: [:],
+                homeDirectoryURL: freshHomeDirectoryURL,
+                repositoryRootURL: repositoryRootURL
+            ),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let desktop = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeDesktop }))
+
+        XCTAssertNil(desktop.cliPath)
+        XCTAssertTrue(desktop.isClientAvailable)
+        XCTAssertNotEqual(model.clientSetupTitle(for: desktop), "CLI not found")
+        XCTAssertEqual(model.clientNextStepTitle(for: desktop), "Connect to Claude Desktop")
+    }
+
+    @MainActor
+    func testClaudeDesktopPrimaryActionIsWriteConfigWhenNotConfigured() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+        let desktop = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeDesktop }))
+
+        XCTAssertEqual(model.primaryAction(for: desktop), .writeConfig)
+        XCTAssertEqual(model.primaryActionTitle(for: desktop), "Connect")
+    }
+
+    @MainActor
+    func testClaudeDesktopWriteConfigCreatesFile() throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+
+        model.writeDirectConfig(for: .claudeDesktop)
+
+        let configURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
+        let data = try Data(contentsOf: configURL)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let servers = try XCTUnwrap(json["mcpServers"] as? [String: Any])
+        let backtick = try XCTUnwrap(servers["backtick"] as? [String: Any])
+
+        XCTAssertEqual(backtick["command"] as? String, executableURL.path)
+        XCTAssertEqual(backtick["args"] as? [String], [])
+    }
+
+    @MainActor
+    func testClaudeDesktopWriteConfigPreservesExistingServers() throws {
+        let claudeDesktopConfigURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
+        try FileManager.default.createDirectory(
+            at: claudeDesktopConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {
+          "mcpServers": {
+            "other-server": { "command": "node", "args": ["server.js"] }
+          }
+        }
+        """.write(to: claudeDesktopConfigURL, atomically: true, encoding: .utf8)
+
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable))
+        )
+
+        model.writeDirectConfig(for: .claudeDesktop)
+
+        let data = try Data(contentsOf: claudeDesktopConfigURL)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let servers = try XCTUnwrap(json["mcpServers"] as? [String: Any])
+
+        XCTAssertNotNil(servers["other-server"], "Existing server entries should be preserved")
+        XCTAssertNotNil(servers["backtick"], "Backtick server entry should be added")
+    }
+
     private func installClientExecutable(named executableName: String) throws {
         let executableURL = homeDirectoryURL
             .appendingPathComponent(".local/bin", isDirectory: true)

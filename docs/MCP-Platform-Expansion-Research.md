@@ -301,9 +301,21 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
 
 #### Tool description design — making AI proactive
 
-Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because the tool descriptions tell it to. The tool description IS the AI's behavioral instruction. This is the single most important design decision for Warm tools.
+Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because the tool descriptions tell it to. The tool description IS the AI's behavioral instruction. This is the single most important design decision for **both Hot and Warm tools**.
 
-**Principles (learned from Muninn):**
+**External research backing this claim:**
+
+| Source | Finding |
+|--------|---------|
+| [Tenable: MCP Prompt Injection](https://www.tenable.com/blog/mcp-prompt-injection-not-just-for-evil) | Tool `description` field alone can force LLMs to call a tool before every other tool. Description = behavioral instruction, not documentation. |
+| ["Smelly Descriptions" (arXiv:2602.14878)](https://arxiv.org/abs/2602.14878) | 97.1% of MCP tools have description defects. Adding **Guidelines** (when/why to use) improves task success +5.85pp. But all 6 components = 67% more tokens → **Guidelines + Purpose only** is the sweet spot. |
+| [MCP Memory Server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) | Anthropic's official pattern: minimal tool description + companion system prompt ("Always begin by retrieving all relevant information"). |
+| [Anthropic: Writing effective tools](https://www.anthropic.com/engineering/writing-tools-for-agents) | "Treat descriptions as prompt engineering." Namespace related tools. Return human-readable context. |
+| Cursor Memories failure (v2.1.x removed) | Auto-accumulated facts → unpredictable behavior → rolled back to static Rules files. Lesson: human review loop is essential. |
+
+**⚠️ Opus 4.6 caveat**: Anthropic warns newer models are significantly more proactive. Descriptions that worked for older models may cause over-triggering. Always include an "ask the user before saving" gate for write operations.
+
+**Principles (learned from Muninn + external research):**
 
 | Principle | Tool description pattern | Why |
 |-----------|------------------------|-----|
@@ -339,6 +351,27 @@ update_document:
    a section. Prefer this over save_document for small changes.
    Always specify section header for replace/delete actions."
 ```
+
+#### Hot (Stack) tool description improvements — immediate action
+
+The same principles apply to existing Hot tools. Current descriptions are functional but lack Guidelines (when to call). This is Phase 1 work — zero cost, high leverage.
+
+**Current vs. improved:**
+
+| Tool | Current description | Problem | Improved description |
+|------|-------------------|---------|---------------------|
+| `list_notes` | "List Stack notes grouped by category: pinned, active, and copied." | No trigger guidance — AI doesn't know when to call | "List the user's Stack notes from Backtick. **Call this at the start of a new task, when the user mentions a project or topic that might have prior notes, or when you need background before making a recommendation.** Notes contain prompts, decisions, and action items saved from previous AI sessions." |
+| `create_note` | "Create a Stack note directly in Backtick storage." | No proactive save guidance | "Save important context, decisions, or action items to Backtick for use in future AI sessions. **Call this when the conversation produces reusable knowledge — project decisions, task outcomes, or anything the user might need in a different tool or session. Ask the user before saving.**" |
+| `get_note` | "Fetch one Stack note and its copy-event history." | OK — naturally follows list | No change needed |
+| `update_note` | "Update Stack note text or metadata without copying it." | OK | No change needed |
+| `delete_note` | "Delete a Stack note directly from Backtick storage." | OK | No change needed |
+| `mark_notes_executed` | "Mark Stack notes executed by recording copied state..." | OK | No change needed |
+
+**Three-layer retrieval design** (redundant — any one layer working = retrieval happens):
+
+1. **MCP resource** (Phase 2): Expose "active note titles" as MCP resource → passive injection at session start, no tool call needed
+2. **Tool description** (Phase 1): `list_notes` description says "call at task start, when project mentioned"
+3. **Rules file** (Phase 2): Auto-generate CLAUDE.md/.cursorrules snippet: "At session start, check Backtick for prior context"
 
 #### Content quality rules
 
@@ -941,18 +974,89 @@ Capture + Stack (Hot) is the shipping product. Warm (Memory) is a post-launch fe
 |---|------|--------|--------|-----------------|
 | 1 | Claude Desktop stdio registration in Settings | S | **✅ DONE** (PR #58, 2026-03-17) | Claude Desktop as MCP client for existing Hot tools |
 | 1b | Pin feature — permanent prompt cards | M | **✅ DONE** (commit `28ee95f`, 2026-03-17) | Pinned cards never expire, horizontal carousel UI |
+| 1c | Hot tool description optimization | S | Not started | AI proactively retrieves/saves Stack notes |
+| 1d | `list_notes` summary field | S | Not started | Two-tier retrieval — save context window tokens |
+| 1e | Cursor / Windsurf one-click connector | M | Not started | Expand platform reach |
 
 Claude Desktop connector: one-click config write to `claude_desktop_config.json`, no CLI required. Includes `usesDirectConfig` guard, error logging, and full test coverage.
+
+#### 1c detail: Hot tool description optimization
+
+**What**: Update `list_notes` and `create_note` descriptions in `BacktickMCPServerSession.swift` to include Guidelines (when to call) alongside Purpose (what it does). See "Hot (Stack) tool description improvements" section above for exact text.
+
+**Why**: Tool description is the highest-leverage, zero-cost change. Research shows Guidelines component alone improves task success +5.85pp (arXiv:2602.14878). Tenable research proves description text directly controls LLM behavior.
+
+**File**: `Sources/BacktickMCPServer/BacktickMCPServerSession.swift` — `list_notes` (line ~198), `create_note` (line ~228)
+
+**Verification**: Manual test — connect Claude Desktop, start new conversation, mention a project name → AI should call `list_notes` without being asked. Ask AI to summarize a decision → AI should offer to `create_note`.
+
+**⚠️ Opus 4.6 guard**: `create_note` must include "Ask the user before saving" to prevent over-triggering.
+
+#### 1d detail: `list_notes` summary field
+
+**What**: Add a `summary` field (1-line, ≤100 chars) to `list_notes` response. Currently returns full text, which wastes context window when there are many notes.
+
+**Why**: Two-tier retrieval pattern (validated by Mem0, Felix/OpenClaw). AI reads summaries → picks relevant notes → calls `get_note` for full text.
+
+**Files**: `BacktickMCPServerSession.swift` (response formatting), possibly `CaptureCard.swift` (if summary is a stored field vs. computed truncation).
+
+**Decision needed**: Stored summary (AI generates at creation) vs. computed truncation (first N chars). Computed is simpler for Phase 1; stored is better long-term.
+
+#### 1e detail: Cursor / Windsurf one-click connector
+
+**What**: Apply Claude Desktop's one-click config write pattern to Cursor (`.cursor/mcp.json`) and Windsurf (`~/.codeium/windsurf/mcp_config.json`).
+
+**Pattern**: Same as Claude Desktop — detect installation, generate config JSON, write on button click. See existing `MCPConnectorSettingsModel.swift`.
 
 **Post-launch Phase 1 (Warm memory via stdio):**
 
 | # | Task | Effort | Status | What it unlocks |
 |---|------|--------|--------|-----------------|
 | 2 | `Project` + `ProjectDocument` models + DB migration + services | M | Not started | Warm storage layer |
+| 2b | `supersededBy` pointer in data model | S | Not started | Immutable history — never overwrite, always append |
 | 3 | MCP Warm tools (save/update/recall/list/delete/search/manage) | M | Not started | AI can save/recall project context |
+| 3b | MCP resource: active note/doc title list | S | Not started | Passive context injection at session start |
+| 3c | CLAUDE.md / .cursorrules auto-generation | S | Not started | Rules file layer for proactive retrieval |
 | 4 | Memory panel (NSPanel, project list → topic list → doc viewer/editor) | M | Not started | Human can review/edit AI-saved documents |
+| 4b | MCP connection health monitor + menu bar status | M | Not started | Detect/alert on connection drops |
+| 4c | Hot → Warm auto-promotion with review loop | M | Not started | TTL-expiring notes get structured into Memory |
 
 → Claude Desktop, Claude Code, Codex can save/recall project documents. Human reviews in Memory panel.
+
+#### 2b detail: Immutable history (`supersededBy`)
+
+**What**: When AI updates a Warm document, create a new record and point old record's `supersededBy` field to the new one. Never overwrite in place.
+
+**Why**: Mem0's memory corruption bug (github.com/mem0ai/mem0/issues/3322) is caused by in-place overwrites. Felix's `supersededBy` pattern prevents this. Enables "time travel" — see what a document looked like last week.
+
+#### 3b detail: MCP resource for passive context
+
+**What**: Expose "active note/doc titles" as an MCP resource (not a tool). Clients that support resources auto-inject this into context at session start.
+
+**Why**: Resources don't require AI to "decide" to call anything — the client injects them. This is Layer 1 of the three-layer retrieval design. Currently most clients have limited resource support, so this supplements (not replaces) tool description guidance.
+
+**Fallback**: For clients that don't support MCP resources, the tool description layer (Layer 2) and rules file layer (Layer 3) cover retrieval.
+
+#### 3c detail: CLAUDE.md / .cursorrules auto-generation
+
+**What**: When user connects a client, offer to add a snippet to their project's rules file:
+```
+When the user mentions a project, feature, or topic, check Backtick
+(list_notes / list_documents) for related context before responding.
+At session start, list active Backtick notes to load prior context.
+When producing important decisions or action items, offer to save
+them to Backtick (create_note / save_document) for cross-session persistence.
+```
+
+**Why**: This is the MCP Memory Server's companion prompt pattern (Anthropic's official approach). Rules files are the most deterministic way to control AI behavior — even if tool descriptions are ignored, rules files are loaded every session.
+
+#### 4c detail: Hot → Warm auto-promotion
+
+**What**: When a Stack note approaches TTL expiry (8h), offer to promote it to Warm Memory instead of deleting.
+
+**Why**: Mem0's auto-extraction is valuable but must include human review (Cursor Memories failed without it). Flow: AI generates structured Warm document draft → user reviews in Memory panel → approved version persists.
+
+**⚠️ Cursor Memories lesson**: Auto-accumulation without review = unpredictable behavior. Always show the user what's being promoted and let them edit/reject.
 
 **Post-launch Phase 2 (HTTP transport):**
 

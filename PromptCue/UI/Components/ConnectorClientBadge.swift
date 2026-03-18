@@ -23,14 +23,15 @@ struct ConnectorClientBadge: View {
         let badgeSize = PrimitiveTokens.Size.connectorBadge
         let badgeRadius = PrimitiveTokens.Size.connectorBadgeCornerRadius
         let badgeShape = RoundedRectangle(cornerRadius: badgeRadius, style: .continuous)
+        let assetBoxSize = badgeSize - 4
 
         ZStack {
             if let assetName {
                 Image(assetName)
                     .resizable()
                     .interpolation(.high)
-                    .scaledToFill()
-                    .frame(width: badgeSize, height: badgeSize)
+                    .scaledToFit()
+                    .frame(width: assetBoxSize, height: assetBoxSize)
                     .clipShape(badgeShape)
             } else {
                 RoundedRectangle(cornerRadius: PrimitiveTokens.Radius.md, style: .continuous)

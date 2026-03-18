@@ -240,6 +240,10 @@ final class AppModel: ObservableObject {
         performNonCriticalStartupMaintenance()
     }
 
+    func refreshCardsForExternalChanges() {
+        reloadCards(runNonCriticalMaintenance: false)
+    }
+
     func toggleSelection(for card: CaptureCard) {
         if selectedCardIDs.contains(card.id) {
             selectedCardIDs.remove(card.id)

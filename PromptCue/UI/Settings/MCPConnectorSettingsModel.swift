@@ -203,6 +203,9 @@ extension Notification.Name {
     static let experimentalMCPHTTPSettingsDidChange = Notification.Name(
         "MCPConnectorSettingsModel.experimentalMCPHTTPSettingsDidChange"
     )
+    static let experimentalMCPHTTPRetryRequested = Notification.Name(
+        "MCPConnectorSettingsModel.experimentalMCPHTTPRetryRequested"
+    )
     static let experimentalMCPHTTPOAuthResetRequested = Notification.Name(
         "MCPConnectorSettingsModel.experimentalMCPHTTPOAuthResetRequested"
     )
@@ -1134,6 +1137,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         return experimentalRemotePublicBaseURL == nil
+            || experimentalRemoteProbeIssue == .publicEndpointUnreachable
     }
 
     var experimentalRemoteShouldShowInlineChatGPTMCPURL: Bool {
@@ -1434,7 +1438,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     func retryExperimentalRemote() {
-        notificationCenter.post(name: .experimentalMCPHTTPSettingsDidChange, object: self)
+        experimentalRemoteProbeIssue = nil
+        notificationCenter.post(name: .experimentalMCPHTTPRetryRequested, object: self)
     }
 
     func performExperimentalRemoteStatusAction(_ action: ExperimentalMCPHTTPStatusAction) {
@@ -1462,7 +1467,9 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         if lowercasedChunk.contains("served protected remote request method=") {
+            experimentalRemoteRecoveryIssue = nil
             experimentalRemoteHasSeenRemoteSuccess = true
+            experimentalRemoteProbeIssue = nil
         }
     }
 

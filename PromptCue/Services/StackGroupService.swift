@@ -107,12 +107,6 @@ final class StackGroupService {
         }
     }
 
-    private static let mergedDateFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
-        return formatter
-    }()
-
     private func buildMergedText(
         title: String,
         notes: [CaptureCard],
@@ -120,14 +114,30 @@ final class StackGroupService {
     ) -> String {
         var parts: [String] = ["# \(title)"]
 
-        for note in notes {
-            let shortID = note.id.uuidString.lowercased().prefix(8)
-            let dateString = Self.mergedDateFormatter.string(from: note.createdAt)
-            parts.append("\(separator) [note:\(shortID) | \(dateString)]")
-            parts.append(note.text)
+        for (index, note) in notes.enumerated() {
+            if index > 0, !separator.isEmpty, separator != "---" {
+                parts.append(separator)
+            }
+            parts.append(bulletFormatted(note.text))
         }
 
         return parts.joined(separator: "\n\n")
+    }
+
+    private func bulletFormatted(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lines = trimmed.components(separatedBy: .newlines)
+        guard let firstLine = lines.first else {
+            return "- "
+        }
+
+        var formattedLines = ["- \(firstLine)"]
+        formattedLines.append(
+            contentsOf: lines.dropFirst().map { line in
+                line.isEmpty ? "  " : "  \(line)"
+            }
+        )
+        return formattedLines.joined(separator: "\n")
     }
 
     private func deduplicatePreservingOrder(_ ids: [UUID]) -> [UUID] {

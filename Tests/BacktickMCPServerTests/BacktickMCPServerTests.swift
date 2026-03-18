@@ -1,6 +1,7 @@
 import Foundation
 import XCTest
 @testable import BacktickMCPServer
+import PromptCueCore
 
 final class BacktickMCPServerTests: XCTestCase {
     private var tempDirectoryURL: URL!
@@ -189,6 +190,39 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(deletePayload["deleted"] as? Bool, true)
     }
 
+    func testCreateNotePostsStackDidChangeNotification() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let expectation = expectation(description: "stack change notification")
+        let center = DistributedNotificationCenter.default()
+        let observer = center.addObserver(
+            forName: .backtickStackDidChange,
+            object: nil,
+            queue: .main
+        ) { notification in
+            let tool = notification.userInfo?["tool"] as? String
+            if tool == "create_note" {
+                expectation.fulfill()
+            }
+        }
+        defer { center.removeObserver(observer) }
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Created via MCP",
+                ],
+            ]
+        )
+
+        await fulfillment(of: [expectation], timeout: 2)
+    }
+
     func testCreateNoteRejectsMixedScriptTags() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
@@ -358,8 +392,9 @@ final class BacktickMCPServerTests: XCTestCase {
         let mergedText = try XCTUnwrap(groupedNote["text"] as? String)
 
         XCTAssertTrue(mergedText.contains("# Merged Notes"))
-        XCTAssertTrue(mergedText.contains("Note A"))
-        XCTAssertTrue(mergedText.contains("Note B"))
+        XCTAssertTrue(mergedText.contains("- Note A"))
+        XCTAssertTrue(mergedText.contains("- Note B"))
+        XCTAssertFalse(mergedText.contains("\n\n---\n\n"))
         XCTAssertEqual(groupedNote["tags"] as? [String], ["bug", "ui", "mcp"])
         XCTAssertEqual(payload["archivedCount"] as? Int, 0)
 
@@ -376,7 +411,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(activeNotes.count, 3)
     }
 
-    func testGroupNotesMergedTextContainsSourceIDs() async throws {
+    func testGroupNotesMergedTextOmitsSourceMetadataMarkers() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
@@ -406,9 +441,10 @@ final class BacktickMCPServerTests: XCTestCase {
         let payload = try toolPayload(from: groupResponse)
         let groupedNote = try XCTUnwrap(payload["groupedNote"] as? [String: Any])
         let mergedText = try XCTUnwrap(groupedNote["text"] as? String)
-        let shortID = String(id.prefix(8))
 
-        XCTAssertTrue(mergedText.contains("note:\(shortID)"))
+        XCTAssertTrue(mergedText.contains("# Single Group"))
+        XCTAssertTrue(mergedText.contains("- Source note one"))
+        XCTAssertFalse(mergedText.contains("[note:"))
     }
 
     func testGroupNotesInvalidIDReturnsToolError() async throws {

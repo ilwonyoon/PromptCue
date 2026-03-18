@@ -425,27 +425,41 @@ final class BacktickMCPServerSession {
     private func callTool(name: String, arguments: [String: Any]) -> [String: Any] {
         do {
             let value: Any
+            let mutatesStack: Bool
             switch name {
             case "list_notes":
+                mutatesStack = false
                 value = try listNotes(arguments: arguments)
             case "get_note":
+                mutatesStack = false
                 value = try getNote(arguments: arguments)
             case "create_note":
+                mutatesStack = true
                 value = try createNote(arguments: arguments)
             case "update_note":
+                mutatesStack = true
                 value = try updateNote(arguments: arguments)
             case "delete_note":
+                mutatesStack = true
                 value = try deleteNote(arguments: arguments)
             case "mark_notes_executed":
+                mutatesStack = true
                 value = try markNotesExecuted(arguments: arguments)
             case "classify_notes":
+                mutatesStack = false
                 value = try classifyNotes(arguments: arguments)
             case "group_notes":
+                mutatesStack = true
                 value = try groupNotes(arguments: arguments)
             case "get_started":
+                mutatesStack = false
                 value = getStartedGuide()
             default:
                 return toolErrorResult("Unsupported tool \(name)")
+            }
+
+            if mutatesStack {
+                notifyStackDidChange(toolName: name)
             }
 
             return toolSuccessResult(value)
@@ -740,6 +754,18 @@ final class BacktickMCPServerSession {
             "capturedAt": Self.iso8601Formatter.string(from: target.capturedAt),
             "confidence": target.confidence.rawValue,
         ]
+    }
+
+    private func notifyStackDidChange(toolName: String) {
+        DistributedNotificationCenter.default().postNotificationName(
+            .backtickStackDidChange,
+            object: Self.serverName,
+            userInfo: [
+                "tool": toolName,
+                "timestamp": Self.iso8601Formatter.string(from: Date()),
+            ],
+            options: [.deliverImmediately]
+        )
     }
 
     private func parseScope(_ value: Any?) throws -> StackReadScope {

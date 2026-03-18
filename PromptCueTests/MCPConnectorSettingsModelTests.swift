@@ -659,6 +659,32 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteRetryPostsRetryNotification() {
+        let userDefaults = makeUserDefaults()
+        let notificationCenter = NotificationCenter()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            notificationCenter: notificationCenter
+        )
+        let expectation = expectation(description: "experimental remote retry requested")
+
+        let observer = notificationCenter.addObserver(
+            forName: .experimentalMCPHTTPRetryRequested,
+            object: model,
+            queue: nil
+        ) { _ in
+            expectation.fulfill()
+        }
+
+        model.retryExperimentalRemote()
+
+        wait(for: [expectation], timeout: 1)
+        notificationCenter.removeObserver(observer)
+    }
+
+    @MainActor
     func testExperimentalRemoteRecommendedTunnelUsesDetectedNgrokAndCurrentPort() throws {
         try installClientExecutable(named: "ngrok")
         let launcher = TestTerminalLauncher()
@@ -854,6 +880,33 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteSuccessfulRemoteLogClearsStaleGrantRecoveryIssue() {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "BacktickMCPOAuthProvider token exchange rejected: invalid_grant clientID=abc refreshToken=def"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Reconnect needed")
+
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request method=tools/call"
+        )
+
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
+    }
+
+    @MainActor
     func testExperimentalRemoteStatusPresentationShowsNeedsAttentionWhenPublicProbeFails() async {
         let userDefaults = makeUserDefaults()
         let model = MCPConnectorSettingsModel(
@@ -877,6 +930,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
                 || model.experimentalRemoteStatusPresentation.action == .launchTunnel
         )
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("public HTTPS URL"))
+        XCTAssertTrue(model.experimentalRemoteShouldShowInlinePublicBaseURL)
     }
 
     @MainActor

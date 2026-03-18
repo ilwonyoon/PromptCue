@@ -106,6 +106,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
 
         PerformanceTrace.markStackOpenPhase("show_enter")
+        model.refreshCardsForExternalChanges()
 
         let panel = panel ?? makePanel()
         guard !panel.isVisible else {

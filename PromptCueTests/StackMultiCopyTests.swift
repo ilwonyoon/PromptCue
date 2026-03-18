@@ -242,6 +242,28 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertEqual(copiedIDs, [cards[0].id])
     }
 
+    func testRefreshCardsForExternalChangesReloadsCardsWrittenByExternalService() throws {
+        let model = makeModel()
+        model.reloadCards()
+        XCTAssertTrue(model.cards.isEmpty)
+
+        let externalService = StackWriteService(
+            fileManager: .default,
+            databaseURL: databaseURL,
+            attachmentBaseDirectoryURL: tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        )
+        let created = try externalService.createNote(
+            StackNoteCreateRequest(text: "Created from MCP")
+        )
+
+        XCTAssertTrue(model.cards.isEmpty)
+
+        model.refreshCardsForExternalChanges()
+
+        XCTAssertEqual(model.cards.map(\.id), [created.id])
+        XCTAssertEqual(model.cards.first?.text, "Created from MCP")
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),

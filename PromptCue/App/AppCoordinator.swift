@@ -37,7 +37,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
     private var systemThemeObserver: NSObjectProtocol?
+    private var stackDidChangeObserver: NSObjectProtocol?
     private var experimentalMCPHTTPSettingsObserver: NSObjectProtocol?
+    private var experimentalMCPHTTPRetryObserver: NSObjectProtocol?
     private var experimentalMCPHTTPOAuthResetObserver: NSObjectProtocol?
     private var experimentalMCPHTTPDidBecomeActiveObserver: NSObjectProtocol?
     private var experimentalMCPHTTPWakeObserver: NSObjectProtocol?
@@ -86,6 +88,16 @@ final class AppCoordinator: AppLifecycleCoordinating {
             }
         }
 
+        stackDidChangeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: .backtickStackDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.model.refreshCardsForExternalChanges()
+            }
+        }
+
         experimentalMCPHTTPSettingsObserver = NotificationCenter.default.addObserver(
             forName: .experimentalMCPHTTPSettingsDidChange,
             object: mcpConnectorSettingsModel,
@@ -106,12 +118,23 @@ final class AppCoordinator: AppLifecycleCoordinating {
             }
         }
 
+        experimentalMCPHTTPRetryObserver = NotificationCenter.default.addObserver(
+            forName: .experimentalMCPHTTPRetryRequested,
+            object: mcpConnectorSettingsModel,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.retryExperimentalMCPHTTP()
+            }
+        }
+
         experimentalMCPHTTPDidBecomeActiveObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.model.refreshCardsForExternalChanges()
                 self?.recheckExperimentalMCPHTTPHealth()
             }
         }
@@ -131,11 +154,17 @@ final class AppCoordinator: AppLifecycleCoordinating {
         if let systemThemeObserver {
             DistributedNotificationCenter.default().removeObserver(systemThemeObserver)
         }
+        if let stackDidChangeObserver {
+            DistributedNotificationCenter.default().removeObserver(stackDidChangeObserver)
+        }
         if let experimentalMCPHTTPSettingsObserver {
             NotificationCenter.default.removeObserver(experimentalMCPHTTPSettingsObserver)
         }
         if let experimentalMCPHTTPOAuthResetObserver {
             NotificationCenter.default.removeObserver(experimentalMCPHTTPOAuthResetObserver)
+        }
+        if let experimentalMCPHTTPRetryObserver {
+            NotificationCenter.default.removeObserver(experimentalMCPHTTPRetryObserver)
         }
         if let experimentalMCPHTTPDidBecomeActiveObserver {
             NotificationCenter.default.removeObserver(experimentalMCPHTTPDidBecomeActiveObserver)
@@ -618,6 +647,15 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
         stopExperimentalMCPHTTP()
         syncExperimentalMCPHTTPConfiguration()
+    }
+
+    private func retryExperimentalMCPHTTP() {
+        if experimentalMCPHTTPProcess == nil || !(experimentalMCPHTTPProcess?.isRunning ?? false) {
+            syncExperimentalMCPHTTPConfiguration()
+            return
+        }
+
+        recheckExperimentalMCPHTTPHealth()
     }
 
     private func recheckExperimentalMCPHTTPHealth() {

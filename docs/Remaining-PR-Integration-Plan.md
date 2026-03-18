@@ -35,6 +35,38 @@ The goal is to preserve the current `main` UX/UI baseline and selectively integr
 - [x] Remaining open PRs were triaged; future architecture cleanup work will continue as fresh replacement PRs.
 - [x] Dormant worktrees and obsolete branches were archived after the keep/port/close decision, excluding the explicitly retained source and verification surfaces.
 
+## 2026-03-18 Stale Branch Follow-up
+
+These branches were reviewed again after the MCP connector stabilization train landed on `main`.
+
+### Fresh Port Required
+
+- `origin/claude/add-expiration-timer-BCl2Q`
+  - do not merge as-is
+  - the branch is stale against current `main` and reintroduces unrelated old code
+  - preserve only the timer-dot behavior as a fresh current-`main` port
+  - verification target:
+    - under one hour remaining, show rounded-up minute text next to the existing TTL dot
+    - preserve pinned-card behavior and copied-card behavior
+    - keep the timer accessible instead of hidden from accessibility
+
+### Doc-Only Sync Required
+
+- `origin/claude/expand-mcp-platforms-cSW7o`
+  - do not merge as-is
+  - the branch contains stale runtime and settings code relative to current `main`
+  - preserve only branch-unique documentation that still adds value
+  - current keep candidate:
+    - `docs/Mem0-Takeaways-for-Backtick.md`
+  - explicitly avoid reviving stale runtime directions from that branch
+
+### Do Not Delete Yet
+
+- local branch `feat/working-with-apps`
+  - remote branch is already gone, but the local branch still contains unique unmerged commits
+  - also attached to another worktree
+  - keep it intact until the surviving behavior is either ported or explicitly abandoned
+
 ## Open PR Triage
 
 ### Merge Now

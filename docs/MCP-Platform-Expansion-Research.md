@@ -432,6 +432,144 @@ Next day, different AI client, new thread:
   → Continues where yesterday left off (human-verified version)
 ```
 
+#### Client-specific behavioral design — how each AI learns to use Backtick
+
+같은 MCP 도구를 제공해도 클라이언트마다 AI의 행동을 유도하는 메커니즘이 다르다. 이를 3개 레이어로 정리하고, 각 클라이언트가 어떤 레이어를 사용할 수 있는지 매핑한다.
+
+**Three behavioral layers:**
+
+| Layer | 메커니즘 | 누가 작성 | 언제 적용 |
+|-------|---------|----------|----------|
+| L1: Tool description | MCP tool의 `description` 필드 | Backtick 개발자 | AI가 tool 목록을 받을 때 (매 세션) |
+| L2: System prompt / Project instructions | 클라이언트의 system prompt 또는 project instruction | 사용자 (Backtick이 생성해주는 문구를 붙여넣기) | AI 세션 시작 시 |
+| L3: Rules file | CLAUDE.md, .cursorrules 등 프로젝트 레벨 파일 | Backtick이 자동 생성 (사용자 승인 후) | AI가 프로젝트 폴더를 열 때 |
+
+**Client × Layer 지원 매트릭스:**
+
+| Client | L1: Tool description | L2: System prompt | L3: Rules file | 비고 |
+|--------|---------------------|-------------------|----------------|------|
+| **ChatGPT** (Mac App, HTTP) | ✅ MCP tool descriptions | ✅ **ChatGPT Projects custom instructions** — 프로젝트별 system prompt 설정 가능 | ❌ 파일 시스템 접근 없음 | L2가 핵심 레이어. Projects 기능에서 "Custom instructions"에 Backtick 문구를 붙여넣는 방식 |
+| **Claude Desktop** (stdio) | ✅ MCP tool descriptions | ⚠️ Claude Projects system prompt는 웹 전용. Desktop에서는 tool description만 | ❌ | L1이 유일한 레이어. Tool description 품질이 가장 중요 |
+| **Claude Code** (stdio) | ✅ MCP tool descriptions | ❌ | ✅ **CLAUDE.md** — 프로젝트 루트의 파일을 매 세션 로드 | L3가 핵심 레이어. CLAUDE.md에 Backtick 사용 지침 자동 삽입 |
+| **Codex CLI** (stdio) | ✅ MCP tool descriptions | ❌ | ✅ **AGENTS.md** — Codex가 읽는 에이전트 지침 파일 | L3 (AGENTS.md) |
+
+**핵심 인사이트**: ChatGPT는 L2(Project instructions)가, Claude Desktop은 L1(tool description)이, Claude Code/Codex는 L3(rules file)가 각각 가장 결정적인 레이어다. 세 레이어 모두에 Backtick 행동 지침을 넣으면 어떤 클라이언트에서든 최소 하나는 작동한다.
+
+**L2: ChatGPT Projects custom instructions — 제공할 문구:**
+
+```
+You have access to Backtick, a cross-platform project memory tool.
+
+When I mention a project or topic:
+→ Call list_notes to check for existing context before responding.
+
+When our conversation produces important decisions, action items, or context
+that I'd want in a future session:
+→ Ask me "이거 Backtick에 저장할까요?" before saving.
+→ Use save_document with the right project and topic.
+
+When saving:
+→ Call list_documents first to check existing topics.
+→ Fit into an existing topic if possible. Only create a new topic if clearly distinct.
+→ Content must be markdown with ## headers. Never save a single line.
+
+At the end of a long session:
+→ Offer to save a summary of key decisions and open questions.
+```
+
+사용자가 ChatGPT Projects의 "Custom instructions"에 이 문구를 붙여넣는다. Backtick Settings에서 "Copy ChatGPT Instructions" 버튼으로 클립보드에 복사.
+
+**L1: Tool description — Claude Desktop이 의존하는 유일한 레이어:**
+
+Claude Desktop은 system prompt 커스터마이징이 불가능하므로, tool description 자체가 system prompt 역할을 한다. 따라서 Warm tool descriptions에는 반드시 다음이 포함되어야 한다:
+
+1. **Purpose** (무엇을 하는 도구인지)
+2. **Guidelines** (언제 호출해야 하는지 — 이게 핵심)
+3. **Constraint** (저장 전 사용자 확인, 기존 토픽 우선)
+
+Hot tool도 동일하게 적용 (1c 참고).
+
+**L3: CLAUDE.md / AGENTS.md — Claude Code/Codex용 자동 생성:**
+
+```markdown
+## Backtick Integration
+
+This project uses Backtick for cross-session memory. MCP tools are available.
+
+- At session start: call `list_notes` to load prior Stack context
+- When user mentions a feature/decision: call `list_documents` then `recall_document`
+- When producing decisions or action items: offer to save via `create_note` (short-term)
+  or `save_document` (long-term). Always ask the user first.
+- When saving to Memory: check existing topics first. Fit into existing topic if possible.
+```
+
+Backtick Settings에서 "Add to CLAUDE.md" 버튼 → 프로젝트 루트의 CLAUDE.md에 위 블록을 자동 추가 (사용자 승인 후).
+
+#### Project/topic classification — AI가 어떻게 분류하는지
+
+"AI가 알아서 분류한다"는 희망 사항이 아니라 구체적 설계가 필요하다. 분류 로직은 tool description + save_document의 입력 스키마로 구현한다.
+
+**분류의 두 가지 시점:**
+
+| 시점 | 무엇을 | 어떻게 |
+|------|--------|--------|
+| **Session start** | 현재 대화가 어떤 프로젝트에 관한 것인지 판별 | AI가 `list_documents()` 호출 → 프로젝트 목록 반환 → 대화 맥락과 매칭 |
+| **Save time** | 저장할 내용이 어떤 토픽에 속하는지 판별 | AI가 `list_documents(project: "X")` 호출 → 토픽 목록 + 각 토픽의 1줄 요약 반환 → 기존 토픽에 맞추거나 새 토픽 제안 |
+
+**프로젝트 식별 규칙 (tool description에 포함):**
+
+```
+Project identification:
+1. If user explicitly names a project → use that name (exact match against list_documents)
+2. If conversation context implies a project (e.g., discussing pricing for an app
+   the user is building) → call list_documents to find matching project
+3. If no match found → ask user: "이거 어떤 프로젝트에 저장할까요? [기존 목록] / 새 프로젝트"
+4. Never guess a project name. Always confirm with user if ambiguous.
+```
+
+**토픽 분류 규칙 (tool description에 포함):**
+
+```
+Topic classification:
+1. Call list_documents(project) to get existing topics with summaries
+2. If content fits an existing topic (>70% relevance) → update that topic
+   Example: "로고 색상 바꾸자" → existing "branding" topic
+3. If content spans multiple topics → save to the primary topic,
+   cross-reference others in the content body
+   Example: "가격을 바꾸면 랜딩 페이지도 수정해야" → save to "pricing",
+   mention "see also: website" in body
+4. If content doesn't fit any existing topic → propose new topic name to user
+   "이 내용은 기존 토픽에 안 맞는 것 같은데, 'distribution'이라는 새 토픽 만들까요?"
+5. Topic names: kebab-case, 1-2 words, noun-based (branding, pricing, launch, architecture)
+6. Maximum 10 topics per project. If approaching limit, suggest consolidation.
+```
+
+**분류 실패 방지 — fallback chain:**
+
+```
+AI tries to classify
+    │
+    ├→ Exact match on project + topic → save directly
+    │
+    ├→ Project match, no topic match → propose new topic (ask user)
+    │
+    ├→ No project match → ask user which project
+    │
+    └→ User says "그냥 저장해" (no classification) → save to Stack as Hot note
+       (user can later promote to Warm manually via Memory panel)
+```
+
+마지막 fallback이 중요하다: 분류를 모르겠으면 그냥 Stack에 넣는다. Stack은 분류가 필요 없다 (flat list). 나중에 사용자가 Memory panel에서 수동으로 프로젝트/토픽을 지정해서 Warm으로 옮길 수 있다.
+
+**분류 정확도를 높이는 설계 결정:**
+
+| 결정 | 근거 |
+|------|------|
+| `list_documents` 응답에 토픽별 1줄 요약 포함 | AI가 토픽 이름만 보면 "architecture"가 앱 아키텍처인지 MCP 아키텍처인지 모름. 요약이 있어야 정확한 매칭 가능 |
+| 사용자에게 항상 확인 | "branding에 저장할게요"가 아니라 "이거 branding 토픽에 추가할까요?" → 사용자가 "아니, website에 넣어" 할 수 있음 |
+| 새 토픽은 AI가 제안, 사용자가 승인 | AI가 마음대로 만들면 topic explosion. 사용자 승인 게이트 필수 |
+| 분류 불가 시 Stack으로 fallback | 분류 때문에 저장을 포기하는 것보다, 일단 Stack에 넣고 나중에 정리하는 게 낫다 |
+
 ### Customer-facing terminology
 
 Full terminology system documented in `docs/Terminology.md`. Key decisions:
@@ -976,7 +1114,6 @@ Capture + Stack (Hot) is the shipping product. Warm (Memory) is a post-launch fe
 | 1b | Pin feature — permanent prompt cards | M | **✅ DONE** (commit `28ee95f`, 2026-03-17) | Pinned cards never expire, horizontal carousel UI |
 | 1c | Hot tool description optimization | S | Not started | AI proactively retrieves/saves Stack notes |
 | 1d | `list_notes` summary field | S | Not started | Two-tier retrieval — save context window tokens |
-| 1e | Cursor / Windsurf one-click connector | M | Not started | Expand platform reach |
 
 Claude Desktop connector: one-click config write to `claude_desktop_config.json`, no CLI required. Includes `usesDirectConfig` guard, error logging, and full test coverage.
 
@@ -1001,12 +1138,6 @@ Claude Desktop connector: one-click config write to `claude_desktop_config.json`
 **Files**: `BacktickMCPServerSession.swift` (response formatting), possibly `CaptureCard.swift` (if summary is a stored field vs. computed truncation).
 
 **Decision needed**: Stored summary (AI generates at creation) vs. computed truncation (first N chars). Computed is simpler for Phase 1; stored is better long-term.
-
-#### 1e detail: Cursor / Windsurf one-click connector
-
-**What**: Apply Claude Desktop's one-click config write pattern to Cursor (`.cursor/mcp.json`) and Windsurf (`~/.codeium/windsurf/mcp_config.json`).
-
-**Pattern**: Same as Claude Desktop — detect installation, generate config JSON, write on button click. See existing `MCPConnectorSettingsModel.swift`.
 
 **Post-launch Phase 1 (Warm memory via stdio):**
 

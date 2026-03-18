@@ -1111,6 +1111,7 @@ Capture + Stack (Hot) is the shipping product. Warm (Memory) is a post-launch fe
 | # | Task | Effort | Status | What it unlocks |
 |---|------|--------|--------|-----------------|
 | 1 | Claude Desktop stdio registration in Settings | S | **✅ DONE** (PR #58, 2026-03-17) | Claude Desktop as MCP client for existing Hot tools |
+| 1a | ChatGPT Mac App HTTP connection | L | **✅ DONE** (2026-03-18) | ChatGPT as MCP client via localhost HTTP |
 | 1b | Pin feature — permanent prompt cards | M | **✅ DONE** (commit `28ee95f`, 2026-03-17) | Pinned cards never expire, horizontal carousel UI |
 | 1c | Hot tool description optimization | S | Not started | AI proactively retrieves/saves Stack notes |
 | 1d | `list_notes` summary field | S | Not started | Two-tier retrieval — save context window tokens |
@@ -1189,14 +1190,15 @@ them to Backtick (create_note / save_document) for cross-session persistence.
 
 **⚠️ Cursor Memories lesson**: Auto-accumulation without review = unpredictable behavior. Always show the user what's being promoted and let them edit/reject.
 
-**Post-launch Phase 2 (HTTP transport):**
+**Post-launch Phase 2 (HTTP transport — ChatGPT connection):**
 
 | # | Task | Effort | Status | What it unlocks |
 |---|------|--------|--------|-----------------|
-| 5 | HTTP server in Backtick app process | L | Not started | ChatGPT Mac App connection |
+| 5 | HTTP server in Backtick app process | L | **✅ DONE** (2026-03-18) | ChatGPT Mac App connection via localhost |
+| 5b | Long-lived connection stability testing | S | Not started | Verify HTTP connection stays alive over hours/days without dropping |
 | 6 | Auth (Bearer token) + Settings UI for HTTP | M | Not started | Secure HTTP connections |
 
-→ ChatGPT Mac App connects via localhost HTTP. Both Hot and Warm tools available.
+→ ChatGPT Mac App connects via localhost HTTP. Hot tools already functional. Warm tools available once Phase 1 ships. Open issue: long-running connection stability needs verification (does the HTTP connection survive sleep/wake, hours of idle, ChatGPT app restarts?).
 
 **Post-launch Phase 3 (remote access):**
 Tunnel setup for Claude Web / ChatGPT Web / Mobile. Only if demand exists. Not started.

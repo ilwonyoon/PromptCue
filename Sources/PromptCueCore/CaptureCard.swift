@@ -229,4 +229,20 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         let progress = remaining / ttl
         return min(max(progress, 0), 1)
     }
+
+    public func ttlRemainingMinutes(
+        relativeTo date: Date = Date(),
+        ttl: TimeInterval = CaptureCard.ttl
+    ) -> Int? {
+        guard ttl > 0, !isPinned else {
+            return nil
+        }
+
+        let remainingSeconds = createdAt.addingTimeInterval(ttl).timeIntervalSince(date)
+        guard remainingSeconds > 0, remainingSeconds < 3600 else {
+            return nil
+        }
+
+        return max(Int(ceil(remainingSeconds / 60)), 1)
+    }
 }

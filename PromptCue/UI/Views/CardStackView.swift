@@ -228,6 +228,7 @@ struct CardStackView: View {
     private func cardRow(for card: CaptureCard) -> some View {
         let isStagedCopied = stagedCopiedCardIDSet.contains(card.id)
         let ttlProgress = ttlProgressRemaining(for: card)
+        let ttlMinutes = ttlRemainingMinutes(for: card)
 
         return stackColumnContent {
             CaptureCardView(
@@ -239,6 +240,7 @@ struct CardStackView: View {
                 isRecentlyCopied: isStagedCopied,
                 selectionMode: selectionMode,
                 ttlProgressRemaining: ttlProgress,
+                ttlRemainingMinutes: ttlMinutes,
                 isExpanded: expandedCardIDs.contains(card.id),
                 onCopy: {
                     _ = model.copySingleCard(card)
@@ -576,6 +578,17 @@ struct CardStackView: View {
         }
 
         return card.ttlProgressRemaining(relativeTo: ttlNow, ttl: ttl)
+    }
+
+    private func ttlRemainingMinutes(for card: CaptureCard) -> Int? {
+        guard !card.isPinned,
+              card.isCopied == false,
+              let ttl = CardRetentionPreferences.load().effectiveTTL
+        else {
+            return nil
+        }
+
+        return card.ttlRemainingMinutes(relativeTo: ttlNow, ttl: ttl)
     }
 }
 

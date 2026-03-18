@@ -42,6 +42,7 @@ struct CaptureCardView: View {
     let isRecentlyCopied: Bool
     let selectionMode: Bool
     let ttlProgressRemaining: Double?
+    let ttlRemainingMinutes: Int?
     let isExpanded: Bool
     let onCopy: () -> Void
     let onEdit: () -> Void
@@ -86,6 +87,7 @@ struct CaptureCardView: View {
         isRecentlyCopied: Bool = false,
         selectionMode: Bool,
         ttlProgressRemaining: Double? = nil,
+        ttlRemainingMinutes: Int? = nil,
         isExpanded: Bool,
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void = {},
@@ -107,6 +109,7 @@ struct CaptureCardView: View {
         self.isRecentlyCopied = isRecentlyCopied
         self.selectionMode = selectionMode
         self.ttlProgressRemaining = ttlProgressRemaining
+        self.ttlRemainingMinutes = ttlRemainingMinutes
         self.isExpanded = isExpanded
         self.onCopy = onCopy
         self.onEdit = onEdit
@@ -240,12 +243,14 @@ struct CaptureCardView: View {
                 .zIndex(1)
 
                 if let ttlProgressRemaining {
-                    ttlIndicator(progressRemaining: ttlProgressRemaining)
+                    ttlIndicatorRow(
+                        progressRemaining: ttlProgressRemaining,
+                        remainingMinutes: ttlRemainingMinutes
+                    )
                         .padding(.trailing, PrimitiveTokens.Space.xxxs)
                         .padding(.bottom, PrimitiveTokens.Space.xxxs)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .zIndex(1)
-                        .accessibilityHidden(true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -625,12 +630,28 @@ struct CaptureCardView: View {
     }
 
     @ViewBuilder
+    private func ttlIndicatorRow(progressRemaining: Double, remainingMinutes: Int?) -> some View {
+        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xxxs) {
+            if let remainingMinutes {
+                Text("\(remainingMinutes)m")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(SemanticTokens.Text.secondary.opacity(0.72))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+
+            ttlIndicator(progressRemaining: progressRemaining)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ttlAccessibilityLabel(remainingMinutes: remainingMinutes))
+    }
+
     private func ttlIndicator(progressRemaining: Double) -> some View {
         let lineWidth: CGFloat = 1.5
         let trackColor = SemanticTokens.Border.subtle.opacity(0.9)
         let progressColor = SemanticTokens.Text.secondary.opacity(0.88)
 
-        ZStack {
+        return ZStack {
             Circle()
                 .stroke(trackColor, lineWidth: lineWidth)
 
@@ -640,6 +661,14 @@ struct CaptureCardView: View {
                 .rotationEffect(.degrees(-90))
         }
         .frame(width: 8, height: 8)
+    }
+
+    private func ttlAccessibilityLabel(remainingMinutes: Int?) -> String {
+        if let remainingMinutes {
+            return "Expires in \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
+        }
+
+        return "Expiration timer"
     }
 
     @ViewBuilder

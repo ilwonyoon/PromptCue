@@ -58,6 +58,62 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func ttlRemainingMinutesReturnsNilWhenAtLeastOneHourRemains() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8 * 3600
+        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
+        let exactlyOneHourRemaining = createdAt.addingTimeInterval(ttl - 3600)
+        let moreThanOneHourRemaining = createdAt.addingTimeInterval(ttl - 3601)
+
+        #expect(card.ttlRemainingMinutes(relativeTo: exactlyOneHourRemaining, ttl: ttl) == nil)
+        #expect(card.ttlRemainingMinutes(relativeTo: moreThanOneHourRemaining, ttl: ttl) == nil)
+    }
+
+    @Test
+    func ttlRemainingMinutesReturnsSixtyJustUnderOneHour() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8 * 3600
+        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
+        let now = createdAt.addingTimeInterval(ttl - 3599)
+
+        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 60)
+    }
+
+    @Test
+    func ttlRemainingMinutesReturnsRoundedUpMinutesInFinalHour() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8 * 3600
+        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
+        let now = createdAt.addingTimeInterval(ttl - 2700)
+
+        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 45)
+    }
+
+    @Test
+    func ttlRemainingMinutesReturnsOneWhenUnderOneMinute() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8 * 3600
+        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
+        let now = createdAt.addingTimeInterval(ttl - 10)
+
+        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 1)
+    }
+
+    @Test
+    func ttlRemainingMinutesReturnsNilWhenExpiredOrPinned() {
+        let createdAt = Date(timeIntervalSince1970: 1_000)
+        let ttl: TimeInterval = 8 * 3600
+        let unpinned = CaptureCard(text: "ttl minutes", createdAt: createdAt)
+        let pinned = CaptureCard(text: "ttl minutes", createdAt: createdAt, isPinned: true)
+        let expiredNow = createdAt.addingTimeInterval(ttl + 60)
+        let finalHourNow = createdAt.addingTimeInterval(ttl - 1200)
+
+        #expect(unpinned.ttlRemainingMinutes(relativeTo: expiredNow, ttl: ttl) == nil)
+        #expect(pinned.ttlRemainingMinutes(relativeTo: finalHourNow, ttl: ttl) == nil)
+        #expect(unpinned.ttlRemainingMinutes(relativeTo: .now, ttl: 0) == nil)
+    }
+
+    @Test
     func captureCardBuildsScreenshotURL() {
         let card = CaptureCard(
             text: "screenshot attached",

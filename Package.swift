@@ -79,6 +79,7 @@ let package = Package(
                 "PromptCue/Services/AttachmentStore.swift",
                 "PromptCue/Services/CardStore.swift",
                 "PromptCue/Services/CopyEventStore.swift",
+                "PromptCue/Services/ProjectDocumentStore.swift",
                 "PromptCue/Services/PromptCueDatabase.swift",
                 "PromptCue/Services/StackExecutionService.swift",
                 "PromptCue/Services/StackGroupService.swift",

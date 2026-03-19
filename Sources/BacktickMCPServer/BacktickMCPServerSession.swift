@@ -7,6 +7,7 @@ final class BacktickMCPServerSession {
     private let writeService: StackWriteService
     private let executionService: StackExecutionService
     private let groupService: StackGroupService
+    private let documentStore: ProjectDocumentStore
 
     private static let supportedProtocolVersions = [
         "2025-03-26",
@@ -40,6 +41,10 @@ final class BacktickMCPServerSession {
             readService: readService,
             writeService: writeService,
             executionService: executionService
+        )
+        documentStore = ProjectDocumentStore(
+            fileManager: fileManager,
+            databaseURL: databaseURL
         )
     }
 
@@ -245,6 +250,7 @@ final class BacktickMCPServerSession {
                     "properties": [
                         "text": ["type": "string"],
                         "tags": tagSchema(),
+                        "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
                         "createdAt": [
@@ -268,8 +274,14 @@ final class BacktickMCPServerSession {
                         ],
                         "text": ["type": ["string", "null"]],
                         "tags": tagSchema(),
+                        "suggestedTarget": suggestedTargetSchema(),
                         "screenshotPath": ["type": ["string", "null"]],
                         "isPinned": ["type": ["boolean", "null"], "description": "Pin or unpin this note. Pinned notes never expire and sort to top."],
+                        "lastCopiedAt": [
+                            "type": ["string", "null"],
+                            "format": "date-time",
+                            "description": "Set null to move note back to Active, or ISO-8601 date to mark as copied.",
+                        ],
                     ],
                     "required": ["id"],
                     "additionalProperties": false,
@@ -381,6 +393,109 @@ final class BacktickMCPServerSession {
                     "additionalProperties": false,
                 ],
             ],
+            [
+                "name": "list_documents",
+                "description": "List reviewed Warm documents for lightweight discovery. Use this before recall_document or save_document to find matching project/topic/documentType entries without loading full content.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "project": [
+                            "type": ["string", "null"],
+                            "description": "Optional project filter. Omit to list all current documents.",
+                        ],
+                    ],
+                    "additionalProperties": false,
+                ],
+            ],
+            [
+                "name": "recall_document",
+                "description": "Load one reviewed Warm document by project, topic, and documentType. Call proactively when a project or durable decision is relevant so the user does not have to restate it.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "project": ["type": "string"],
+                        "topic": ["type": "string"],
+                        "documentType": projectDocumentTypeSchema(),
+                    ],
+                    "required": ["project", "topic", "documentType"],
+                    "additionalProperties": false,
+                ],
+            ],
+            [
+                "name": "save_document",
+                "description": "Save a reviewed Warm document by project, topic, and documentType. Recall before save, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "project": ["type": "string"],
+                        "topic": ["type": "string"],
+                        "documentType": projectDocumentTypeSchema(),
+                        "content": ["type": "string"],
+                    ],
+                    "required": ["project", "topic", "documentType", "content"],
+                    "additionalProperties": false,
+                ],
+            ],
+            [
+                "name": "update_document",
+                "description": "Partially update an existing Warm document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes. Always list or recall first so you update the right project/topic/documentType document.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "project": ["type": "string"],
+                        "topic": ["type": "string"],
+                        "documentType": projectDocumentTypeSchema(),
+                        "action": [
+                            "type": "string",
+                            "enum": ProjectDocumentUpdateAction.allCases.map(\.rawValue),
+                        ],
+                        "section": [
+                            "type": ["string", "null"],
+                            "description": "Required for replace_section and delete_section. Use the exact ## header text without the leading ##.",
+                        ],
+                        "content": [
+                            "type": ["string", "null"],
+                            "description": "For append, provide a markdown fragment that starts with a ## header. For replace_section, provide the new section body or a full ## section block.",
+                        ],
+                    ],
+                    "required": ["project", "topic", "documentType", "action"],
+                    "additionalProperties": false,
+                ],
+            ],
+        ]
+    }
+
+    private func projectDocumentTypeSchema() -> [String: Any] {
+        [
+            "type": "string",
+            "enum": ProjectDocumentType.allCases.map(\.rawValue),
+        ]
+    }
+
+    private func suggestedTargetSchema() -> [String: Any] {
+        [
+            "type": ["object", "null"],
+            "properties": [
+                "appName": ["type": "string"],
+                "bundleIdentifier": ["type": "string"],
+                "windowTitle": ["type": ["string", "null"]],
+                "sessionIdentifier": ["type": ["string", "null"]],
+                "terminalTTY": ["type": ["string", "null"]],
+                "currentWorkingDirectory": ["type": ["string", "null"]],
+                "repositoryRoot": ["type": ["string", "null"]],
+                "repositoryName": ["type": ["string", "null"]],
+                "branch": ["type": ["string", "null"]],
+                "capturedAt": [
+                    "type": "string",
+                    "format": "date-time",
+                ],
+                "confidence": [
+                    "type": "string",
+                    "enum": ["high", "low"],
+                ],
+            ],
+            "required": ["appName", "bundleIdentifier"],
+            "additionalProperties": false,
         ]
     }
 
@@ -425,6 +540,18 @@ final class BacktickMCPServerSession {
             case "get_started":
                 mutatesStack = false
                 value = getStartedGuide()
+            case "list_documents":
+                mutatesStack = false
+                value = try listDocuments(arguments: arguments)
+            case "recall_document":
+                mutatesStack = false
+                value = try recallDocument(arguments: arguments)
+            case "save_document":
+                mutatesStack = false
+                value = try saveDocument(arguments: arguments)
+            case "update_document":
+                mutatesStack = false
+                value = try updateDocument(arguments: arguments)
             default:
                 return toolErrorResult("Unsupported tool \(name)")
             }
@@ -481,6 +608,7 @@ final class BacktickMCPServerSession {
         let request = StackNoteCreateRequest(
             text: try requiredString(arguments, key: "text", allowEmpty: true),
             tags: try parseTags(arguments["tags"]),
+            suggestedTarget: try parseSuggestedTarget(arguments["suggestedTarget"]),
             screenshotPath: try parseOptionalString(arguments["screenshotPath"]),
             createdAt: try parseDate(arguments["createdAt"]) ?? Date(),
             isPinned: (arguments["isPinned"] as? Bool) ?? false
@@ -497,8 +625,10 @@ final class BacktickMCPServerSession {
         let changes = StackNoteUpdate(
             text: try parseTextUpdate(arguments, key: "text"),
             tags: try parseTagsUpdate(arguments, key: "tags"),
+            suggestedTarget: try parseSuggestedTargetUpdate(arguments, key: "suggestedTarget"),
             screenshotPath: try parseStringUpdate(arguments, key: "screenshotPath"),
-            isPinned: try parseBoolUpdate(arguments, key: "isPinned")
+            isPinned: try parseBoolUpdate(arguments, key: "isPinned"),
+            lastCopiedAt: try parseDateUpdate(arguments, key: "lastCopiedAt")
         )
         let note = try writeService.updateNote(id: id, changes: changes)
 
@@ -602,11 +732,75 @@ final class BacktickMCPServerSession {
                 ["name": "mark_notes_executed", "use": "Mark notes as used after you've acted on them."],
                 ["name": "get_note", "use": "Fetch a single note with its full copy history."],
                 ["name": "classify_notes", "use": "Group notes by repository, session, or app for organized context."],
+                ["name": "list_documents", "use": "Discover reviewed Warm documents without loading their full content."],
+                ["name": "recall_document", "use": "Load one durable project document when a discussion needs prior context."],
+                ["name": "save_document", "use": "Save a reviewed markdown document for durable context across AI sessions."],
+                ["name": "update_document", "use": "Append, replace, or delete one ## section without rewriting the whole document."],
             ],
             "tryIt": noteCount > 0
                 ? "You have \(noteCount) notes. Try: \"List my Backtick notes\" or \"Show my pinned prompts\""
                 : "Your stack is empty. Try: \"Create a Backtick note: remember to review PR before merge\"",
             "tip": "Capture with Cmd+` from anywhere on your Mac. Your notes appear here instantly.",
+        ]
+    }
+
+    private func listDocuments(arguments: [String: Any]) throws -> [String: Any] {
+        let project = try parseOptionalString(arguments["project"])
+        let documents = try documentStore.list(project: project)
+
+        return [
+            "count": documents.count,
+            "documents": documents.map(documentSummaryDictionary),
+        ]
+    }
+
+    private func recallDocument(arguments: [String: Any]) throws -> [String: Any] {
+        let key = try requiredProjectDocumentKey(arguments)
+        let document = try documentStore.currentDocument(
+            project: key.project,
+            topic: key.topic,
+            documentType: key.documentType
+        )
+
+        return [
+            "document": document.map(documentDictionary) ?? NSNull(),
+        ]
+    }
+
+    private func saveDocument(arguments: [String: Any]) throws -> [String: Any] {
+        let key = try requiredProjectDocumentKey(arguments)
+        let content = try requiredString(arguments, key: "content", allowEmpty: true)
+        try validateProjectDocumentContent(content)
+        let document = try documentStore.saveDocument(
+            project: key.project,
+            topic: key.topic,
+            documentType: key.documentType,
+            content: content
+        )
+
+        return [
+            "document": documentDictionary(document),
+        ]
+    }
+
+    private func updateDocument(arguments: [String: Any]) throws -> [String: Any] {
+        let key = try requiredProjectDocumentKey(arguments)
+        let action = try requiredProjectDocumentUpdateAction(arguments["action"])
+        let section = try parseOptionalString(arguments["section"])
+        let content = try parseOptionalString(arguments["content"])
+
+        let document = try documentStore.updateDocument(
+            project: key.project,
+            topic: key.topic,
+            documentType: key.documentType,
+            action: action,
+            section: section,
+            content: content
+        )
+        try validateProjectDocumentContent(document.content)
+
+        return [
+            "document": documentDictionary(document),
         ]
     }
 
@@ -694,6 +888,30 @@ final class BacktickMCPServerSession {
             "isCopied": note.isCopied,
             "isPinned": note.isPinned,
             "sortOrder": note.sortOrder,
+            "suggestedTarget": note.suggestedTarget.map(suggestedTargetDictionary) ?? NSNull(),
+        ]
+    }
+
+    private func documentSummaryDictionary(_ summary: ProjectDocumentSummary) -> [String: Any] {
+        [
+            "id": summary.id.uuidString.lowercased(),
+            "project": summary.project,
+            "topic": summary.topic,
+            "documentType": summary.documentType.rawValue,
+            "updatedAt": Self.iso8601Formatter.string(from: summary.updatedAt),
+        ]
+    }
+
+    private func documentDictionary(_ document: ProjectDocument) -> [String: Any] {
+        [
+            "id": document.id.uuidString.lowercased(),
+            "project": document.project,
+            "topic": document.topic,
+            "documentType": document.documentType.rawValue,
+            "content": document.content,
+            "createdAt": Self.iso8601Formatter.string(from: document.createdAt),
+            "updatedAt": Self.iso8601Formatter.string(from: document.updatedAt),
+            "supersededByID": document.supersededByID?.uuidString.lowercased() ?? NSNull(),
         ]
     }
 
@@ -705,6 +923,22 @@ final class BacktickMCPServerSession {
             "copiedAt": Self.iso8601Formatter.string(from: copyEvent.copiedAt),
             "copiedVia": copyEvent.copiedVia.rawValue,
             "copiedBy": copyEvent.copiedBy.rawValue,
+        ]
+    }
+
+    private func suggestedTargetDictionary(_ target: CaptureSuggestedTarget) -> [String: Any] {
+        [
+            "appName": target.appName,
+            "bundleIdentifier": target.bundleIdentifier,
+            "windowTitle": target.windowTitle ?? NSNull(),
+            "sessionIdentifier": target.sessionIdentifier ?? NSNull(),
+            "terminalTTY": target.terminalTTY ?? NSNull(),
+            "currentWorkingDirectory": target.currentWorkingDirectory ?? NSNull(),
+            "repositoryRoot": target.repositoryRoot ?? NSNull(),
+            "repositoryName": target.repositoryName ?? NSNull(),
+            "branch": target.branch ?? NSNull(),
+            "capturedAt": Self.iso8601Formatter.string(from: target.capturedAt),
+            "confidence": target.confidence.rawValue,
         ]
     }
 
@@ -756,6 +990,40 @@ final class BacktickMCPServerSession {
         }
 
         return id
+    }
+
+    private func requiredProjectDocumentKey(_ arguments: [String: Any]) throws -> ProjectDocumentKey {
+        let project = try requiredString(arguments, key: "project")
+        let topic = try requiredString(arguments, key: "topic")
+        let documentType = try requiredProjectDocumentType(arguments["documentType"])
+
+        return ProjectDocumentKey(
+            project: project,
+            topic: topic,
+            documentType: documentType
+        )
+    }
+
+    private func requiredProjectDocumentType(_ value: Any?) throws -> ProjectDocumentType {
+        guard let rawValue = value as? String,
+              let documentType = ProjectDocumentType(rawValue: rawValue) else {
+            throw BacktickMCPToolError(
+                message: "documentType must be one of \(ProjectDocumentType.allCases.map(\.rawValue).joined(separator: ", "))"
+            )
+        }
+
+        return documentType
+    }
+
+    private func requiredProjectDocumentUpdateAction(_ value: Any?) throws -> ProjectDocumentUpdateAction {
+        guard let rawValue = value as? String,
+              let action = ProjectDocumentUpdateAction(rawValue: rawValue) else {
+            throw BacktickMCPToolError(
+                message: "action must be one of \(ProjectDocumentUpdateAction.allCases.map(\.rawValue).joined(separator: ", "))"
+            )
+        }
+
+        return action
     }
 
     private func requiredUUIDArray(_ arguments: [String: Any], key: String) throws -> [UUID] {
@@ -814,6 +1082,50 @@ final class BacktickMCPServerSession {
         return date
     }
 
+    private func validateProjectDocumentContent(_ content: String) throws {
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedContent.isEmpty else {
+            throw BacktickMCPToolError(message: "content cannot be empty")
+        }
+
+        guard trimmedContent.count >= 200 else {
+            throw BacktickMCPToolError(message: "content must be at least 200 characters of structured markdown")
+        }
+
+        guard trimmedContent.contains("\n## ") || trimmedContent.hasPrefix("## ") else {
+            throw BacktickMCPToolError(message: "content must be markdown with ## section headers")
+        }
+    }
+
+    private func parseSuggestedTarget(_ value: Any?) throws -> CaptureSuggestedTarget? {
+        guard let value else {
+            return nil
+        }
+        if value is NSNull {
+            return nil
+        }
+        guard let dictionary = value as? [String: Any] else {
+            throw BacktickMCPToolError(message: "suggestedTarget must be an object or null")
+        }
+
+        let appName = try requiredString(dictionary, key: "appName")
+        let bundleIdentifier = try requiredString(dictionary, key: "bundleIdentifier")
+
+        return CaptureSuggestedTarget(
+            appName: appName,
+            bundleIdentifier: bundleIdentifier,
+            windowTitle: try parseOptionalString(dictionary["windowTitle"]),
+            sessionIdentifier: try parseOptionalString(dictionary["sessionIdentifier"]),
+            terminalTTY: try parseOptionalString(dictionary["terminalTTY"]),
+            currentWorkingDirectory: try parseOptionalString(dictionary["currentWorkingDirectory"]),
+            repositoryRoot: try parseOptionalString(dictionary["repositoryRoot"]),
+            repositoryName: try parseOptionalString(dictionary["repositoryName"]),
+            branch: try parseOptionalString(dictionary["branch"]),
+            capturedAt: try parseDate(dictionary["capturedAt"]) ?? Date(),
+            confidence: try parseConfidence(dictionary["confidence"])
+        )
+    }
+
     private func parseTags(_ value: Any?) throws -> [CaptureTag] {
         guard let value else {
             return []
@@ -831,6 +1143,17 @@ final class BacktickMCPServerSession {
         }
 
         return CaptureTag.deduplicatePreservingOrder(tags)
+    }
+
+    private func parseConfidence(_ value: Any?) throws -> CaptureSuggestedTargetConfidence {
+        guard let confidence = try parseOptionalString(value) else {
+            return .high
+        }
+        guard let parsedConfidence = CaptureSuggestedTargetConfidence(rawValue: confidence) else {
+            throw BacktickMCPToolError(message: "confidence must be high or low")
+        }
+
+        return parsedConfidence
     }
 
     private func parseTextUpdate(
@@ -865,6 +1188,25 @@ final class BacktickMCPServerSession {
         return .set(stringValue)
     }
 
+    private func parseSuggestedTargetUpdate(
+        _ arguments: [String: Any],
+        key: String
+    ) throws -> StackOptionalUpdate<CaptureSuggestedTarget> {
+        guard arguments.keys.contains(key) else {
+            return .keep
+        }
+        if arguments[key] is NSNull {
+            return .clear
+        }
+        guard let value = arguments[key] else {
+            return .keep
+        }
+        guard let target = try parseSuggestedTarget(value) else {
+            return .clear
+        }
+        return .set(target)
+    }
+
     private func parseBoolUpdate(
         _ arguments: [String: Any],
         key: String
@@ -879,6 +1221,22 @@ final class BacktickMCPServerSession {
             throw BacktickMCPToolError(message: "\(key) must be a boolean or null")
         }
         return .set(boolValue)
+    }
+
+    private func parseDateUpdate(
+        _ arguments: [String: Any],
+        key: String
+    ) throws -> StackOptionalUpdate<Date> {
+        guard arguments.keys.contains(key) else {
+            return .keep
+        }
+        if arguments[key] is NSNull {
+            return .clear
+        }
+        guard let dateValue = try parseDate(arguments[key]) else {
+            throw BacktickMCPToolError(message: "\(key) must be an ISO-8601 date string or null")
+        }
+        return .set(dateValue)
     }
 
     private func parseTagsUpdate(

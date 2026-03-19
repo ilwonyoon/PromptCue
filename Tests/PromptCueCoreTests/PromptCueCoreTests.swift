@@ -58,62 +58,6 @@ struct PromptCueCoreTests {
     }
 
     @Test
-    func ttlRemainingMinutesReturnsNilWhenAtLeastOneHourRemains() {
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let ttl: TimeInterval = 8 * 3600
-        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
-        let exactlyOneHourRemaining = createdAt.addingTimeInterval(ttl - 3600)
-        let moreThanOneHourRemaining = createdAt.addingTimeInterval(ttl - 3601)
-
-        #expect(card.ttlRemainingMinutes(relativeTo: exactlyOneHourRemaining, ttl: ttl) == nil)
-        #expect(card.ttlRemainingMinutes(relativeTo: moreThanOneHourRemaining, ttl: ttl) == nil)
-    }
-
-    @Test
-    func ttlRemainingMinutesReturnsSixtyJustUnderOneHour() {
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let ttl: TimeInterval = 8 * 3600
-        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
-        let now = createdAt.addingTimeInterval(ttl - 3599)
-
-        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 60)
-    }
-
-    @Test
-    func ttlRemainingMinutesReturnsRoundedUpMinutesInFinalHour() {
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let ttl: TimeInterval = 8 * 3600
-        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
-        let now = createdAt.addingTimeInterval(ttl - 2700)
-
-        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 45)
-    }
-
-    @Test
-    func ttlRemainingMinutesReturnsOneWhenUnderOneMinute() {
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let ttl: TimeInterval = 8 * 3600
-        let card = CaptureCard(text: "ttl minutes", createdAt: createdAt)
-        let now = createdAt.addingTimeInterval(ttl - 10)
-
-        #expect(card.ttlRemainingMinutes(relativeTo: now, ttl: ttl) == 1)
-    }
-
-    @Test
-    func ttlRemainingMinutesReturnsNilWhenExpiredOrPinned() {
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        let ttl: TimeInterval = 8 * 3600
-        let unpinned = CaptureCard(text: "ttl minutes", createdAt: createdAt)
-        let pinned = CaptureCard(text: "ttl minutes", createdAt: createdAt, isPinned: true)
-        let expiredNow = createdAt.addingTimeInterval(ttl + 60)
-        let finalHourNow = createdAt.addingTimeInterval(ttl - 1200)
-
-        #expect(unpinned.ttlRemainingMinutes(relativeTo: expiredNow, ttl: ttl) == nil)
-        #expect(pinned.ttlRemainingMinutes(relativeTo: finalHourNow, ttl: ttl) == nil)
-        #expect(unpinned.ttlRemainingMinutes(relativeTo: .now, ttl: 0) == nil)
-    }
-
-    @Test
     func captureCardBuildsScreenshotURL() {
         let card = CaptureCard(
             text: "screenshot attached",
@@ -179,6 +123,37 @@ struct PromptCueCoreTests {
     }
 
     @Test
+    func clearCopiedRevertsCopiedCardToActive() {
+        let card = CaptureCard(text: "revert me", createdAt: .now)
+        let copied = card.markCopied(at: Date(timeIntervalSince1970: 2_000))
+
+        #expect(copied.isCopied)
+
+        let reverted = copied.clearCopied()
+
+        #expect(reverted.isCopied == false)
+        #expect(reverted.lastCopiedAt == nil)
+        #expect(reverted.id == card.id)
+        #expect(reverted.text == card.text)
+        #expect(reverted.sortOrder == card.sortOrder)
+        #expect(reverted.isPinned == card.isPinned)
+    }
+
+    @Test
+    func clearCopiedOnNonCopiedCardIsNoOp() {
+        let card = CaptureCard(text: "already active", createdAt: .now)
+
+        #expect(card.isCopied == false)
+
+        let result = card.clearCopied()
+
+        #expect(result.isCopied == false)
+        #expect(result.lastCopiedAt == nil)
+        #expect(result.id == card.id)
+        #expect(result.text == card.text)
+    }
+
+    @Test
     func togglePinnedReturnsFlippedState() {
         let card = CaptureCard(text: "toggle me", createdAt: .now)
 
@@ -209,6 +184,7 @@ struct PromptCueCoreTests {
         let id = UUID()
         let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
         let lastCopiedAt = Date(timeIntervalSince1970: 1_700_001_000)
+        let suggestedTarget = makeSuggestedTarget()
         let tags = [
             CaptureTag(rawValue: "bug"),
             CaptureTag(rawValue: "#bug_fix"),
@@ -217,6 +193,7 @@ struct PromptCueCoreTests {
             id: id,
             text: "round-trip test",
             tags: tags,
+            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: "/tmp/screenshot.png",
             lastCopiedAt: lastCopiedAt,
@@ -232,6 +209,7 @@ struct PromptCueCoreTests {
         #expect(decoded.id == id)
         #expect(decoded.text == "round-trip test")
         #expect(decoded.tags == tags)
+        #expect(decoded.suggestedTarget == suggestedTarget)
         #expect(decoded.createdAt == createdAt)
         #expect(decoded.screenshotPath == "/tmp/screenshot.png")
         #expect(decoded.lastCopiedAt == lastCopiedAt)
@@ -252,6 +230,7 @@ struct PromptCueCoreTests {
 
         #expect(decoded == original)
         #expect(decoded.tags.isEmpty)
+        #expect(decoded.suggestedTarget == nil)
         #expect(decoded.screenshotPath == nil)
         #expect(decoded.lastCopiedAt == nil)
         #expect(decoded.sortOrder == original.createdAt.timeIntervalSinceReferenceDate)
@@ -275,7 +254,196 @@ struct PromptCueCoreTests {
         #expect(decoded.id == id)
         #expect(decoded.text == "legacy card")
         #expect(decoded.tags.isEmpty)
+        #expect(decoded.suggestedTarget == nil)
         #expect(decoded.sortOrder == createdAt.timeIntervalSinceReferenceDate)
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelFallsBackToWindowTitleWhenRepoAndCwdAreMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue.swift",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue.swift")
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelDerivesProjectNameFromWindowTitleSegments() {
+        let target = makeSuggestedTarget(
+            appName: "Terminal",
+            windowTitle: "Backtick — codex",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "Backtick")
+        #expect(target.chooserDetailLabel == "codex")
+        #expect(target.chooserSecondaryLabel == "Terminal · codex")
+    }
+
+    @Test
+    func suggestedTargetShortBranchLabelCanDeriveFromWindowTitleWhenExplicitBranchIsMissing() {
+        let target = makeSuggestedTarget(
+            windowTitle: "Backtick — main",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "Backtick")
+        #expect(target.shortBranchLabel == "main")
+        #expect(target.chooserDetailLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Cursor · main")
+    }
+
+    @Test
+    func suggestedTargetWorkspaceLabelUsesPathLeafWhenOnlyPathLikeWindowTitleIsAvailable() {
+        let target = makeSuggestedTarget(
+            appName: "Terminal",
+            windowTitle: "~/workspace/PromptCue",
+            sessionIdentifier: "window-7",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "~/workspace/PromptCue")
+        #expect(target.chooserSecondaryLabel == "Terminal · ~/workspace/PromptCue")
+    }
+
+    @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForRepositoryRoot() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — main",
+            sessionIdentifier: "window-7",
+            terminalTTY: "/dev/ttys001",
+            currentWorkingDirectory: "/tmp/PromptCue",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "main")
+        #expect(target.chooserSecondaryLabel == "Terminal · main")
+    }
+
+    @Test
+    func terminalChooserDetailPrefersCurrentWorkingDirectoryForSubdirectoryTargets() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue — feature/refactor",
+            sessionIdentifier: "window-8",
+            terminalTTY: "/dev/ttys002",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "feature/refactor",
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "refactor")
+        #expect(target.chooserSecondaryLabel == "Terminal · refactor")
+    }
+
+    @Test
+    func terminalChooserDetailFallsBackToPathWhenBranchIsUnavailable() {
+        let target = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue",
+            sessionIdentifier: "window-9",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/tmp/PromptCue/App",
+            repositoryRoot: "/tmp/PromptCue",
+            repositoryName: "PromptCue",
+            branch: nil,
+            capturedAt: referenceDate
+        )
+
+        #expect(target.workspaceLabel == "PromptCue/App")
+        #expect(target.chooserDetailLabel == "/tmp/PromptCue/App")
+        #expect(target.chooserSecondaryLabel == "Terminal · /tmp/PromptCue/App")
+    }
+
+    @Test
+    func suggestedTargetSourceKindDistinguishesTerminalFromIDEBundleIdentifiers() {
+        let terminalTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            capturedAt: referenceDate
+        )
+        let ideTarget = makeSuggestedTarget()
+
+        #expect(terminalTarget.sourceKind == .terminal)
+        #expect(ideTarget.sourceKind == .ide)
+    }
+
+    @Test
+    func suggestedTargetChooserSecondaryLabelFallsBackToSessionIdentifierWhenWindowTitleMatchesWorkspaceLabel() {
+        let target = makeSuggestedTarget(
+            windowTitle: "PromptCue",
+            sessionIdentifier: "tab-2",
+            currentWorkingDirectory: nil,
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil
+        )
+
+        #expect(target.workspaceLabel == "PromptCue")
+        #expect(target.chooserDetailLabel == "tab-2")
+        #expect(target.chooserSecondaryLabel == "Cursor · tab-2")
+    }
+
+    @Test
+    func suggestedTargetCanonicalIdentityUsesTTYForTerminalTargets() {
+        let firstTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "PromptCue",
+            sessionIdentifier: "window-17",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue",
+            repositoryRoot: "/Users/ilwon/dev/PromptCue",
+            repositoryName: "PromptCue",
+            branch: "main",
+            capturedAt: referenceDate
+        )
+        let secondTarget = CaptureSuggestedTarget(
+            appName: "Terminal",
+            bundleIdentifier: "com.apple.Terminal",
+            windowTitle: "Other title",
+            sessionIdentifier: "window-98",
+            terminalTTY: "/dev/ttys003",
+            currentWorkingDirectory: "/tmp",
+            repositoryRoot: nil,
+            repositoryName: nil,
+            branch: nil,
+            capturedAt: referenceDate
+        )
+
+        #expect(firstTarget.choiceKey != secondTarget.choiceKey)
+        #expect(firstTarget.canonicalIdentityKey == secondTarget.canonicalIdentityKey)
+    }
+
+    @Test
+    func suggestedTargetShortBranchLabelUsesLeafAndTruncatesToEighteenCharacters() {
+        let target = makeSuggestedTarget(branch: "feature/12345678901234567890")
+
+        #expect(target.shortBranchLabel == "12345678901234567…")
     }
 
     @Test
@@ -490,4 +658,67 @@ struct PromptCueCoreTests {
         #expect(decoded.copiedBy == .mcp)
     }
 
+    @Test
+    func projectDocumentExposesStableKeyAndSupersededState() {
+        let id = UUID()
+        let successorID = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let updatedAt = createdAt.addingTimeInterval(60)
+        let document = ProjectDocument(
+            id: id,
+            project: "backtick",
+            topic: "pricing",
+            documentType: .decision,
+            content: "## Decision\n- Freemium + $9/mo premium",
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            supersededByID: successorID
+        )
+
+        #expect(document.key == ProjectDocumentKey(
+            project: "backtick",
+            topic: "pricing",
+            documentType: .decision
+        ))
+        #expect(document.isSuperseded)
+    }
+
+    @Test
+    func projectDocumentJSONCodecRoundTrip() throws {
+        let original = ProjectDocument(
+            project: "backtick",
+            topic: "architecture",
+            documentType: .reference,
+            content: "## Context\n- App-hosted MCP helper",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_120)
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProjectDocument.self, from: data)
+
+        #expect(decoded == original)
+    }
+
+    private func makeSuggestedTarget(
+        appName: String = "Cursor",
+        windowTitle: String? = "PromptCue",
+        sessionIdentifier: String? = "tab-1",
+        currentWorkingDirectory: String? = "/Users/ilwon/dev/PromptCue/App",
+        repositoryRoot: String? = "/Users/ilwon/dev/PromptCue",
+        repositoryName: String? = "PromptCue",
+        branch: String? = "feature/initial-work"
+    ) -> CaptureSuggestedTarget {
+        CaptureSuggestedTarget(
+            appName: appName,
+            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
+            windowTitle: windowTitle,
+            sessionIdentifier: sessionIdentifier,
+            currentWorkingDirectory: currentWorkingDirectory,
+            repositoryRoot: repositoryRoot,
+            repositoryName: repositoryName,
+            branch: branch,
+            capturedAt: referenceDate
+        )
+    }
 }

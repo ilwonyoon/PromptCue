@@ -151,6 +151,7 @@
 		F969E4432D0DA00E8230BDD5 /* RecentScreenshotCoordinatorPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F84F89D58A59910B164953B /* RecentScreenshotCoordinatorPerformanceTests.swift */; };
 		FA658A8F7A1E04F3A1E0E1F3 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A3C1459F488509BEDE3CAA /* AppEnvironment.swift */; };
 		FB8EA336F8388768A2E70097 /* ClipboardFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */; };
+		FDD211E809AEE9699F2CFAD0 /* ProjectDocumentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D104A9B87E6FA707650A2B88 /* ProjectDocumentStore.swift */; };
 		FDEB6A4E1FCC0915A473CFFA /* CaptureCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E6B1D035A1C732D61C34CC2 /* CaptureCard.swift */; };
 /* End PBXBuildFile section */
 
@@ -293,6 +294,7 @@
 		CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPConnectorSettingsModel.swift; sourceTree = "<group>"; };
 		CE897AF41F6DDD7C3DB86295 /* SettingsNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigationModel.swift; sourceTree = "<group>"; };
 		CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveDetectedTextView.swift; sourceTree = "<group>"; };
+		D104A9B87E6FA707650A2B88 /* ProjectDocumentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDocumentStore.swift; sourceTree = "<group>"; };
 		D1BD85EA1F495DB2F4FAD6AB /* ScreenshotDirectoryResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryResolver.swift; sourceTree = "<group>"; };
 		D22FB45DBB32F2BBE0BA3218 /* CardStorePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStorePerformanceTests.swift; sourceTree = "<group>"; };
 		D372ADD4A30AC64621AF5E05 /* RecentScreenshotLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotLocator.swift; sourceTree = "<group>"; };
@@ -433,6 +435,7 @@
 				21A7A2D3DEFC663FBD6E00EC /* CopyEventStore.swift */,
 				F447D3D2D92FFA7B5252D467 /* HotKeyCenter.swift */,
 				3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */,
+				D104A9B87E6FA707650A2B88 /* ProjectDocumentStore.swift */,
 				8711C31CF0828B296D7858CA /* PromptCueDatabase.swift */,
 				B8FF6E5313712AEB634FE5B6 /* RecentClipboardImageMonitor.swift */,
 				23579BC7E06ED49F32AE8EB1 /* RecentScreenshotContracts.swift */,
@@ -892,6 +895,7 @@
 				4D93F1FF1A33113701017DDA /* PanelMetrics.swift in Sources */,
 				9D0F051285B5BFBCEA6F7CF4 /* PerformanceTrace.swift in Sources */,
 				B358F4085B2EDA1EAF7764BD /* PrimitiveTokens.swift in Sources */,
+				FDD211E809AEE9699F2CFAD0 /* ProjectDocumentStore.swift in Sources */,
 				9AA939FBD91B56B05A7C168F /* PromptCueApp.swift in Sources */,
 				4C3EBD00780FCCB62BC81BAC /* PromptCueChip.swift in Sources */,
 				202C1BC04959F9C7DAFE65F2 /* PromptCueDatabase.swift in Sources */,

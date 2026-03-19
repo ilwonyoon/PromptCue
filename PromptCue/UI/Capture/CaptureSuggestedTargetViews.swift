@@ -23,7 +23,8 @@ struct CaptureSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: isAutomaticSelectionActive,
             onUseAutomaticTarget: onUseAutomaticTarget,
             onActivateInlineChooser: onActivateInlineChooser,
-            controlWidth: AppUIConstants.captureSelectorControlWidth
+            controlWidth: AppUIConstants.captureSelectorControlWidth,
+            chromeStyle: .capturePanel
         )
         .frame(
             maxWidth: .infinity,
@@ -51,7 +52,8 @@ struct CaptureCardSuggestedTargetAccessoryView: View {
             isAutomaticSelectionActive: false,
             onUseAutomaticTarget: nil,
             onActivateInlineChooser: nil,
-            controlWidth: nil
+            controlWidth: nil,
+            chromeStyle: .stackCard
         )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -95,6 +97,7 @@ private struct SuggestedTargetOriginControl: View {
     let onUseAutomaticTarget: (() -> Void)?
     let onActivateInlineChooser: (() -> Void)?
     let controlWidth: CGFloat?
+    let chromeStyle: SuggestedTargetAccessoryChromeStyle
 
     @State private var isPopoverPresented = false
 
@@ -107,7 +110,10 @@ private struct SuggestedTargetOriginControl: View {
                 isPopoverPresented = true
             }
         } label: {
-            SuggestedTargetAccessoryChrome(controlWidth: controlWidth) {
+            SuggestedTargetAccessoryChrome(
+                controlWidth: controlWidth,
+                style: chromeStyle
+            ) {
                 SuggestedTargetIdentityLine(
                     target: displayedTarget,
                     fallbackLabel: emptyLabel,
@@ -171,6 +177,27 @@ private enum SuggestedTargetChooserRowState {
     case selected
     case hovered
     case idle
+}
+
+private enum SuggestedTargetAccessoryChromeStyle {
+    case capturePanel
+    case stackCard
+
+    var backgroundFill: Color {
+        SemanticTokens.Surface.captureChooserRowFill
+    }
+
+    var hoverFill: Color {
+        switch self {
+        case .capturePanel:
+            return SemanticTokens.Surface.captureChooserRowHoverFill
+        case .stackCard:
+            return SemanticTokens.adaptiveColor(
+                light: NSColor.black.withAlphaComponent(0.082),
+                dark: NSColor.white.withAlphaComponent(0.058)
+            )
+        }
+    }
 }
 
 private struct SuggestedTargetChooserListView: View {
@@ -467,22 +494,19 @@ private struct SuggestedTargetChooserRow: View {
 private struct SuggestedTargetAccessoryChrome<Content: View>: View {
     let controlWidth: CGFloat?
     let minimumHeight: CGFloat?
-    let backgroundFill: Color
-    let hoverFill: Color
+    let style: SuggestedTargetAccessoryChromeStyle
     @ViewBuilder let content: Content
     @State private var isHovered = false
 
     init(
         controlWidth: CGFloat?,
         minimumHeight: CGFloat? = nil,
-        backgroundFill: Color = SemanticTokens.Surface.captureChooserRowFill,
-        hoverFill: Color = SemanticTokens.Surface.captureChooserRowHoverFill,
+        style: SuggestedTargetAccessoryChromeStyle = .capturePanel,
         @ViewBuilder content: () -> Content
     ) {
         self.controlWidth = controlWidth
         self.minimumHeight = minimumHeight
-        self.backgroundFill = backgroundFill
-        self.hoverFill = hoverFill
+        self.style = style
         self.content = content()
     }
 
@@ -493,7 +517,7 @@ private struct SuggestedTargetAccessoryChrome<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: minimumHeight, alignment: .leading)
             .background {
                 chromeShape
-                    .fill(isHovered ? hoverFill : backgroundFill)
+                    .fill(isHovered ? style.hoverFill : style.backgroundFill)
             }
             .clipShape(chromeShape)
             .contentShape(chromeShape)
@@ -546,7 +570,9 @@ private struct SuggestedTargetChooserRowChrome<Content: View>: View {
         switch rowState {
         case .selected:
             return SemanticTokens.Surface.captureChooserRowSelectedFill
-        case .hovered, .idle:
+        case .hovered:
+            return SemanticTokens.Surface.captureChooserRowHoverFill
+        case .idle:
             return SemanticTokens.Surface.captureChooserRowFill
         }
     }

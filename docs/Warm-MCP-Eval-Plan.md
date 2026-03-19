@@ -16,6 +16,28 @@ The goal is **not** "did a tool run?" The goal is:
 - did it update the right existing doc instead of creating topic sprawl
 - did it save structured markdown rather than transcript sludge
 
+## Recommended First Pass
+
+Run the first Warm MCP dogfood pass across both `ChatGPT` and `Claude`, not in a single client only.
+
+Why:
+
+- the product promise is cross-client durable context
+- a save in one client should be reusable from another client without re-explaining
+- the riskiest failures are topic sprawl, wrong `documentType`, and skipped recall before answer
+
+Recommended order:
+
+1. `ChatGPT`: save a `reference` doc
+2. `Claude`: recall that `reference` before answering
+3. `ChatGPT`: save an architecture `reference`
+4. `Claude`: update that architecture `reference`
+5. `ChatGPT`: save a `plan`
+6. `Claude`: save or update a `decision`
+7. `ChatGPT`: recall that `decision` before answering
+
+This first pass is intentionally manual. Do **not** add a special eval runner yet. The current gap is model behavior, not transport or storage correctness.
+
 ## Eval Rules
 
 - Prefer realistic user asks over synthetic API-shaped requests.
@@ -186,6 +208,89 @@ Expected:
 Watch for:
 
 - over-eager save
+
+## First Manual Run Order
+
+Use the same project name throughout, for example `Backtick`.
+
+### A. ChatGPT saves a project brief
+
+```text
+Write a short project brief from what we just decided about Backtick and keep it in memory.
+```
+
+Expected:
+
+- chooses `documentType=reference`
+- saves structured markdown with `##` headings
+- fits into an existing `brief` or equivalent topic if one already exists
+
+### B. Claude recalls before answering
+
+```text
+Before answering, load the current Backtick project brief and use it in your response.
+```
+
+Expected:
+
+- recalls before answering
+- does not save anything
+
+### C. ChatGPT saves an architecture summary
+
+```text
+Save an architecture summary for the Backtick MCP stack so future sessions can reuse it.
+```
+
+Expected:
+
+- chooses `documentType=reference`
+- saves durable background, not an execution plan
+
+### D. Claude updates that architecture summary
+
+```text
+Update our architecture summary with what we just decided about remote MCP and OAuth recovery.
+```
+
+Expected:
+
+- recalls first
+- uses a narrow update instead of rewriting the whole doc
+
+### E. ChatGPT saves a PRD
+
+```text
+Turn this conversation into a PRD for the Backtick onboarding flow and save it for later.
+```
+
+Expected:
+
+- chooses `documentType=plan`
+- writes a `plan`-shaped doc with sections like `## Goal`, `## User Flow`, `## Open Questions`
+
+### F. Claude saves only latest pricing decisions
+
+```text
+Document only the latest decisions we made about pricing and save them.
+```
+
+Expected:
+
+- chooses `documentType=decision`
+- updates an existing pricing decision doc if present
+- stores settled choices only
+
+### G. ChatGPT recalls pricing decisions before answering
+
+```text
+Before answering, load the current Backtick pricing decisions and use them in your response.
+```
+
+Expected:
+
+- recalls the existing `decision` doc before answering
+- does not save anything
 
 ## Pass Criteria
 

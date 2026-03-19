@@ -865,6 +865,13 @@ Create entity folder only if: mentioned 3+ times, has direct relationship to use
 
 Exponential multiplier on search scores based on age. Default half-life: 30 days. Recent memories rank higher, old ones fade but are never deleted. Tiers: Hot (last 7 days, auto-loaded) → Warm (consolidated from daily notes) → Cold (searchable but not auto-loaded).
 
+**Later consideration: memory vividness.** Once Warm docs exist in meaningful volume, ranking can evolve beyond pure age. Candidate signals include `lastRecalledAt`, `recallCount`, `updateCount`, `lastReviewedAt`, and `updatedAt`. The likely use is:
+
+- raise frequently revisited / frequently updated docs higher in search and recall candidates
+- let rarely recalled, long-stale docs remain searchable but not auto-loaded by default
+
+This should sit on top of the existing two-tier model, not replace it. `list_documents` remains the lean discovery layer; vividness only affects which documents surface first after enough real usage data exists.
+
 #### Consolidation cadence
 
 - **Heartbeat (every 30 min):** Cron job scans recent conversations, extracts "durable facts" (decisions, new people, status changes). Skips casual chat. Uses cheap model (~$0.005/day).

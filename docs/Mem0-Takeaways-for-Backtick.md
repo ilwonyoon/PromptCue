@@ -64,6 +64,21 @@ Backtick should keep strengthening:
 SQLite FTS is the correct default for now.
 Hybrid retrieval can be revisited only after Warm Memory volume makes basic retrieval insufficient.
 
+### Memory vividness
+
+After Warm documents accumulate, retrieval can consider not just recency but "how alive" a memory still is.
+
+Possible signals:
+
+- `lastRecalledAt`
+- `recallCount`
+- `updateCount`
+- `lastReviewedAt`
+- `updatedAt`
+
+This should stay a later ranking policy, not a day-one storage requirement.
+The immediate goal is still to ship Warm with simple two-tier retrieval first, then learn which of these signals are actually useful once real document volume exists.
+
 ### Graph memory
 
 Graph-style relationship modeling is not a day-one requirement.

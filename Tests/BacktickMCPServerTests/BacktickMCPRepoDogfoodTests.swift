@@ -27,7 +27,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testWarmDocumentFlowWithRepoCorpus() async throws {
+    func testWarmDocumentFlowWithRepoCorpusForCodexSingleClientEval() async throws {
         let repoRootURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -43,6 +43,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
         XCTAssertTrue(mcpResearch.contains("ProjectDocument"))
         XCTAssertTrue(warmEvalPlan.contains("list_documents"))
 
+        let project = "Backtick-eval-codex"
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
@@ -67,7 +68,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             params: [
                 "name": "save_document",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                     "topic": "brief",
                     "documentType": "reference",
                     "content": briefContent,
@@ -75,7 +76,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             ]
         )
         let briefDocument = try documentPayload(from: saveBriefResponse)
-        XCTAssertEqual(briefDocument["project"] as? String, "Backtick")
+        XCTAssertEqual(briefDocument["project"] as? String, project)
         XCTAssertEqual(briefDocument["topic"] as? String, "brief")
         XCTAssertEqual(briefDocument["documentType"] as? String, "reference")
 
@@ -100,7 +101,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             params: [
                 "name": "save_document",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                     "topic": "architecture",
                     "documentType": "reference",
                     "content": architectureContent,
@@ -113,28 +114,31 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
         - Warm project documents use the key `(project, topic, documentType)`.
         - The first Warm MCP tool set is `list_documents`, `recall_document`, `save_document`, and `update_document`.
 
-        ## Scope Boundaries
-        - Memory vividness is explicitly a later consideration, not a phase-one requirement.
-        - Cross-client core behavior stays tool-first; Claude-specific MCP prompts are a later optimization.
+        ## Topic and Type Discipline
+        - Topics should stay flat and reusable. Fit into existing topics first before creating a new topic.
+        - PRDs map to `plan`, latest decisions map to `decision`, durable summaries map to `reference`, and ongoing recap maps to `discussion`.
 
-        ## Open Questions
-        - A minimal read-only document viewer is likely needed before broad human eval, but editing is not yet required.
+        ## Content Guardrails
+        - Warm docs must not store coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.
+        - Durable docs should preserve project context, settled decisions, plans, constraints, and concise summaries future AI sessions should remember.
         """
 
-        _ = try await sendRequest(
+        let saveDecisionResponse = try await sendRequest(
             session: session,
             id: 4,
             method: "tools/call",
             params: [
                 "name": "save_document",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                     "topic": "warm-memory",
                     "documentType": "decision",
                     "content": decisionContent,
                 ],
             ]
         )
+        let firstDecision = try documentPayload(from: saveDecisionResponse)
+        let firstDecisionID = try XCTUnwrap(firstDecision["id"] as? String)
 
         let listResponse = try await sendRequest(
             session: session,
@@ -143,7 +147,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             params: [
                 "name": "list_documents",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                 ],
             ]
         )
@@ -157,22 +161,24 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             params: [
                 "name": "update_document",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                     "topic": "warm-memory",
                     "documentType": "decision",
                     "action": "replace_section",
-                    "section": "Scope Boundaries",
+                    "section": "Latest Decisions",
                     "content": """
-                    - Memory vividness stays in the later-consideration lane until real Warm documents accumulate enough history.
-                    - Phase one continues to focus on storage, two-tier retrieval, and human-readable evaluation.
+                    - Phase 1 stays limited to storage plus `list_documents`, `recall_document`, `save_document`, and `update_document`.
+                    - Narrow changes should prefer `update_document`, and recall should happen before updating an existing durable doc.
                     """,
                 ],
             ]
         )
         let updatedDecision = try documentPayload(from: updateDecisionResponse)
+        let updatedDecisionID = try XCTUnwrap(updatedDecision["id"] as? String)
         let updatedDecisionContent = try XCTUnwrap(updatedDecision["content"] as? String)
-        XCTAssertTrue(updatedDecisionContent.contains("later-consideration lane"))
-        XCTAssertFalse(updatedDecisionContent.contains("not a phase-one requirement"))
+        XCTAssertNotEqual(updatedDecisionID, firstDecisionID)
+        XCTAssertTrue(updatedDecisionContent.contains("Phase 1 stays limited"))
+        XCTAssertFalse(updatedDecisionContent.contains("Warm project documents use the key"))
 
         let updateArchitectureResponse = try await sendRequest(
             session: session,
@@ -181,7 +187,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             params: [
                 "name": "update_document",
                 "arguments": [
-                    "project": "Backtick",
+                    "project": project,
                     "topic": "architecture",
                     "documentType": "reference",
                     "action": "append",
@@ -202,12 +208,12 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             id: 8,
             method: "tools/call",
             params: [
-                "name": "recall_document",
-                "arguments": [
-                    "project": "Backtick",
-                    "topic": "warm-memory",
-                    "documentType": "decision",
-                ],
+                    "name": "recall_document",
+                    "arguments": [
+                    "project": project,
+                        "topic": "warm-memory",
+                        "documentType": "decision",
+                    ],
             ]
         )
         let recalledDecision = try documentPayload(from: recallDecisionResponse)
@@ -218,9 +224,9 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             id: 9,
             method: "tools/call",
             params: [
-                "name": "list_documents",
-                "arguments": [
-                    "project": "Backtick",
+                    "name": "list_documents",
+                    "arguments": [
+                    "project": project,
                 ],
             ]
         )

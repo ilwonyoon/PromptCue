@@ -395,7 +395,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "list_documents",
-                "description": "List durable project documents for lightweight discovery. Use this before recall_document or save_document when the project is known but the right topic or documentType is unclear.",
+                "description": "List durable project documents for lightweight discovery. Use this before recall_document, save_document, or update_document when the project is known but the right topic or documentType is unclear. Prefer this over guessing when multiple durable docs may exist for the same project.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -409,7 +409,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "recall_document",
-                "description": "Load one durable project document by project, topic, and documentType. Use this when the current discussion clearly depends on prior saved context so the user does not have to restate durable information.",
+                "description": "Load one durable project document by project, topic, and documentType. Use this when the current discussion clearly depends on prior saved context so the user does not have to restate durable information. Recall before answering when durable context matters, and recall before updating when you need to amend an existing doc rather than create a new one.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -423,7 +423,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript.",
+                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history. Save durable context, decisions, constraints, plans, and summaries that would help a future AI session resume work.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -438,7 +438,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "update_document",
-                "description": "Partially update an existing durable project document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes such as latest-decision deltas or one section of an existing plan, decision, discussion, or reference doc. Always list or recall first so you update the right project/topic/documentType document.",
+                "description": "Partially update an existing durable project document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes such as latest-decision deltas or one section of an existing plan, decision, discussion, or reference doc. Always list or recall first so you update the right project/topic/documentType document. Do not use this to append coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history; use it only for durable context changes that future AI sessions should remember.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -469,7 +469,7 @@ final class BacktickMCPServerSession {
         [
             "type": "string",
             "enum": ProjectDocumentType.allCases.map(\.rawValue),
-            "description": "Choose the smallest durable document shape: discussion for recap of exploration, options, and open questions; decision for settled choices and latest decisions; plan for actionable PRDs or execution briefs; and reference for durable facts, constraints, or architecture background.",
+            "description": "Choose the smallest durable document shape: discussion for recap of exploration, options, and open questions; decision for settled choices and latest decisions; plan for actionable PRDs or execution briefs; and reference for durable facts, constraints, or architecture background. None of these types are for coding-session logs, test transcripts, or git-like execution history.",
         ]
     }
 

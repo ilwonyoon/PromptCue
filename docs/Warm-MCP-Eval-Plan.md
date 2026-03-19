@@ -38,6 +38,19 @@ Recommended order:
 
 This first pass is intentionally manual. Do **not** add a special eval runner yet. The current gap is model behavior, not transport or storage correctness.
 
+## Core Tool Guardrails
+
+These rules belong in the shared Warm MCP tool behavior regardless of client:
+
+- save durable context, decisions, plans, constraints, and structured summaries
+- do **not** save coding-session logs
+- do **not** save file-by-file change logs
+- do **not** save shell transcripts or test-command transcripts
+- do **not** save git-like execution history
+- use `update_document` for narrow durable changes instead of rewriting an entire doc
+
+The point of Warm Memory is to help a future AI session resume project context, not to duplicate `git log`, terminal history, or a coding activity feed.
+
 ## Claude Code Handoff
 
 If the fastest next step is a repo-local eval in `Claude Code`, use this repo itself as the source corpus instead of inventing a blank project.
@@ -65,6 +78,7 @@ Claude Code should evaluate behavior against these rules:
 - prefer `list_documents` when topic or doc fit is ambiguous
 - prefer `recall_document` before answering or before amending an existing durable doc
 - prefer `update_document` over `save_document` for narrow deltas
+- do not save coding-session logs, file-by-file change logs, shell transcripts, test-command transcripts, or git-like execution history
 - keep topics tight and reusable
 - after each write or recall step, report which MCP tools were called and which `(project, topic, documentType)` was used
 
@@ -87,6 +101,7 @@ Behavior rules:
 - Prefer list_documents when topic or documentType fit is ambiguous.
 - Prefer recall_document before answering and before updating an existing durable doc.
 - Prefer update_document over save_document for narrow amendments.
+- Do not save coding-session logs, file-by-file change logs, shell transcripts, test-command transcripts, or git-like execution history.
 - Keep topic reuse tight. Do not create near-duplicate topics unless clearly necessary.
 - After each evaluation step, explicitly report:
   1. which MCP tool calls you made
@@ -104,7 +119,7 @@ Run this sequence:
 3. Save only the latest durable Warm Memory decisions for Backtick-eval-claude.
    - Expected shape: topic=warm-memory, documentType=decision
 
-4. Update the Warm Memory decision document with the newer decision that vividness is a later consideration rather than a phase-1 requirement.
+4. Update the Warm Memory decision document with the newer decision that phase 1 stays limited to storage plus `list_documents`, `recall_document`, `save_document`, and `update_document`, and that coding-session logs do not belong in Warm docs.
    - Prefer updating the existing decision doc rather than creating a new one.
 
 5. Recall the current Warm Memory decision document and summarize the current direction.
@@ -116,6 +131,27 @@ At the end, give a short evaluation:
 - whether any step created avoidable sprawl
 - whether any write should have been an update instead
 ```
+
+## ChatGPT / Claude App Handoff
+
+For `ChatGPT` web/macOS/iPhone and `Claude` desktop-style app evals, the expected durable outputs are usually more product- and planning-oriented than code-session-oriented.
+
+Bias these clients toward:
+
+- project briefs
+- architecture summaries
+- implementation briefs or PRD-shaped plans
+- latest settled pricing, launch, or product decisions
+- recap documents that preserve options and open questions
+
+Still apply the same core guardrails:
+
+- no coding-session logs
+- no file-by-file change logs
+- no shell or test-command transcripts
+- no git-like execution history
+
+Use app-style eval asks when you want to validate whether natural user language such as "turn this into a PRD" or "save the latest decisions" maps cleanly onto the Warm tools.
 
 ## Eval Rules
 

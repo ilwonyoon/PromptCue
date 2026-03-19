@@ -71,6 +71,7 @@ struct CaptureSuggestedTargetChooserPanelView: View {
             automaticTarget: model.automaticSuggestedTarget,
             isAutomaticSelected: model.isCaptureSuggestedTargetAutomatic,
             isAutomaticFocused: model.isAutomaticCaptureSuggestedTargetFocused,
+            showsPersistentSelectionBackground: true,
             controlWidth: AppUIConstants.captureSelectorControlWidth,
             fixedWidth: nil,
             surfaceTopPadding: 0,
@@ -132,6 +133,7 @@ private struct SuggestedTargetOriginControl: View {
                 automaticTarget: automaticTarget,
                 isAutomaticSelected: isAutomaticSelectionActive,
                 isAutomaticFocused: isAutomaticSelectionActive,
+                showsPersistentSelectionBackground: false,
                 controlWidth: nil,
                 fixedWidth: nil,
                 surfaceTopPadding: AppUIConstants.captureChooserSurfaceVerticalPadding,
@@ -208,6 +210,7 @@ private struct SuggestedTargetChooserListView: View {
     let automaticTarget: CaptureSuggestedTarget?
     let isAutomaticSelected: Bool
     let isAutomaticFocused: Bool
+    let showsPersistentSelectionBackground: Bool
     let controlWidth: CGFloat?
     let fixedWidth: CGFloat?
     let surfaceTopPadding: CGFloat
@@ -275,6 +278,7 @@ private struct SuggestedTargetChooserListView: View {
                             chooserRow(
                                 target: target,
                                 rowState: rowState(for: target),
+                                isSelected: isSelected(target: target),
                                 isRecent: target == automaticTarget
                             ) {
                                 if target == automaticTarget {
@@ -390,6 +394,7 @@ private struct SuggestedTargetChooserListView: View {
     private func chooserRow(
         target: CaptureSuggestedTarget,
         rowState: SuggestedTargetChooserRowState,
+        isSelected: Bool,
         isRecent: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -398,12 +403,17 @@ private struct SuggestedTargetChooserListView: View {
             controlWidth: controlWidth,
             identityStyle: identityStyle,
             rowState: rowState,
+            isSelected: isSelected,
             isRecent: isRecent,
             action: action
         )
     }
 
     private func rowState(for target: CaptureSuggestedTarget) -> SuggestedTargetChooserRowState {
+        guard showsPersistentSelectionBackground else {
+            return .idle
+        }
+
         let targetChoiceID = choiceID(for: target)
         let activeChoiceID = focusedChoiceID ?? selectedChoiceID
 
@@ -412,6 +422,10 @@ private struct SuggestedTargetChooserListView: View {
         }
 
         return .idle
+    }
+
+    private func isSelected(target: CaptureSuggestedTarget) -> Bool {
+        choiceID(for: target) == selectedChoiceID
     }
 
     private func choiceID(for target: CaptureSuggestedTarget) -> String {
@@ -453,6 +467,7 @@ private struct SuggestedTargetChooserRow: View {
     let controlWidth: CGFloat?
     var identityStyle: SuggestedTargetIdentityLine.Style = .chooser
     let rowState: SuggestedTargetChooserRowState
+    let isSelected: Bool
     let isRecent: Bool
     let action: () -> Void
 
@@ -470,7 +485,7 @@ private struct SuggestedTargetChooserRow: View {
                     fallbackLabel: target.fallbackDisplayLabel,
                     style: identityStyle,
                     showsRecent: isRecent,
-                    isSelected: renderState == .selected
+                    isSelected: isSelected
                 )
             }
         }

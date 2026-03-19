@@ -395,7 +395,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "list_documents",
-                "description": "List reviewed Warm documents for lightweight discovery. Use this before recall_document or save_document to find matching project/topic/documentType entries without loading full content.",
+                "description": "List durable project documents for lightweight discovery. Use this before recall_document or save_document when the project is known but the right topic or documentType is unclear.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -409,7 +409,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "recall_document",
-                "description": "Load one reviewed Warm document by project, topic, and documentType. Call proactively when a project or durable decision is relevant so the user does not have to restate it.",
+                "description": "Load one durable project document by project, topic, and documentType. Use this when the current discussion clearly depends on prior saved context so the user does not have to restate durable information.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -423,7 +423,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a reviewed Warm document by project, topic, and documentType. Recall before save, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript.",
+                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -438,7 +438,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "update_document",
-                "description": "Partially update an existing Warm document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes. Always list or recall first so you update the right project/topic/documentType document.",
+                "description": "Partially update an existing durable project document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes such as latest-decision deltas or one section of an existing plan, decision, discussion, or reference doc. Always list or recall first so you update the right project/topic/documentType document.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -469,6 +469,7 @@ final class BacktickMCPServerSession {
         [
             "type": "string",
             "enum": ProjectDocumentType.allCases.map(\.rawValue),
+            "description": "Choose the smallest durable document shape: discussion for recap of exploration, options, and open questions; decision for settled choices and latest decisions; plan for actionable PRDs or execution briefs; and reference for durable facts, constraints, or architecture background.",
         ]
     }
 
@@ -736,6 +737,12 @@ final class BacktickMCPServerSession {
                 ["name": "recall_document", "use": "Load one durable project document when a discussion needs prior context."],
                 ["name": "save_document", "use": "Save a reviewed markdown document for durable context across AI sessions."],
                 ["name": "update_document", "use": "Append, replace, or delete one ## section without rewriting the whole document."],
+            ],
+            "warmExamples": [
+                "Turn this conversation into a PRD and save it for later.",
+                "Document only the latest decisions we made about pricing.",
+                "Update our architecture summary with what we just decided.",
+                "Before answering, load the current pricing decisions.",
             ],
             "tryIt": noteCount > 0
                 ? "You have \(noteCount) notes. Try: \"List my Backtick notes\" or \"Show my pinned prompts\""

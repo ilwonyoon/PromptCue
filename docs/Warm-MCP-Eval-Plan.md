@@ -38,6 +38,85 @@ Recommended order:
 
 This first pass is intentionally manual. Do **not** add a special eval runner yet. The current gap is model behavior, not transport or storage correctness.
 
+## Claude Code Handoff
+
+If the fastest next step is a repo-local eval in `Claude Code`, use this repo itself as the source corpus instead of inventing a blank project.
+
+Why:
+
+- the repo already contains realistic product, planning, and MCP context
+- Claude Code can read the local docs directly
+- this isolates Warm tool behavior from transport noise
+
+Use a separate eval project namespace so results do not pollute future real Warm docs:
+
+- recommended project: `Backtick-eval-claude`
+
+Use these repo docs as the primary source corpus:
+
+- `docs/Execution-PRD.md`
+- `docs/Implementation-Plan.md`
+- `docs/MCP-Platform-Expansion-Research.md`
+- `docs/Warm-MCP-Eval-Plan.md`
+
+Claude Code should evaluate behavior against these rules:
+
+- use MCP Warm tools, not local file writes, for durable memory actions
+- prefer `list_documents` when topic or doc fit is ambiguous
+- prefer `recall_document` before answering or before amending an existing durable doc
+- prefer `update_document` over `save_document` for narrow deltas
+- keep topics tight and reusable
+- after each write or recall step, report which MCP tools were called and which `(project, topic, documentType)` was used
+
+### Claude Code Copy-Paste Prompt
+
+```text
+You are evaluating Backtick Warm Memory behavior inside the PromptCue repo.
+
+Context:
+- Use the local repo docs as source material:
+  - docs/Execution-PRD.md
+  - docs/Implementation-Plan.md
+  - docs/MCP-Platform-Expansion-Research.md
+  - docs/Warm-MCP-Eval-Plan.md
+- Do not create or modify repo files for the evaluation itself.
+- Use Backtick MCP Warm tools for durable memory actions.
+- Use the project name Backtick-eval-claude for every durable document created in this eval.
+
+Behavior rules:
+- Prefer list_documents when topic or documentType fit is ambiguous.
+- Prefer recall_document before answering and before updating an existing durable doc.
+- Prefer update_document over save_document for narrow amendments.
+- Keep topic reuse tight. Do not create near-duplicate topics unless clearly necessary.
+- After each evaluation step, explicitly report:
+  1. which MCP tool calls you made
+  2. which (project, topic, documentType) you used
+  3. whether the result looked correct or suspicious
+
+Run this sequence:
+
+1. Read the repo docs above and save a short durable project brief for Backtick-eval-claude.
+   - Expected shape: topic=brief, documentType=reference
+
+2. Save a durable architecture summary for Backtick-eval-claude focused on Stack, MCP, and Warm Memory.
+   - Expected shape: topic=architecture, documentType=reference
+
+3. Save only the latest durable Warm Memory decisions for Backtick-eval-claude.
+   - Expected shape: topic=warm-memory, documentType=decision
+
+4. Update the Warm Memory decision document with the newer decision that vividness is a later consideration rather than a phase-1 requirement.
+   - Prefer updating the existing decision doc rather than creating a new one.
+
+5. Recall the current Warm Memory decision document and summarize the current direction.
+   - Do not save anything in this step.
+
+At the end, give a short evaluation:
+- whether documentType choice was correct
+- whether topic reuse was clean
+- whether any step created avoidable sprawl
+- whether any write should have been an update instead
+```
+
 ## Eval Rules
 
 - Prefer realistic user asks over synthetic API-shaped requests.

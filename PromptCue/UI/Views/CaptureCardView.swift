@@ -36,8 +36,6 @@ private func cardHoverTracingEnabled() -> Bool {
 struct CaptureCardView: View {
     let card: CaptureCard
     let classification: ContentClassification
-    let availableSuggestedTargets: [CaptureSuggestedTarget]
-    let automaticSuggestedTarget: CaptureSuggestedTarget?
     let isSelected: Bool
     let isRecentlyCopied: Bool
     let selectionMode: Bool
@@ -53,8 +51,6 @@ struct CaptureCardView: View {
     let onDelete: () -> Void
     var onTogglePin: (() -> Void)?
     var compactMode: Bool = false
-    let onRefreshSuggestedTargets: () -> Void
-    let onAssignSuggestedTarget: (CaptureSuggestedTarget) -> Void
     @State private var isCardHovered = false
     @State private var isCopyHovered = false
     @State private var isDeleteHovered = false
@@ -81,8 +77,6 @@ struct CaptureCardView: View {
     init(
         card: CaptureCard,
         classification: ContentClassification = .plain,
-        availableSuggestedTargets: [CaptureSuggestedTarget] = [],
-        automaticSuggestedTarget: CaptureSuggestedTarget? = nil,
         isSelected: Bool,
         isRecentlyCopied: Bool = false,
         selectionMode: Bool,
@@ -97,14 +91,10 @@ struct CaptureCardView: View {
         onToggleExpansion: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onTogglePin: (() -> Void)? = nil,
-        compactMode: Bool = false,
-        onRefreshSuggestedTargets: @escaping () -> Void = {},
-        onAssignSuggestedTarget: @escaping (CaptureSuggestedTarget) -> Void = { _ in }
+        compactMode: Bool = false
     ) {
         self.card = card
         self.classification = classification
-        self.availableSuggestedTargets = availableSuggestedTargets
-        self.automaticSuggestedTarget = automaticSuggestedTarget
         self.isSelected = isSelected
         self.isRecentlyCopied = isRecentlyCopied
         self.selectionMode = selectionMode
@@ -120,8 +110,6 @@ struct CaptureCardView: View {
         self.onDelete = onDelete
         self.onTogglePin = onTogglePin
         self.compactMode = compactMode
-        self.onRefreshSuggestedTargets = onRefreshSuggestedTargets
-        self.onAssignSuggestedTarget = onAssignSuggestedTarget
     }
 
     var body: some View {
@@ -192,16 +180,6 @@ struct CaptureCardView: View {
                             .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                     }
 
-                    if !compactMode {
-                        CaptureCardSuggestedTargetAccessoryView(
-                            currentTarget: card.suggestedTarget,
-                            availableTargets: availableSuggestedTargets,
-                            automaticTarget: automaticSuggestedTarget,
-                            onRefreshTargets: onRefreshSuggestedTargets,
-                            onAssignTarget: onAssignSuggestedTarget
-                        )
-                        .padding(.top, PrimitiveTokens.Space.xxxs)
-                    }
                 }
                 .padding(.trailing, compactMode ? 0 : actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)

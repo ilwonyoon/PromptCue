@@ -191,8 +191,6 @@ struct CardStackView: View {
         CaptureCardView(
             card: card,
             classification: resolveClassification(for: card),
-            availableSuggestedTargets: [],
-            automaticSuggestedTarget: nil,
             isSelected: stagedCopiedCardIDSet.contains(card.id),
             isRecentlyCopied: false,
             selectionMode: selectionMode,
@@ -234,8 +232,6 @@ struct CardStackView: View {
             CaptureCardView(
                 card: card,
                 classification: resolveClassification(for: card),
-                availableSuggestedTargets: model.availableSuggestedTargets,
-                automaticSuggestedTarget: model.automaticSuggestedTarget,
                 isSelected: isStagedCopied,
                 isRecentlyCopied: isStagedCopied,
                 selectionMode: selectionMode,
@@ -266,12 +262,6 @@ struct CardStackView: View {
                 },
                 onTogglePin: {
                     model.togglePin(card: card)
-                },
-                onRefreshSuggestedTargets: {
-                    model.refreshAvailableSuggestedTargets()
-                },
-                onAssignSuggestedTarget: { target in
-                    model.assignSuggestedTarget(target, to: card)
                 }
             )
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -170,7 +170,6 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
     let id: String
     let text: String
     let tagsJSON: String?
-    let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
     let lastCopiedAt: Date?
@@ -181,7 +180,6 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
         id = captureCard.id.uuidString
         text = captureCard.text
         tagsJSON = CaptureTag.encodeJSONArray(captureCard.tags)
-        suggestedTargetJSON = Self.encodeSuggestedTarget(captureCard.suggestedTarget)
         createdAt = captureCard.createdAt
         screenshotPath = captureCard.screenshotPath
         lastCopiedAt = captureCard.lastCopiedAt
@@ -194,31 +192,11 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
             tags: CaptureTag.decodeJSONArray(tagsJSON),
-            suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
             sortOrder: sortOrder,
             isPinned: isPinned
         )
-    }
-
-    private static func encodeSuggestedTarget(_ target: CaptureSuggestedTarget?) -> String? {
-        guard let target,
-              let data = try? JSONEncoder().encode(target) else {
-            return nil
-        }
-
-        return String(data: data, encoding: .utf8)
-    }
-
-    private static func decodeSuggestedTarget(_ json: String?) -> CaptureSuggestedTarget? {
-        guard let json,
-              let data = json.data(using: .utf8),
-              let target = try? JSONDecoder().decode(CaptureSuggestedTarget.self, from: data) else {
-            return nil
-        }
-
-        return target
     }
 }

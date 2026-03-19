@@ -15,7 +15,6 @@ struct StackNoteCreateRequest: Equatable, Sendable {
     let id: UUID
     let text: String
     let tags: [CaptureTag]
-    let suggestedTarget: CaptureSuggestedTarget?
     let screenshotPath: String?
     let createdAt: Date
     let isPinned: Bool
@@ -24,7 +23,6 @@ struct StackNoteCreateRequest: Equatable, Sendable {
         id: UUID = UUID(),
         text: String,
         tags: [CaptureTag] = [],
-        suggestedTarget: CaptureSuggestedTarget? = nil,
         screenshotPath: String? = nil,
         createdAt: Date = Date(),
         isPinned: Bool = false
@@ -32,7 +30,6 @@ struct StackNoteCreateRequest: Equatable, Sendable {
         self.id = id
         self.text = text
         self.tags = CaptureTag.deduplicatePreservingOrder(tags)
-        self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
         self.createdAt = createdAt
         self.isPinned = isPinned
@@ -42,20 +39,17 @@ struct StackNoteCreateRequest: Equatable, Sendable {
 struct StackNoteUpdate: Equatable, Sendable {
     let text: String?
     let tags: StackOptionalUpdate<[CaptureTag]>
-    let suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget>
     let screenshotPath: StackOptionalUpdate<String>
     let isPinned: StackOptionalUpdate<Bool>
 
     init(
         text: String? = nil,
         tags: StackOptionalUpdate<[CaptureTag]> = .keep,
-        suggestedTarget: StackOptionalUpdate<CaptureSuggestedTarget> = .keep,
         screenshotPath: StackOptionalUpdate<String> = .keep,
         isPinned: StackOptionalUpdate<Bool> = .keep
     ) {
         self.text = text
         self.tags = tags
-        self.suggestedTarget = suggestedTarget
         self.screenshotPath = screenshotPath
         self.isPinned = isPinned
     }
@@ -107,7 +101,6 @@ final class StackWriteService {
                 screenshotPath: preparedScreenshotPath.path
             ),
             tags: request.tags,
-            suggestedTarget: request.suggestedTarget,
             createdAt: request.createdAt,
             screenshotPath: preparedScreenshotPath.path,
             sortOrder: nextTopSortOrder(in: existingCards),
@@ -140,10 +133,6 @@ final class StackWriteService {
                 screenshotPath: preparedScreenshotPath.path
             ),
             tags: resolvedTags(current: existingNote.tags, update: changes.tags),
-            suggestedTarget: resolvedValue(
-                current: existingNote.suggestedTarget,
-                update: changes.suggestedTarget
-            ),
             createdAt: existingNote.createdAt,
             screenshotPath: preparedScreenshotPath.path,
             lastCopiedAt: existingNote.lastCopiedAt,

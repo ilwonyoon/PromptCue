@@ -30,61 +30,10 @@ final class AppModelEditingTests: XCTestCase {
         try super.tearDownWithError()
     }
 
-    func testBeginEditingSeedsDraftAndPreservesCardSuggestedTarget() throws {
-        let cardTarget = makeTarget(
-            appName: "Cursor",
-            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
-            repo: "Backtick",
-            branch: "feature/edit"
-        )
-        let automaticTarget = makeTarget(
-            appName: "Xcode",
-            bundleIdentifier: "com.apple.dt.Xcode",
-            repo: "PromptCue",
-            branch: "main"
-        )
-        let screenshotURL = attachmentDirectoryURL.appendingPathComponent("seeded-preview.png")
-        try Data("png".utf8).write(to: screenshotURL)
-
-        let card = CaptureCard(
-            id: UUID(),
-            text: "Seeded card",
-            suggestedTarget: cardTarget,
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            screenshotPath: screenshotURL.path,
-            sortOrder: 10
-        )
-        try CardStore(databaseURL: databaseURL).save([card])
-
-        let model = makeModel(
-            provider: EditingTestSuggestedTargetProvider(
-                latestTarget: automaticTarget,
-                availableTargets: [automaticTarget]
-            )
-        )
-
-        model.start()
-        model.beginEditingCaptureCard(card)
-        model.beginCaptureSession()
-
-        XCTAssertTrue(model.isEditingCaptureCard)
-        XCTAssertEqual(model.editingCaptureCardID, card.id)
-        XCTAssertEqual(model.draftText, card.text)
-        XCTAssertEqual(model.captureChooserTarget?.canonicalIdentityKey, cardTarget.canonicalIdentityKey)
-        XCTAssertEqual(model.recentScreenshotPreviewURL?.path, screenshotURL.path)
-    }
-
     func testSubmitCaptureWhileEditingUpdatesExistingCardInsteadOfCreatingNewOne() async throws {
-        let cardTarget = makeTarget(
-            appName: "Cursor",
-            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
-            repo: "Backtick",
-            branch: "feature/edit"
-        )
         let card = CaptureCard(
             id: UUID(),
             text: "Original text",
-            suggestedTarget: cardTarget,
             createdAt: Date(timeIntervalSinceReferenceDate: 100),
             sortOrder: 10
         )
@@ -105,7 +54,6 @@ final class AppModelEditingTests: XCTestCase {
         XCTAssertEqual(model.cards.first?.text, "Edited text")
         XCTAssertEqual(model.cards.first?.createdAt, card.createdAt)
         XCTAssertEqual(model.cards.first?.sortOrder, card.sortOrder)
-        XCTAssertEqual(model.cards.first?.suggestedTarget, cardTarget)
         XCTAssertEqual(model.draftText, "")
 
         let loadedCards = try CardStore(databaseURL: databaseURL).load()
@@ -178,34 +126,11 @@ final class AppModelEditingTests: XCTestCase {
         XCTAssertNil(model.recentScreenshotPreviewURL)
     }
 
-    private func makeModel(
-        provider: EditingTestSuggestedTargetProvider? = nil
-    ) -> AppModel {
+    private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),
             attachmentStore: AttachmentStore(baseDirectoryURL: attachmentDirectoryURL),
-            recentScreenshotCoordinator: EditingTestRecentScreenshotCoordinator(),
-            suggestedTargetProvider: provider
-        )
-    }
-
-    private func makeTarget(
-        appName: String,
-        bundleIdentifier: String,
-        repo: String,
-        branch: String
-    ) -> CaptureSuggestedTarget {
-        CaptureSuggestedTarget(
-            appName: appName,
-            bundleIdentifier: bundleIdentifier,
-            windowTitle: "\(repo) window",
-            sessionIdentifier: "\(appName)-1",
-            currentWorkingDirectory: "/tmp/\(repo)",
-            repositoryRoot: "/tmp/\(repo)",
-            repositoryName: repo,
-            branch: branch,
-            capturedAt: Date(),
-            confidence: .high
+            recentScreenshotCoordinator: EditingTestRecentScreenshotCoordinator()
         )
     }
 }
@@ -227,40 +152,3 @@ private final class EditingTestRecentScreenshotCoordinator: RecentScreenshotCoor
     func dismissCurrent() {}
 }
 
-@MainActor
-private final class EditingTestSuggestedTargetProvider: SuggestedTargetProviding {
-    var onChange: (() -> Void)?
-    private let latestTarget: CaptureSuggestedTarget?
-    private let availableTargets: [CaptureSuggestedTarget]
-
-    init(latestTarget: CaptureSuggestedTarget?, availableTargets: [CaptureSuggestedTarget]) {
-        self.latestTarget = latestTarget
-        self.availableTargets = availableTargets
-    }
-
-    func start() {
-        onChange?()
-    }
-
-    func stop() {}
-
-    func currentFreshSuggestedTarget(
-        relativeTo date: Date,
-        freshness: TimeInterval
-    ) -> CaptureSuggestedTarget? {
-        guard let latestTarget,
-              latestTarget.isFresh(relativeTo: date, freshness: freshness) else {
-            return nil
-        }
-
-        return latestTarget
-    }
-
-    func availableSuggestedTargets() -> [CaptureSuggestedTarget] {
-        availableTargets
-    }
-
-    func refreshAvailableSuggestedTargets() {
-        onChange?()
-    }
-}

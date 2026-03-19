@@ -91,15 +91,8 @@ final class PromptCueDatabase {
             }
         }
 
-        migrator.registerMigration("addSuggestedTargetJSON") { db in
-            let existingColumnNames = try db.columns(in: PromptCueDatabaseSchema.cardsTableName).map(\.name)
-            guard !existingColumnNames.contains("suggestedTargetJSON") else {
-                return
-            }
-
-            try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
-                table.add(column: "suggestedTargetJSON", .text)
-            }
+        migrator.registerMigration("addSuggestedTargetJSON") { _ in
+            // Migration preserved for ordering — suggestedTarget feature removed.
         }
 
         migrator.registerMigration("addTagsJSON") { db in

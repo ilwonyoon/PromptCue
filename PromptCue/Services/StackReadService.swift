@@ -84,13 +84,12 @@ final class StackReadService {
 
         return grouped
             .map { key, cards in
-                let firstTarget = cards.first(where: { $0.suggestedTarget != nil })?.suggestedTarget
-                return NoteClassification(
+                NoteClassification(
                     groupKey: key,
-                    repositoryName: firstTarget?.repositoryName,
-                    branch: firstTarget?.branch,
-                    appName: firstTarget?.appName,
-                    sessionIdentifier: firstTarget?.sessionIdentifier,
+                    repositoryName: nil,
+                    branch: nil,
+                    appName: nil,
+                    sessionIdentifier: nil,
                     tags: aggregatedTags(from: cards),
                     noteIDs: cards.map(\.id),
                     previewTexts: cards.map { String($0.text.prefix(80)) }
@@ -114,20 +113,10 @@ final class StackReadService {
         for note: CaptureCard,
         groupBy: StackClassifyGroupBy
     ) -> String {
-        guard let target = note.suggestedTarget else {
-            return "uncategorized"
+        if !note.tags.isEmpty {
+            return note.tags.map(\.name).sorted().joined(separator: "|")
         }
-
-        switch groupBy {
-        case .repository:
-            let repositoryName = target.repositoryName ?? "unknown-repo"
-            let branch = target.branch ?? "no-branch"
-            return "\(repositoryName)|\(branch)"
-        case .session:
-            return target.sessionIdentifier ?? "no-session"
-        case .app:
-            return "\(target.bundleIdentifier)|\(target.appName)"
-        }
+        return "uncategorized"
     }
 
     private func aggregatedTags(from cards: [CaptureCard]) -> [CaptureTag] {

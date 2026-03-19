@@ -1125,6 +1125,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         experimentalRemoteRecoveryIssue == nil
             && experimentalRemoteHasSeenRemoteSuccess
             && experimentalRemoteRuntimeState == .running
+            && experimentalRemoteProbeIssue == nil
     }
 
     var experimentalRemoteShouldShowInlinePublicBaseURL: Bool {
@@ -1168,15 +1169,6 @@ final class MCPConnectorSettingsModel: ObservableObject {
             )
         }
 
-        if experimentalRemoteIsConnected {
-            return ExperimentalMCPHTTPStatusPresentation(
-                title: "Connected",
-                reason: "ChatGPT has already reached this Backtick endpoint with your current app setup.",
-                tone: .success,
-                action: .copyPublicMCPURL
-            )
-        }
-
         switch experimentalRemoteRuntimeState {
         case .starting:
             return ExperimentalMCPHTTPStatusPresentation(
@@ -1210,6 +1202,15 @@ final class MCPConnectorSettingsModel: ObservableObject {
         if let experimentalRemoteProbeIssue,
            experimentalRemoteRuntimeState == .running {
             return statusPresentationForProbeIssue(experimentalRemoteProbeIssue)
+        }
+
+        if experimentalRemoteIsConnected {
+            return ExperimentalMCPHTTPStatusPresentation(
+                title: "Connected",
+                reason: "ChatGPT has already reached this Backtick endpoint with your current app setup.",
+                tone: .success,
+                action: .copyPublicMCPURL
+            )
         }
 
         return ExperimentalMCPHTTPStatusPresentation(
@@ -2125,7 +2126,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .publicEndpointUnreachable:
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Needs attention",
-                reason: "Backtick is running locally, but the public HTTPS URL is not responding. Restart ngrok or update the public URL below.",
+                reason: "Backtick is running locally, but the public HTTPS URL is not serving Backtick's MCP/OAuth endpoints. Restart ngrok on the same local port Backtick is using, or update the public URL below.",
                 tone: .warning,
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel
             )

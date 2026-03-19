@@ -185,7 +185,7 @@ The core use case: AI finishes a meaningful conversation → saves a structured 
 
 ### Done
 - Added Claude Desktop config generation in Settings
-- Implemented save_document / recall_document MCP tools
+- Locked the Warm document contract and MCP tool design
 
 ### Open questions
 - Memory tab UX: inline viewer vs separate panel
@@ -251,10 +251,10 @@ Full CRUD + project management. Referencing Muninn's tool set but adapted for Ba
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| `save_document` | Create or **replace** a document | Upsert by `(project, topic)`. Full content swap. |
+| `save_document` | Create or **replace** a document | Upsert by `(project, topic, documentType)`. Full content swap. |
 | `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc. Key gap in Muninn. |
-| `recall_document` | Read one document by `(project, topic)` | Returns full content for AI context |
-| `list_documents` | List all topics in a project, or all projects | Lightweight: titles + status + updatedAt, no content |
+| `recall_document` | Read one document by `(project, topic, documentType)` | Full recall path for AI context; respect budget if the content is large |
+| `list_documents` | List documents in a project, or all projects | Lean discovery only: titles + `documentType` + topic + updatedAt, no content |
 | `delete_document` | Remove a specific topic document | Clean deletion |
 | `search_documents` | Full-text search across all documents | FTS5 keyword search |
 | `manage_project` | Create project, set status, rename, delete project (and all its docs) | Project lifecycle |
@@ -263,15 +263,15 @@ Full CRUD + project management. Referencing Muninn's tool set but adapted for Ba
 
 ```
 // Append to branding doc:
-update_document(project: "backtick", topic: "branding", action: "append",
+update_document(project: "backtick", topic: "branding", documentType: "discussion", action: "append",
   content: "## 2026-03-16 Color revision\nChanged primary to...")
 
 // Replace a section in pricing doc:
-update_document(project: "backtick", topic: "pricing", action: "replace_section",
+update_document(project: "backtick", topic: "pricing", documentType: "decision", action: "replace_section",
   section: "Competitor Analysis", content: "- Raycast: free tier + $8/mo...")
 
 // Remove resolved section:
-update_document(project: "backtick", topic: "architecture", action: "delete_section",
+update_document(project: "backtick", topic: "architecture", documentType: "reference", action: "delete_section",
   section: "Resolved Questions")
 ```
 
@@ -309,10 +309,16 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
     public var createdAt: Date
     public var updatedAt: Date
 }
-// DB unique constraint: (project, topic)
+// DB unique constraint: (project, topic, documentType)
 ```
 
 **Excluded from scope:** Coding session logs (git history already covers this). Warm is for **discussions and decisions** from ChatGPT/Claude conversations, not development progress from Codex/Claude Code.
+
+**Implementation filter:** use this document as the execution reference for Warm tools and data shape, and use `docs/Mem0-Takeaways-for-Backtick.md` as the filter for what to keep narrow. In practice that means:
+
+- keep retrieval two-tiered: `list_documents` stays lean, `recall_document` is the full-detail path
+- keep Warm promotion human-reviewed rather than black-box automatic
+- do not add embeddings, graph memory, Docker, or Backtick-owned inference in the first slice
 
 #### Tool description design — making AI proactive
 
@@ -334,20 +340,21 @@ Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because th
 
 ```
 recall_document:
-  "Load a project topic document. Call proactively when user
-   mentions a project — do not wait to be asked. Proactive
+  "Load a project topic document by `(project, topic, documentType)`.
+   Call proactively when user mentions a project — do not wait to be asked. Proactive
    recall prevents context re-explanation."
 
 save_document:
-  "Save or replace a project topic document. At session end,
+  "Save or replace a project topic document by `(project, topic, documentType)`. At session end,
    proactively offer to save key decisions and context. ALWAYS
    call recall_document first to avoid overwriting existing
    content. Content must be full markdown with ## section
    headers — never a single-line summary."
 
 list_documents:
-  "List all topics in a project, or all projects. Call before
-   save_document to check if a matching topic already exists.
+  "List matching documents in a project, or all projects. Keep
+   this lightweight and use it before recall_document or
+   save_document to check if a matching topic/documentType already exists.
    Fit new content into existing topics when possible."
 
 update_document:
@@ -393,15 +400,15 @@ The review loop is what makes this different from Mem0 (black box, user can't se
 ```
 Session start:
   → list_documents(project: "backtick")
-  → ["branding", "pricing", "architecture", "launch"]
-  → recall_document(project: "backtick", topic: "pricing")  // relevant to today's discussion
+  → [("pricing", "decision"), ("pricing", "discussion"), ("architecture", "reference")]
+  → recall_document(project: "backtick", topic: "pricing", documentType: "decision")  // relevant to today's discussion
 
 During session (2h pricing discussion):
-  → update_document(project: "backtick", topic: "pricing", action: "replace_section",
+  → update_document(project: "backtick", topic: "pricing", documentType: "decision", action: "replace_section",
        section: "Decision", content: "Freemium + $9/mo premium...")
 
 New topic emerges:
-  → save_document(project: "backtick", topic: "distribution",
+  → save_document(project: "backtick", topic: "distribution", documentType: "plan",
        content: "## App Store vs Direct\n### Pros/Cons\n...")
 
 Session end:
@@ -411,7 +418,7 @@ Session end:
 
 Next day, different AI client, new thread:
   → list_documents(project: "backtick")
-  → recall_document(project: "backtick", topic: "distribution")
+  → recall_document(project: "backtick", topic: "distribution", documentType: "plan")
   → Continues where yesterday left off (human-verified version)
 ```
 
@@ -649,7 +656,7 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 
 | Pattern | Why it worked | Backtick application |
 |---------|--------------|---------------------|
-| **Document-first design** | One structured doc per project > scattered fragments. LLM knows what to update. | ProjectDocument model. `save_document` replaces whole doc, not fragments. |
+| **Document-first design** | One structured doc per `(project, topic, documentType)` > scattered fragments. LLM knows what to update. | ProjectDocument model. `save_document` replaces whole doc, not fragments. |
 | **Tool docstrings as AI instructions** | Docstrings shape LLM behavior. Examples improve compliance ~40%. | Warm tool descriptions with examples, format rules, proactive behavior hints. |
 | **Per-operation DB connections** | Persistent connections caused "database is locked" when multiple clients ran. | GRDB's `db.write { }` / `db.read { }` blocks already do this. Don't hold connections. |
 | **Explicit transactions** | Multi-statement writes without BEGIN/COMMIT → partial commits. | `db.inTransaction { }` for all multi-step mutations. |
@@ -678,13 +685,13 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 
 Before: LLMs called `create_memory(content, depth, tags)` → 10 fragments per session. Incoherent.
 
-After: LLMs call `save_document(project, content)` → One structured markdown doc. Must have `##` headers. Replaces previous version.
+After: LLMs call `save_document(project, topic, documentType, content)` → One structured markdown doc. Must have `##` headers. Replaces previous version.
 
 **This is the single most important architectural decision for Warm.** Backtick's `save_document` / `update_document` tools must enforce:
 1. Full markdown with `##` headers (reject plain text)
 2. Minimum content length (reject single-line saves)
 3. recall before save (prevent overwriting existing content)
-4. One document per (project, topic) — not fragments
+4. One document per `(project, topic, documentType)` — not fragments
 
 ---
 

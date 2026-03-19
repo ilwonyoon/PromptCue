@@ -94,5 +94,6 @@ It should guide:
 - proactive save/recall behavior design
 - Hot -> Warm promotion rules
 - future retrieval design once Warm Memory volume grows
+- the implementation order and concrete MCP surface in `docs/MCP-Platform-Expansion-Research.md`
 
 It should not be read as a mandate to turn Backtick into Mem0-like infrastructure.

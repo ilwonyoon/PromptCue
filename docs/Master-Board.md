@@ -234,6 +234,8 @@ Current MCP platform queue:
 8. lock the post-launch Warm memory contract so long AI discussions save into reviewed project documents with explicit `documentType` plus topic classification
 9. do not blur shipped Stack MCP, experimental ChatGPT remote MCP, and post-launch Warm memory into one roadmap bucket
 10. keep ChatGPT distribution on the advanced-user self-hosted track; hosted relay / managed distribution is not in the active plan
+11. treat `docs/MCP-Platform-Expansion-Research.md` as the MCP execution reference and `docs/Mem0-Takeaways-for-Backtick.md` as the Warm-memory filter before starting any new MCP follow-on
+12. keep the first Warm slice narrow: `ProjectDocument` storage, two-tier retrieval (`list_documents` discovery vs `recall_document` full recall), proactive save/recall tool descriptions, and human-reviewed Hot -> Warm promotion
 
 ChatGPT remote MCP reliability floor:
 

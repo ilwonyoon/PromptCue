@@ -278,6 +278,7 @@ Post-Stack Warm memory follow-on:
 - those documents should carry explicit `documentType` metadata plus flat `topic` classification
 - initial `documentType` buckets should distinguish durable discussion summaries from decision docs, plans, and reference/context docs
 - topic classification stays flat and reusable across sessions; fit into existing topics first, create new topics only when clearly distinct
+- when Warm implementation starts, use `docs/MCP-Platform-Expansion-Research.md` as the execution reference and `docs/Mem0-Takeaways-for-Backtick.md` as the filter for what to adopt vs reject
 
 Implementation rules for the next MCP lane:
 
@@ -447,6 +448,8 @@ Current MCP platform queue:
 7. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
 8. lock the post-launch Warm memory contract so long Claude Desktop / ChatGPT discussions save into reviewed project documents with explicit `documentType` plus topic classification
 9. keep ChatGPT on the advanced-user self-hosted track; do not open a hosted relay / managed distribution plan in the active roadmap
+10. when Warm work starts, follow `docs/MCP-Platform-Expansion-Research.md` for the MCP tool surface and `docs/Mem0-Takeaways-for-Backtick.md` for scope control
+11. the first Warm slice should stay minimal: `ProjectDocument` storage, two-tier retrieval (`list_documents` as lean discovery, `recall_document` as full recall), proactive tool descriptions, and human-reviewed Hot -> Warm promotion; do not jump to hybrid search, graph memory, or Backtick-owned inference
 
 ChatGPT remote MCP reliability matrix:
 

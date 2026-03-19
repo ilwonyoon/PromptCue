@@ -436,3 +436,47 @@ Expected:
 - creating duplicate topics
 - over-eager save on read-only asks
 - transcript-shaped content instead of reviewed markdown
+
+## Recorded Results
+
+### Single-Client Baselines
+
+- `Claude Code` single-client eval passed on `Backtick-eval-claude`
+  - stored `brief/reference`, `architecture/reference`, and `warm-memory/decision`
+  - reused the same `warm-memory` topic for update
+  - chose `update_document` instead of `save_document` for a narrow amendment
+- `Codex` single-client eval passed on `Backtick-eval-codex`
+  - tool/storage contract verified directly in the local CLI lane
+  - stored the same three durable docs with one superseded `warm-memory/decision` version after update
+
+Observed difference:
+
+- Claude produced richer decision content but could drift stale when it relied too heavily on planning docs
+- Codex produced fresher brief/reference content when it was grounded in the current tool surface and implementation
+
+This is why shared eval prompts should inspect current code as well as planning docs when the latest implemented Warm behavior matters.
+
+### Shared Cross-Client Handoff
+
+Shared eval project: `Backtick-eval-shared`
+
+Verified sequence:
+
+1. `Claude` saved `brief/reference`
+2. `Codex` recalled that same `brief/reference` and updated only `## Current Status`
+3. `Codex` saved `warm-memory/decision`
+4. `Claude` recalled that same `warm-memory/decision` and appended `## Phase 1 Scope Lock`
+
+What passed:
+
+- cross-client recall worked
+- cross-client update worked
+- existing `(project, topic, documentType)` docs were reused instead of creating new topics
+- supersession worked for both `brief/reference` and `warm-memory/decision`
+- `update_document` was used for narrow amendments instead of whole-doc rewrites
+
+Current shared baseline is sufficient to move past single-client validation and into broader cross-client dogfood.
+
+Optional follow-up:
+
+- add one more shared `architecture/reference` handoff if we want extra confidence on reference-doc updates, but this is no longer the critical path

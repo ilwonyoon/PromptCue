@@ -200,7 +200,6 @@
 		358114AA1F69A493530DB5A7 /* AppModel+CaptureTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CaptureTags.swift"; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
 		35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsTests.swift; sourceTree = "<group>"; };
-		36B936EE40204A319AF99309 /* PromptCue-hover-port */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-hover-port"; path = .; sourceTree = SOURCE_ROOT; };
 		3823DFD1C47FC69FFB8F69A9 /* CardRetentionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsTests.swift; sourceTree = "<group>"; };
 		3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedScreenshotAccess.swift; sourceTree = "<group>"; };
 		3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticTokens.swift; sourceTree = "<group>"; };
@@ -230,6 +229,7 @@
 		5DF6888EDB742C96FC15D391 /* CapturePreviewImagePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePreviewImagePerformanceTests.swift; sourceTree = "<group>"; };
 		5EDED6B2C80C575176B588DB /* StackPanelVisualPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelVisualPerformanceTests.swift; sourceTree = "<group>"; };
 		61D593D8E7C5928FCDFA1D28 /* CaptureSuggestedTargetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureSuggestedTargetViews.swift; sourceTree = "<group>"; };
+		624E33A5AA11250A3F477889 /* PromptCue-hover2-port */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "PromptCue-hover2-port"; path = .; sourceTree = SOURCE_ROOT; };
 		6406A9FA30876A8FE4765C78 /* ScreenshotSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotSettingsModel.swift; sourceTree = "<group>"; };
 		65959EE4923F0AA0EDE928EA /* AppTiming.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTiming.swift; sourceTree = "<group>"; };
 		663938197B33CD0F05421FDA /* StackRailControlButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackRailControlButton.swift; sourceTree = "<group>"; };
@@ -483,7 +483,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				36B936EE40204A319AF99309 /* PromptCue-hover-port */,
+				624E33A5AA11250A3F477889 /* PromptCue-hover2-port */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

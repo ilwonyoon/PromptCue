@@ -72,6 +72,13 @@ Use these repo docs as the primary source corpus:
 - `docs/MCP-Platform-Expansion-Research.md`
 - `docs/Warm-MCP-Eval-Plan.md`
 
+When the eval needs the latest implemented Warm behavior, also inspect the current code:
+
+- `Sources/BacktickMCPServer/BacktickMCPServerSession.swift`
+- `PromptCue/Services/ProjectDocumentStore.swift`
+
+If roadmap docs and current code disagree, prefer the current Warm tool surface and validation logic over older planning language.
+
 Claude Code should evaluate behavior against these rules:
 
 - use MCP Warm tools, not local file writes, for durable memory actions
@@ -93,6 +100,10 @@ Context:
   - docs/Implementation-Plan.md
   - docs/MCP-Platform-Expansion-Research.md
   - docs/Warm-MCP-Eval-Plan.md
+- Also inspect the current Warm implementation in:
+  - Sources/BacktickMCPServer/BacktickMCPServerSession.swift
+  - PromptCue/Services/ProjectDocumentStore.swift
+- If planning docs and current code disagree, prefer the current Warm tool surface and validation logic.
 - Do not create or modify repo files for the evaluation itself.
 - Use Backtick MCP Warm tools for durable memory actions.
 - Use the project name Backtick-eval-claude for every durable document created in this eval.

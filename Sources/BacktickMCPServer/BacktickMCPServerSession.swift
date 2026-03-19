@@ -409,7 +409,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "recall_document",
-                "description": "Load one durable project document by project, topic, and documentType. Use this when the current discussion clearly depends on prior saved context so the user does not have to restate durable information. Recall before answering when durable context matters, and recall before updating when you need to amend an existing doc rather than create a new one.",
+                "description": "Load one durable project document by project, topic, and documentType. Use this proactively when the current discussion likely depends on prior saved context so the user does not have to restate durable information. Recall before answering when durable context matters, and recall before save_document or update_document when you need to amend an existing doc instead of creating a duplicate or overwriting the wrong content.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -423,7 +423,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history. Save durable context, decisions, constraints, plans, and summaries that would help a future AI session resume work.",
+                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript. Aim for durable content that is at least 200 characters, includes at least two ## sections, and is not just a single-line summary. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history. Save durable context, decisions, constraints, plans, and summaries that would help a future AI session resume work.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -455,7 +455,7 @@ final class BacktickMCPServerSession {
                         ],
                         "content": [
                             "type": ["string", "null"],
-                            "description": "For append, provide a markdown fragment that starts with a ## header. For replace_section, provide the new section body or a full ## section block.",
+                            "description": "For append, provide a markdown fragment that starts with a ## header. For replace_section, provide either only the new body text for the named section (without the ## header) or a full replacement ## section block; both replace the matched section.",
                         ],
                     ],
                     "required": ["project", "topic", "documentType", "action"],

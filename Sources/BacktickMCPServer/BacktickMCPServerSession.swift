@@ -507,6 +507,20 @@ final class BacktickMCPServerSession {
                     "additionalProperties": false,
                 ],
             ],
+            [
+                "name": "delete_document",
+                "description": "Permanently delete a durable project document. Use this to remove documents that are no longer needed, such as test data or obsolete decisions. Requires the exact project, topic, and documentType to identify the document. List documents first if unsure which document to delete.",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "project": ["type": "string"],
+                        "topic": ["type": "string"],
+                        "documentType": projectDocumentTypeSchema(),
+                    ],
+                    "required": ["project", "topic", "documentType"],
+                    "additionalProperties": false,
+                ],
+            ],
         ]
     }
 
@@ -574,6 +588,9 @@ final class BacktickMCPServerSession {
             case "update_document":
                 mutatesStack = false
                 value = try updateDocument(arguments: arguments)
+            case "delete_document":
+                mutatesStack = false
+                value = try deleteDocument(arguments: arguments)
             default:
                 return toolErrorResult("Unsupported tool \(name)")
             }
@@ -1082,6 +1099,20 @@ final class BacktickMCPServerSession {
         try validateProjectDocumentContent(document.content)
 
         return [
+            "document": documentDictionary(document),
+        ]
+    }
+
+    private func deleteDocument(arguments: [String: Any]) throws -> [String: Any] {
+        let key = try requiredProjectDocumentKey(arguments)
+        let document = try documentStore.deleteDocument(
+            project: key.project,
+            topic: key.topic,
+            documentType: key.documentType
+        )
+
+        return [
+            "deleted": true,
             "document": documentDictionary(document),
         ]
     }

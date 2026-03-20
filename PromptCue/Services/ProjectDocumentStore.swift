@@ -7,12 +7,13 @@ enum ProjectDocumentStoreError: LocalizedError {
     case loadFailed(Error)
     case saveFailed(Error)
     case updateFailed(Error)
+    case deleteFailed(Error)
 
     var errorDescription: String? {
         switch self {
         case let .unavailable(underlying):
             return underlying?.localizedDescription ?? "Project document storage is unavailable"
-        case let .loadFailed(error), let .saveFailed(error), let .updateFailed(error):
+        case let .loadFailed(error), let .saveFailed(error), let .updateFailed(error), let .deleteFailed(error):
             return error.localizedDescription
         }
     }
@@ -222,6 +223,58 @@ final class ProjectDocumentStore {
         } catch {
             NSLog("ProjectDocumentStore updateDocument failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.updateFailed(error)
+        }
+    }
+
+    func deleteDocument(
+        project: String,
+        topic: String,
+        documentType: ProjectDocumentType
+    ) throws -> ProjectDocument {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.write { db in
+                let existing = try ProjectDocumentRecord.fetchOne(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL
+                      AND project = ?
+                      AND topic = ?
+                      AND documentType = ?
+                    LIMIT 1
+                    """,
+                    arguments: [project, topic, documentType.rawValue]
+                )
+
+                guard let existing else {
+                    throw ProjectDocumentMutationError.documentNotFound(
+                        key: ProjectDocumentKey(
+                            project: project,
+                            topic: topic,
+                            documentType: documentType
+                        )
+                    )
+                }
+
+                try db.execute(
+                    sql: """
+                    UPDATE \(ProjectDocumentRecord.databaseTableName)
+                    SET supersededByID = ?
+                    WHERE id = ?
+                    """,
+                    arguments: ["deleted", existing.id]
+                )
+
+                return existing.projectDocument
+            }
+        } catch {
+            NSLog("ProjectDocumentStore deleteDocument failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.deleteFailed(error)
         }
     }
 }

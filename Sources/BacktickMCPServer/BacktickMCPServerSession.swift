@@ -222,11 +222,11 @@ final class BacktickMCPServerSession {
         2. Do not wait to be asked when prior Backtick context is likely relevant to the current answer.
 
         Save behavior:
-        1. When a meaningful decision is reached, a plan is settled, or a long discussion wraps up, proactively ask whether the user wants to save it to Backtick.
-        2. Do not save silently.
-        3. When the user wants to save something but the right topic or document type is not obvious, call propose_document_saves first and review the proposal before writing.
-        4. Before writing, prefer to list or recall existing docs so you can update the right document instead of creating a duplicate.
-        5. If a long discussion is mixed and classification is uncertain, propose what should be saved first and default to one reviewed discussion doc instead of forcing a multi-document split.
+        1. ALWAYS call propose_document_saves before saving. Never call save_document or update_document directly without a prior proposal step.
+        2. When calling propose_document_saves, organize the content by topic before sending — separate distinct decisions or discussion threads into their own ## sections so the server can generate focused proposals. Focus on decisions, direction changes, and topics discussed at length. Skip anything only briefly mentioned.
+        3. Do not save silently. Wait for the user to confirm which proposals to save before writing anything.
+        4. Before writing, list or recall existing docs so you can update the right document instead of creating a duplicate.
+        5. If a long discussion is mixed and classification is uncertain, default to one reviewed discussion doc instead of forcing a multi-document split.
         6. When asking the user, use short natural language such as "Save this to Backtick?" or "Should I add this to the existing Backtick memo?" Hide tool jargon like documentType, create/update, or internal schemas unless the user asks for those details.
 
         Content rules:
@@ -441,7 +441,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "propose_document_saves",
-                "description": "Draft one or more reviewed Backtick save proposals without writing anything yet. Use this when the user wants to save something but the right topic, documentType, or create-vs-update choice is not obvious. Prefer this before save_document or update_document for long, mixed, or noisy discussions. Return concise proposals the user can review before anything is stored.",
+                "description": "REQUIRED before any save_document or update_document call. Draft reviewed save proposals without writing anything yet. Focus on decisions, direction changes, and topics discussed at length — skip anything only briefly mentioned. Each proposal includes a one-line summary so the user can quickly select which to keep. Never skip this step.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -468,7 +468,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a durable project document by project, topic, and documentType. Use this only when the user asks to save, preserve, turn a conversation into a document, or summarize it into durable project context, and prefer to write only after the user has confirmed what should be kept. If the user clearly wants something stored in Backtick but does not explicitly name a topic or documentType, infer a reasonable durable topic and type instead of refusing, and list or recall first if you need to check what already exists. Do not directly split a long mixed thread into multiple final typed docs by default. If the conversation mixes exploration, decisions, and plans, first propose what to save and default to one reviewed discussion doc unless the boundaries are clearly separable. Map actionable PRDs or implementation briefs to plan, latest settled choices to decision, recap of exploration and open questions to discussion, and durable facts, constraints, or architecture background to reference. Always list or recall first, fit into an existing topic when possible, and store structured markdown with ## headers rather than a raw transcript. Aim for durable content that is at least 200 characters, includes at least two ## sections, and is not just a single-line summary. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history. Save durable context, decisions, constraints, plans, and summaries that would help a future AI session resume work.",
+                "description": "Save a durable project document. Only call this AFTER the user has reviewed and confirmed a proposal from propose_document_saves. Never call directly without a prior proposal step. List or recall existing docs first to update instead of creating duplicates. Store structured markdown with ## headers (at least two sections, 200+ characters). Map actionable PRDs to plan, settled choices to decision, exploration recaps to discussion, durable facts to reference. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -819,96 +819,231 @@ final class BacktickMCPServerSession {
             ]
         }
 
-        let documentType = inferredDocumentType(content: content, userIntent: userIntent)
-        let topic = inferredProposalTopic(
-            content: content,
-            userIntent: userIntent,
-            preferredTopic: preferredTopic,
-            documentType: documentType
-        )
+        let rawSegments = splitContentIntoSegments(content)
+        let meaningfulSegments = rawSegments.filter { seg in
+            !shouldSkipSaveProposal(content: seg.body, userIntent: nil)
+        }
 
-        let existingDocument = try documentStore.currentDocument(
-            project: project,
-            topic: topic,
-            documentType: documentType
-        )
+        // Fall back to whole content if no meaningful segments survive filtering
+        let segments: [(heading: String?, body: String)]
+        if meaningfulSegments.isEmpty {
+            segments = [(heading: nil, body: content)]
+        } else {
+            segments = meaningfulSegments
+        }
 
-        let finalWarnings = proposalWarnings(
-            project: project,
-            topic: topic,
-            documentType: documentType,
-            content: content,
-            userIntent: userIntent
-        )
+        // Group segments by inferred topic first, merging content for duplicates
+        var segmentContentByTopic: [String: String] = [:]
+        var topicOrder: [String] = []
 
-        let recommendationTool = existingDocument == nil ? "save_document" : "update_document"
-        let operation = existingDocument == nil ? "create" : "update"
-        let needsRecall = existingDocument != nil
-        let proposalWarnings = finalWarnings
-        let proposalID = UUID().uuidString.lowercased()
-        let preview = proposalPreview(
-            content: content,
-            topic: topic,
-            documentType: documentType
-        )
-        let review = proposalReview(
-            topic: topic,
-            existingDocument: existingDocument != nil
-        )
+        for segment in segments {
+            let segmentDocumentType = inferredDocumentType(content: segment.body, userIntent: userIntent)
+            // Use segment heading as preferredTopic when available — this ensures
+            // each ## section gets its own topic instead of merging into one.
+            let effectivePreferredTopic = segment.heading ?? preferredTopic
+            let segmentTopic = inferredProposalTopic(
+                content: segment.body,
+                userIntent: userIntent,
+                preferredTopic: effectivePreferredTopic,
+                documentType: segmentDocumentType
+            )
 
-        let proposals: [[String: Any]] = [[
-            "proposalID": proposalID,
-            "topic": topic,
-            "documentType": documentType.rawValue,
-            "confidence": finalWarnings.contains("classification_uncertain") ? "medium" : "high",
-            "operation": operation,
-            "rationale": proposalRationale(
-                topic: topic,
-                documentType: documentType,
-                existingDocument: existingDocument != nil,
+            if segmentContentByTopic[segmentTopic] != nil {
+                // Merge content from duplicate-topic segments
+                segmentContentByTopic[segmentTopic] = (segmentContentByTopic[segmentTopic] ?? "") + "\n\n" + segment.body
+            } else {
+                segmentContentByTopic[segmentTopic] = segment.body
+                topicOrder.append(segmentTopic)
+            }
+        }
+
+        // Build one proposal per unique topic using its merged content
+        var proposalsByTopic: [String: [String: Any]] = [:]
+
+        for segmentTopic in topicOrder {
+            let mergedContent = segmentContentByTopic[segmentTopic] ?? ""
+            let segmentDocumentType = inferredDocumentType(content: mergedContent, userIntent: userIntent)
+
+            let existingDocument = try documentStore.currentDocument(
+                project: project,
+                topic: segmentTopic,
+                documentType: segmentDocumentType
+            )
+
+            let segmentWarnings = proposalWarnings(
+                project: project,
+                topic: segmentTopic,
+                documentType: segmentDocumentType,
+                content: mergedContent,
                 userIntent: userIntent
-            ),
-            "preview": preview,
-            "existingDocument": existingDocument.map(documentSummaryDictionary) ?? NSNull(),
-            "warnings": proposalWarnings,
-            "review": review,
-            "recommendation": [
-                "kind": operation,
-                "tool": recommendationTool,
-                "needsRecall": needsRecall,
-            ],
-        ]]
+            )
 
-        let limitedProposals = Array(proposals.prefix(maxProposals))
+            let recommendationTool = existingDocument == nil ? "save_document" : "update_document"
+            let operation = existingDocument == nil ? "create" : "update"
+            let needsRecall = existingDocument != nil
+            let proposalID = UUID().uuidString.lowercased()
+            let filteredBody = filterNoisyLines(mergedContent)
+            let preview = proposalPreview(
+                content: filteredBody,
+                topic: segmentTopic,
+                documentType: segmentDocumentType
+            )
+            let oneLiner = proposalOneLiner(filteredBody, topic: segmentTopic)
+            let review = proposalReview(
+                topic: segmentTopic,
+                existingDocument: existingDocument != nil,
+                summary: oneLiner
+            )
+
+            let proposal: [String: Any] = [
+                "proposalID": proposalID,
+                "topic": segmentTopic,
+                "documentType": segmentDocumentType.rawValue,
+                "confidence": segmentWarnings.contains("classification_uncertain") ? "medium" : "high",
+                "operation": operation,
+                "rationale": proposalRationale(
+                    topic: segmentTopic,
+                    documentType: segmentDocumentType,
+                    existingDocument: existingDocument != nil,
+                    userIntent: userIntent
+                ),
+                "preview": preview,
+                "existingDocument": existingDocument.map(documentSummaryDictionary) ?? NSNull(),
+                "warnings": segmentWarnings,
+                "review": review,
+                "recommendation": [
+                    "kind": operation,
+                    "tool": recommendationTool,
+                    "needsRecall": needsRecall,
+                ] as [String: Any],
+            ]
+
+            proposalsByTopic[segmentTopic] = proposal
+        }
+
+        let orderedProposals = topicOrder.compactMap { proposalsByTopic[$0] }
+        let limitedProposals = Array(orderedProposals.prefix(maxProposals))
         let nextStep = limitedProposals.count == 1 ? "confirm_one_proposal" : "review_proposals"
 
         return [
             "project": project,
             "count": limitedProposals.count,
-            "warnings": finalWarnings,
+            "warnings": globalWarnings,
             "proposals": limitedProposals,
-            "globalWarnings": finalWarnings,
+            "globalWarnings": globalWarnings,
             "recommendedNextStep": nextStep,
         ]
     }
 
-    private func proposalReview(topic: String, existingDocument: Bool) -> [String: Any] {
+    private func splitContentIntoSegments(_ content: String) -> [(heading: String?, body: String)] {
+        let normalized = content
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Split by ## headers if present
+        if normalized.contains("\n## ") || normalized.hasPrefix("## ") {
+            var segments: [(heading: String?, body: String)] = []
+            let lines = normalized.components(separatedBy: "\n")
+            var currentHeading: String? = nil
+            var currentLines: [String] = []
+
+            for line in lines {
+                if line.hasPrefix("## ") {
+                    if !currentLines.isEmpty {
+                        let body = currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !body.isEmpty {
+                            segments.append((heading: currentHeading, body: body))
+                        }
+                    }
+                    currentHeading = String(line.dropFirst(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentLines = [line]
+                } else {
+                    currentLines.append(line)
+                }
+            }
+
+            if !currentLines.isEmpty {
+                let body = currentLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !body.isEmpty {
+                    segments.append((heading: currentHeading, body: body))
+                }
+            }
+
+            return segments.isEmpty ? [(heading: nil, body: normalized)] : segments
+        }
+
+        // Fall back: split by double-newline paragraphs
+        let paragraphs = normalized
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if paragraphs.count <= 1 {
+            return [(heading: nil, body: normalized)]
+        }
+
+        return paragraphs.map { (heading: nil, body: $0) }
+    }
+
+    private func filterNoisyLines(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+        let filtered = lines.filter { line in
+            let value = line.trimmingCharacters(in: .whitespaces)
+            let isNoisy = value.contains("```")
+                || value.hasPrefix("$ ")
+                || value.contains("xcodebuild")
+                || value.contains("swift test")
+                || (value.hasPrefix("git ") || value.contains(" git "))
+                || (value.contains("/") && value.contains(".swift"))
+                || value.hasPrefix("error: ")
+                || value.hasPrefix("warning: ")
+                || value.hasPrefix("Build complete")
+                || value.hasPrefix("Compiling ")
+                || value.hasPrefix("Linking ")
+            return !isNoisy
+        }
+        return filtered.joined(separator: "\n")
+    }
+
+    private func proposalOneLiner(_ segment: String, topic: String) -> String {
+        let lines = segment
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") && !$0.hasPrefix("```") && !$0.hasPrefix("- ") }
+
+        // Find first sentence-like line with substance (>20 chars)
+        if let firstSubstantiveLine = lines.first(where: { $0.count > 20 }) {
+            let truncated = firstSubstantiveLine.count > 120
+                ? String(firstSubstantiveLine.prefix(117)) + "..."
+                : firstSubstantiveLine
+            return truncated
+        }
+
+        let displayTopic = topic
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return "Notes on \(displayTopic)"
+    }
+
+    private func proposalReview(topic: String, existingDocument: Bool, summary: String? = nil) -> [String: Any] {
         let displayTopic = topic
             .replacingOccurrences(of: "-", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         if existingDocument {
+            let resolvedSummary = summary ?? "This fits the existing \(displayTopic) Backtick memo."
             return [
                 "displayTopic": displayTopic,
-                "summary": "This fits the existing \(displayTopic) Backtick memo.",
+                "summary": resolvedSummary,
                 "confirmPrompt": "Should I add this to the existing Backtick memo?",
                 "hideInternalFieldsByDefault": true,
             ]
         }
 
+        let resolvedSummary = summary ?? "This looks worth keeping in Backtick as \(displayTopic)."
         return [
             "displayTopic": displayTopic,
-            "summary": "This looks worth keeping in Backtick as \(displayTopic).",
+            "summary": resolvedSummary,
             "confirmPrompt": "Save this to Backtick?",
             "hideInternalFieldsByDefault": true,
         ]

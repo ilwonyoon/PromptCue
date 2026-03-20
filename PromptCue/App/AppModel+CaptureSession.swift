@@ -93,7 +93,7 @@ extension AppModel {
         let tags = CaptureTagText.extractCanonicalInlineTags(in: trimmed).tags
         var attachment = currentRecentScreenshotAttachment
 
-        if attachment == nil, recentScreenshotState.showsCaptureSlot {
+        if attachment == nil, !isEditingCaptureCard {
             if let resolvedURL = await recentScreenshotCoordinator.resolveCurrentCaptureAttachment(
                 timeout: AppTiming.recentScreenshotSubmitResolveTimeout
             ) {

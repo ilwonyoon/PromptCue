@@ -24,7 +24,7 @@ private func logCardHoverTrace(_ line: String) {
     }
 
     defer { try? handle.close() }
-    try? handle.seekToEnd()
+    _ = try? handle.seekToEnd()
     handle.write(data)
 }
 
@@ -267,7 +267,7 @@ struct CaptureCardView: View {
             .accessibilityHidden(true)
         }
         #if DEBUG
-        .onChange(of: isCardHoveredState) { isEmphasized in
+        .onChange(of: isCardHoveredState) { _, isEmphasized in
             guard cardHoverTracingEnabled() else {
                 return
             }

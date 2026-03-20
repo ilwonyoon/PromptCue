@@ -38,7 +38,6 @@ let package = Package(
             path: ".",
             exclude: [
                 ".github",
-                ".omc",
                 ".swiftpm",
                 "AGENTS.md",
                 "Backtick_thick.svg",
@@ -68,7 +67,6 @@ let package = Package(
                 "Sources/BacktickMCP",
                 "Sources/PromptCueCore",
                 "Tests",
-                "build-test-connector",
                 "docs",
                 "project.yml",
                 "scripts",

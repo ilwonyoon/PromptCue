@@ -105,10 +105,11 @@ resolve_destination() {
 resolve_scratch_path() {
   if [[ -n "${BACKTICK_MCP_HELPER_SCRATCH_PATH:-}" ]]; then
     SCRATCH_ROOT="${BACKTICK_MCP_HELPER_SCRATCH_PATH}"
-    return
+  else
+    SCRATCH_ROOT="${PROJECT_ROOT}/build/BacktickMCPScratch"
   fi
 
-  SCRATCH_ROOT="${PROJECT_ROOT}/build/BacktickMCPScratch"
+  mkdir -p "${SCRATCH_ROOT}"
 }
 
 resolve_deployment_target() {

@@ -151,7 +151,7 @@ struct LocalImageThumbnail: View {
         return resolvedURL
     }
 
-    private static func decodeThumbnail(from url: URL, maxPixelSize: CGFloat) -> NSImage? {
+    nonisolated private static func decodeThumbnail(from url: URL, maxPixelSize: CGFloat) -> NSImage? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             return nil
         }
@@ -173,7 +173,7 @@ struct LocalImageThumbnail: View {
         )
     }
 
-    private static func decodeImageAsFallback(from url: URL) -> NSImage? {
+    nonisolated private static func decodeImageAsFallback(from url: URL) -> NSImage? {
         return NSImage(contentsOf: url)
     }
 }

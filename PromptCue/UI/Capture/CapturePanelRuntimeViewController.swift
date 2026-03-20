@@ -427,10 +427,16 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotSurface.showLoading(true)
         screenshotSpinner.stopAnimation(nil)
 
-        imageLoadTask = Task.detached(priority: .utility) { [weak self, cacheKey, url] in
-            let image = CapturePreviewImageCache.loadUncachedImage(from: url)
+        imageLoadTask = Task { [weak self, cacheKey, url] in
+            let image = await Task.detached(priority: .utility) {
+                CapturePreviewImageCache.loadUncachedImage(from: url)
+            }.value
 
             guard !Task.isCancelled else {
+                return
+            }
+
+            guard let self else {
                 return
             }
 
@@ -438,20 +444,14 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 Self.previewImageCache.store(image, forKey: cacheKey)
             }
 
-            await MainActor.run {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                let resolvedImage = Self.previewImageCache.image(forKey: cacheKey)
-                guard let self, self.displayedPreviewImageKey == cacheKey else {
-                    return
-                }
-
-                self.screenshotImageView.image = resolvedImage
-                self.screenshotSurface.showLoading(false)
-                self.screenshotSpinner.stopAnimation(nil)
+            guard self.displayedPreviewImageKey == cacheKey else {
+                return
             }
+
+            let resolvedImage = Self.previewImageCache.image(forKey: cacheKey)
+            self.screenshotImageView.image = resolvedImage
+            self.screenshotSurface.showLoading(false)
+            self.screenshotSpinner.stopAnimation(nil)
         }
     }
 

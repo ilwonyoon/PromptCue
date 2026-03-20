@@ -337,7 +337,7 @@ struct PromptCueSettingsView: View {
         SettingsSection(
             title: "Screenshots",
             titleFont: SettingsTokens.Typography.sectionTitleMedium,
-            footer: "Auto-attach only checks the screenshot folder you explicitly approve."
+            footer: "Auto-attach watches the folder you approve and checks the current macOS screenshot save location while capture is open."
         ) {
             SettingsRows {
                 SettingsTwoColumnGroupRow("Status") {

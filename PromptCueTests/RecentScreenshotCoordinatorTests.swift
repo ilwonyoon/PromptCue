@@ -388,6 +388,167 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
+    func testResolveCurrentCaptureAttachmentReturnsImmediatelyWhenNoSignalsExist() async {
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: DelayedSignalProbeLocator(
+                fullScanDelay: 0.3,
+                signalResult: .init(signalCandidate: nil, readableCandidate: nil),
+                fullResult: .init(signalCandidate: nil, readableCandidate: nil)
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: tempDirectoryURL.appendingPathComponent("TransientScreenshots")),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        let startedAt = Date()
+        let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.6)
+        let elapsed = Date().timeIntervalSince(startedAt)
+
+        XCTAssertNil(resolvedURL)
+        XCTAssertLessThan(elapsed, 0.18)
+    }
+
+    func testResolveCurrentCaptureAttachmentWaitsForPostOpenTemporarySignalAndLateFileArrival() async throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+        let temporarySignalDate = Date()
+        let locator = MutableRecentScreenshotLocator(
+            fullScanDelay: 0.2,
+            signalResult: .init(signalCandidate: nil, readableCandidate: nil, recentTemporaryContainerDate: nil),
+            fullResult: .init(signalCandidate: nil, readableCandidate: nil, recentTemporaryContainerDate: nil)
+        )
+
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.5
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+        XCTAssertEqual(coordinator.state, .idle)
+
+        locator.update(
+            signalResult: .init(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: temporarySignalDate
+            )
+        )
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-19 at 10.18.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        Task {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? screenshotData.write(to: screenshotURL)
+            let candidate = RecentScreenshotCandidate(
+                attachment: ScreenshotAttachment(
+                    path: screenshotURL.path,
+                    modifiedAt: Date(),
+                    fileSize: screenshotData.count
+                ),
+                sourceKey: screenshotURL.lastPathComponent.lowercased()
+            )
+            locator.update(
+                signalResult: .init(
+                    signalCandidate: candidate,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: temporarySignalDate
+                ),
+                fullResult: .init(
+                    signalCandidate: candidate,
+                    readableCandidate: candidate,
+                    recentTemporaryContainerDate: temporarySignalDate
+                )
+            )
+        }
+
+        let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.8)
+
+        XCTAssertNotNil(resolvedURL)
+        XCTAssertTrue(resolvedURL?.path.hasPrefix(cacheURL.path) == true)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(resolvedURL)), screenshotData)
+    }
+
+    func testDismissSuppressesLateFileArrivalForPendingTemporaryDetection() throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+        let temporarySignalDate = Date()
+        let locator = MutableRecentScreenshotLocator(
+            signalResult: .init(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: temporarySignalDate
+            ),
+            fullResult: .init(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: temporarySignalDate
+            )
+        )
+
+        let observer = TestRecentScreenshotObserver()
+        let coordinator = RecentScreenshotCoordinator(
+            observer: observer,
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.5
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+        waitForCondition("pending detected state from temporary container") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
+        coordinator.dismissCurrent()
+        XCTAssertEqual(coordinator.state, .idle)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-19 at 10.19.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+        let candidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: Date(),
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
+        )
+        locator.update(
+            signalResult: .init(
+                signalCandidate: candidate,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: temporarySignalDate
+            ),
+            fullResult: .init(
+                signalCandidate: candidate,
+                readableCandidate: candidate,
+                recentTemporaryContainerDate: temporarySignalDate
+            )
+        )
+        observer.signalChange(.authorizedDirectoryContentsChanged)
+        drainMainQueue(seconds: 0.3)
+
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
     func testAuthorizedDirectoryConfigurationChangeDropsPendingDetectedStateImmediately() throws {
         let firstScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-A", isDirectory: true)
         let secondScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-B", isDirectory: true)
@@ -589,5 +750,54 @@ private struct DelayedSignalProbeLocator: RecentScreenshotLocating {
 
     func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
         signalResult
+    }
+}
+
+private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
+    private let lock = NSLock()
+    private let fullScanDelay: TimeInterval
+    private var signalResult: RecentScreenshotScanResult
+    private var fullResult: RecentScreenshotScanResult
+
+    init(
+        fullScanDelay: TimeInterval = 0,
+        signalResult: RecentScreenshotScanResult,
+        fullResult: RecentScreenshotScanResult
+    ) {
+        self.fullScanDelay = fullScanDelay
+        self.signalResult = signalResult
+        self.fullResult = fullResult
+    }
+
+    func update(
+        signalResult: RecentScreenshotScanResult? = nil,
+        fullResult: RecentScreenshotScanResult? = nil
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let signalResult {
+            self.signalResult = signalResult
+        }
+
+        if let fullResult {
+            self.fullResult = fullResult
+        }
+    }
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        if fullScanDelay > 0 {
+            Thread.sleep(forTimeInterval: fullScanDelay)
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        return fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        lock.lock()
+        defer { lock.unlock() }
+        return signalResult
     }
 }

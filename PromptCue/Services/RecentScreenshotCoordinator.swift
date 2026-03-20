@@ -36,10 +36,11 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var pendingScanReferenceDate: Date?
     private var pendingPreviewCacheRequest: PendingPreviewCacheRequest?
     private var isCaptureSessionMonitoringActive = false
+    private var ignoredPendingDetectionUntil: Date?
 
     init(
         observer: RecentScreenshotObserving? = nil,
-        locator: RecentScreenshotLocating = RecentScreenshotLocator(),
+        locator: RecentScreenshotLocating = RecentScreenshotLocator(includeTemporaryItemsScanning: true),
         cache: TransientScreenshotCaching = TransientScreenshotCache(),
         clipboardProvider: RecentClipboardImageProviding? = nil,
         maxAge: TimeInterval = AppTiming.recentScreenshotMaxAge,
@@ -105,6 +106,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         clearCurrentSessionCache()
         currentSession = nil
         ignoredSourceKeys.removeAll()
+        ignoredPendingDetectionUntil = nil
         state = .idle
     }
 
@@ -143,20 +145,26 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return cacheURL
         }
 
-        guard timeout > 0 else {
-            refreshState()
-            if case .previewReady(_, let cacheURL, _) = state {
-                return cacheURL
-            }
-            return nil
-        }
-
-        refreshState()
+        let referenceDate = now()
+        refreshState(
+            allowSynchronousSignalProbe: true,
+            scheduleAsyncRefresh: false
+        )
         if case .previewReady(_, let cacheURL, _) = state {
             return cacheURL
         }
 
-        let deadline = now().addingTimeInterval(timeout)
+        guard state.showsCaptureSlot else {
+            return nil
+        }
+
+        scheduleAsyncRefresh(referenceDate: referenceDate)
+
+        guard timeout > 0 else {
+            return nil
+        }
+
+        let deadline = referenceDate.addingTimeInterval(timeout)
 
         while now() < deadline {
             if case .previewReady(_, let cacheURL, _) = state {
@@ -176,7 +184,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             try? await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000))
         }
 
-        refreshState()
+        refreshState(
+            allowSynchronousSignalProbe: true,
+            scheduleAsyncRefresh: false
+        )
         if case .previewReady(_, let cacheURL, _) = state {
             return cacheURL
         }
@@ -204,6 +215,9 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         if let currentSession {
             if currentSession.sourceKey?.hasPrefix("clipboard:") == true {
                 clipboardProvider.dismissCurrent()
+            }
+            if currentSession.sourceKey == nil {
+                rememberIgnoredPendingDetection(until: currentSession.expiresAt)
             }
             rememberIgnoredSourceKey(currentSession.sourceKey)
         }
@@ -258,9 +272,12 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         state = .idle
     }
 
-    private func refreshState(allowSynchronousSignalProbe: Bool = false) {
+    private func refreshState(
+        allowSynchronousSignalProbe: Bool = false,
+        scheduleAsyncRefresh shouldScheduleAsyncRefresh: Bool = true
+    ) {
         let referenceDate = now()
-        purgeIgnoredSourceKeys(referenceDate: referenceDate)
+        purgeIgnoredDetections(referenceDate: referenceDate)
 
         if !isExpirationSuspended,
            let currentSession, referenceDate >= currentSession.expiresAt {
@@ -268,27 +285,40 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return
         }
 
-        if let clipboardImage = clipboardProvider.recentImage(referenceDate: referenceDate, maxAge: maxAge) {
+        let clipboardImage = clipboardProvider.recentImage(referenceDate: referenceDate, maxAge: maxAge)
+        if allowSynchronousSignalProbe {
+            applySynchronousSignalProbe(
+                referenceDate: referenceDate,
+                preferredClipboardImage: clipboardImage
+            )
+        }
+
+        if let clipboardImage,
+           shouldPreferClipboardImage(
+            clipboardImage,
+            over: currentSession
+           ) {
             let session = ensureClipboardSession(for: clipboardImage, referenceDate: referenceDate)
             state = .previewReady(
                 sessionID: session.id,
                 cacheURL: clipboardImage.cacheURL,
                 thumbnailState: .ready
             )
-            scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
-            return
-        }
-
-        if allowSynchronousSignalProbe {
-            applySynchronousSignalProbe(referenceDate: referenceDate)
         }
 
         publishCurrentSessionState(referenceDate: referenceDate)
+        guard shouldScheduleAsyncRefresh else {
+            return
+        }
+
         scheduleAsyncRefresh(referenceDate: referenceDate)
     }
 
-    private func applySynchronousSignalProbe(referenceDate: Date) {
-        guard currentSession?.cacheURL == nil else {
+    private func applySynchronousSignalProbe(
+        referenceDate: Date,
+        preferredClipboardImage: RecentClipboardImage?
+    ) {
+        guard currentSession?.cacheURL == nil || preferredClipboardImage == nil else {
             return
         }
 
@@ -302,6 +332,17 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         )
 
         guard let signalCandidate else {
+            if shouldPreferTemporaryContainerSignal(
+                signalResult.recentTemporaryContainerDate,
+                over: preferredClipboardImage,
+                referenceDate: referenceDate
+            ) {
+                ensurePendingDetection(referenceDate: referenceDate)
+            }
+            return
+        }
+
+        guard !shouldPreferClipboardImage(preferredClipboardImage, over: signalCandidate) else {
             return
         }
 
@@ -317,6 +358,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
            currentSession.sourceKey == clipboardImage.sourceKey || currentSession.sourceKey == nil {
             currentSession.sourceKey = clipboardImage.sourceKey
             currentSession.latestIdentityKey = clipboardImage.identityKey
+            currentSession.sourceDate = clipboardImage.detectedAt
             currentSession.expiresAt = clipboardImage.detectedAt.addingTimeInterval(maxAge)
             currentSession.cacheURL = clipboardImage.cacheURL
             self.currentSession = currentSession
@@ -330,6 +372,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             id: UUID(),
             sourceKey: clipboardImage.sourceKey,
             latestIdentityKey: clipboardImage.identityKey,
+            sourceDate: clipboardImage.detectedAt,
             detectedAt: referenceDate,
             expiresAt: clipboardImage.detectedAt.addingTimeInterval(maxAge),
             cacheURL: clipboardImage.cacheURL
@@ -351,7 +394,87 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return nil
         }
 
+        if let ignoredPendingDetectionUntil,
+           ignoredPendingDetectionUntil > referenceDate,
+           candidate.modifiedAt <= ignoredPendingDetectionUntil {
+            return nil
+        }
+
         return candidate
+    }
+
+    private func shouldPreferClipboardImage(
+        _ clipboardImage: RecentClipboardImage?,
+        over candidate: RecentScreenshotCandidate?
+    ) -> Bool {
+        guard let clipboardImage else {
+            return false
+        }
+
+        guard let candidate else {
+            return true
+        }
+
+        return clipboardImage.detectedAt >= candidate.modifiedAt
+    }
+
+    private func shouldPreferClipboardImage(
+        _ clipboardImage: RecentClipboardImage?,
+        over session: RecentScreenshotSession?
+    ) -> Bool {
+        guard let clipboardImage else {
+            return false
+        }
+
+        guard let session else {
+            return true
+        }
+
+        if session.sourceKey == nil {
+            return false
+        }
+
+        if session.sourceKey?.hasPrefix("clipboard:") == true {
+            return true
+        }
+
+        guard let sourceDate = session.sourceDate else {
+            return true
+        }
+
+        return clipboardImage.detectedAt >= sourceDate
+    }
+
+    private func hasRecentTemporaryContainerSignal(
+        _ containerDate: Date?,
+        referenceDate: Date
+    ) -> Bool {
+        guard let containerDate else {
+            return false
+        }
+
+        return referenceDate.timeIntervalSince(containerDate) <= settleGrace
+    }
+
+    private func shouldPreferTemporaryContainerSignal(
+        _ containerDate: Date?,
+        over clipboardImage: RecentClipboardImage?,
+        referenceDate: Date
+    ) -> Bool {
+        if let ignoredPendingDetectionUntil,
+           ignoredPendingDetectionUntil > referenceDate {
+            return false
+        }
+
+        guard hasRecentTemporaryContainerSignal(containerDate, referenceDate: referenceDate) else {
+            return false
+        }
+
+        guard let clipboardImage, let containerDate else {
+            return true
+        }
+
+        return containerDate > clipboardImage.detectedAt
     }
 
     private func ensureSession(
@@ -362,6 +485,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
            currentSession.sourceKey == candidate.sourceKey || currentSession.sourceKey == nil {
             currentSession.sourceKey = candidate.sourceKey
             currentSession.latestIdentityKey = candidate.identityKey
+            currentSession.sourceDate = candidate.modifiedAt
             currentSession.expiresAt = candidateExpirationDate(candidate, referenceDate: referenceDate)
             self.currentSession = currentSession
             return currentSession
@@ -374,6 +498,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             id: UUID(),
             sourceKey: candidate.sourceKey,
             latestIdentityKey: candidate.identityKey,
+            sourceDate: candidate.modifiedAt,
             detectedAt: referenceDate,
             expiresAt: candidateExpirationDate(candidate, referenceDate: referenceDate),
             cacheURL: nil
@@ -391,6 +516,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     ) {
         var nextSession = session
         nextSession.latestIdentityKey = candidate.identityKey
+        nextSession.sourceDate = candidate.modifiedAt
         nextSession.expiresAt = candidateExpirationDate(candidate, referenceDate: referenceDate)
 
         if let cacheURL = session.cacheURL, session.latestIdentityKey == candidate.identityKey {
@@ -433,6 +559,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             id: UUID(),
             sourceKey: nil,
             latestIdentityKey: nil,
+            sourceDate: nil,
             detectedAt: referenceDate,
             expiresAt: referenceDate.addingTimeInterval(settleGrace),
             cacheURL: nil
@@ -472,7 +599,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
                     return
                 }
 
-                self.refreshState()
+                self.refreshState(allowSynchronousSignalProbe: true)
 
                 let referenceDate = self.now()
                 let shouldStop = (self.settleDeadline.map { referenceDate >= $0 } ?? true)
@@ -547,9 +674,20 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         ignoredSourceKeys[sourceKey] = now().addingTimeInterval(maxAge)
     }
 
-    private func purgeIgnoredSourceKeys(referenceDate: Date) {
+    private func rememberIgnoredPendingDetection(until expirationDate: Date) {
+        ignoredPendingDetectionUntil = max(
+            ignoredPendingDetectionUntil ?? .distantPast,
+            expirationDate
+        )
+    }
+
+    private func purgeIgnoredDetections(referenceDate: Date) {
         ignoredSourceKeys = ignoredSourceKeys.filter { _, expirationDate in
             expirationDate > referenceDate
+        }
+
+        if ignoredPendingDetectionUntil.map({ $0 <= referenceDate }) == true {
+            ignoredPendingDetectionUntil = nil
         }
     }
 
@@ -590,6 +728,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         scanGeneration &+= 1
         previewGeneration &+= 1
         ignoredSourceKeys.removeAll()
+        ignoredPendingDetectionUntil = nil
         invalidateTimers()
         state = .idle
     }
@@ -674,7 +813,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         _ scanResult: RecentScreenshotScanResult,
         referenceDate: Date
     ) {
-        purgeIgnoredSourceKeys(referenceDate: referenceDate)
+        purgeIgnoredDetections(referenceDate: referenceDate)
 
         if !isExpirationSuspended,
            let currentSession, referenceDate >= currentSession.expiresAt {
@@ -682,7 +821,13 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             return
         }
 
-        if let clipboardImage = clipboardProvider.recentImage(referenceDate: referenceDate, maxAge: maxAge) {
+        let signalCandidate = filteredCandidate(scanResult.signalCandidate, referenceDate: referenceDate)
+        let readableCandidate = filteredCandidate(scanResult.readableCandidate, referenceDate: referenceDate)
+        let preferredFileCandidate = readableCandidate ?? signalCandidate
+        let clipboardImage = clipboardProvider.recentImage(referenceDate: referenceDate, maxAge: maxAge)
+
+        if let clipboardImage,
+           shouldPreferClipboardImage(clipboardImage, over: preferredFileCandidate) {
             let session = ensureClipboardSession(for: clipboardImage, referenceDate: referenceDate)
             state = .previewReady(
                 sessionID: session.id,
@@ -692,9 +837,6 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
             return
         }
-
-        let signalCandidate = filteredCandidate(scanResult.signalCandidate, referenceDate: referenceDate)
-        let readableCandidate = filteredCandidate(scanResult.readableCandidate, referenceDate: referenceDate)
 
         if let signalCandidate {
             let session = ensureSession(for: signalCandidate, referenceDate: referenceDate)
@@ -706,6 +848,16 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             }
 
             scheduleExpirationIfNeeded(for: session, referenceDate: referenceDate)
+            return
+        }
+
+        if shouldPreferTemporaryContainerSignal(
+            scanResult.recentTemporaryContainerDate,
+            over: clipboardImage,
+            referenceDate: referenceDate
+        ) {
+            ensurePendingDetection(referenceDate: referenceDate)
+            publishCurrentSessionState(referenceDate: referenceDate)
             return
         }
 
@@ -766,6 +918,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         }
 
         currentSession.latestIdentityKey = candidate.identityKey
+        currentSession.sourceDate = candidate.modifiedAt
         currentSession.expiresAt = candidateExpirationDate(candidate, referenceDate: now())
         currentSession.cacheURL = cacheURL
         self.currentSession = currentSession
@@ -787,6 +940,7 @@ private struct RecentScreenshotSession {
     let id: UUID
     var sourceKey: String?
     var latestIdentityKey: String?
+    var sourceDate: Date?
     let detectedAt: Date
     var expiresAt: Date
     var cacheURL: URL?

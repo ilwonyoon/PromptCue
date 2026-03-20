@@ -54,6 +54,7 @@ extension RecentScreenshotLocating {
 struct RecentScreenshotLocator: RecentScreenshotLocating {
     private let fileManager: FileManager
     private let authorizedDirectoryProvider: () -> URL?
+    private let systemDirectoryProvider: () -> URL?
     private let temporaryItemsDirectoryProvider: () -> URL
     private let includeTemporaryItemsScanning: Bool
 
@@ -61,6 +62,9 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
         fileManager: FileManager = .default,
         authorizedDirectoryProvider: @escaping () -> URL? = {
             ScreenshotDirectoryResolver.authorizedDirectoryURLForMonitoring()?.standardizedFileURL
+        },
+        systemDirectoryProvider: @escaping () -> URL? = {
+            ScreenshotDirectoryResolver.resolvedSystemScreenshotDirectory()?.standardizedFileURL
         },
         temporaryItemsDirectoryProvider: @escaping () -> URL = {
             FileManager.default.temporaryDirectory
@@ -71,6 +75,7 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
     ) {
         self.fileManager = fileManager
         self.authorizedDirectoryProvider = authorizedDirectoryProvider
+        self.systemDirectoryProvider = systemDirectoryProvider
         self.temporaryItemsDirectoryProvider = temporaryItemsDirectoryProvider
         self.includeTemporaryItemsScanning = includeTemporaryItemsScanning
     }
@@ -93,9 +98,9 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
         var readableCandidates: [ScreenshotMatch] = []
         var recentTemporaryContainerDate: Date?
 
-        if let authorizedDirectoryURL = authorizedDirectoryProvider()?.standardizedFileURL {
+        for directoryURL in monitoredDirectoryURLs() {
             if let signalMatch = newestScreenshot(
-                in: authorizedDirectoryURL,
+                in: directoryURL,
                 minimumDate: minimumDate,
                 requireReadableContents: false
             ) {
@@ -104,7 +109,7 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
 
             if includeReadableCandidates,
                let readableMatch = newestScreenshot(
-                in: authorizedDirectoryURL,
+                in: directoryURL,
                 minimumDate: minimumDate,
                 requireReadableContents: true
                ) {
@@ -144,6 +149,21 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
             ),
             sourceKey: canonicalSourceKey(for: match.url)
         )
+    }
+
+    private func monitoredDirectoryURLs() -> [URL] {
+        var urls: [URL] = []
+
+        if let authorizedDirectoryURL = authorizedDirectoryProvider()?.standardizedFileURL {
+            urls.append(authorizedDirectoryURL)
+        }
+
+        if let systemDirectoryURL = systemDirectoryProvider()?.standardizedFileURL,
+           !urls.contains(systemDirectoryURL) {
+            urls.append(systemDirectoryURL)
+        }
+
+        return urls
     }
 
     private func canonicalSourceKey(for url: URL) -> String {

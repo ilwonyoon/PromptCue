@@ -80,7 +80,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] notification in
             let enabled = notification.userInfo?["enabled"] as? Bool ?? false
-            self?.applyRemoteNotificationRegistration(isEnabled: enabled)
+            Task { @MainActor [weak self] in
+                self?.applyRemoteNotificationRegistration(isEnabled: enabled)
+            }
         }
     }
 

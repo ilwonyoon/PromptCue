@@ -84,6 +84,7 @@ targets:
         product: GRDB
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
+      - sdk: AppIntents.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
@@ -112,6 +113,7 @@ targets:
         product: GRDB
       - package: KeyboardShortcuts
         product: KeyboardShortcuts
+      - sdk: AppIntents.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue.tests

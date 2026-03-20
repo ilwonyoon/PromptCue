@@ -34,9 +34,19 @@ final class RecentScreenshotCoordinatorClipboardTests: XCTestCase {
             cacheURL: clipboardCacheURL
         )
 
-        let fileCandidate = makeCandidate(
-            filename: "Screenshot 2026-03-08 at 10.00.00 PM.png",
-            directory: tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-08 at 10.00.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let fileCandidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: now.addingTimeInterval(-10),
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
         )
 
         let coordinator = RecentScreenshotCoordinator(
@@ -202,6 +212,69 @@ final class RecentScreenshotCoordinatorClipboardTests: XCTestCase {
 
         XCTAssertTrue(previewCacheURL.path.hasPrefix(cacheURL.path))
         XCTAssertEqual(try Data(contentsOf: previewCacheURL), Data("png".utf8))
+    }
+
+    func testPrepareForCaptureSessionPrefersNewerFileScreenshotOverOlderClipboardImage() throws {
+        let now = Date()
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let clipboardCacheURL = tempDirectoryURL.appendingPathComponent("clipboard.png")
+        try Data("clipboard".utf8).write(to: clipboardCacheURL)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-08 at 10.11.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let clipboardProvider = TestRecentClipboardProvider()
+        clipboardProvider.currentImage = RecentClipboardImage(
+            changeCount: 99,
+            detectedAt: now.addingTimeInterval(-10),
+            cacheURL: clipboardCacheURL
+        )
+
+        let fileCandidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: now,
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
+        )
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        let coordinator = RecentScreenshotCoordinator(
+            observer: ClipboardTestRecentScreenshotObserver(),
+            locator: TestRecentScreenshotLocator(
+                result: RecentScreenshotScanResult(
+                    signalCandidate: fileCandidate,
+                    readableCandidate: fileCandidate,
+                    recentTemporaryContainerDate: nil
+                )
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: clipboardProvider,
+            maxAge: 30,
+            settleGrace: 0.2,
+            now: { now }
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        waitForCondition("file screenshot preferred over clipboard") {
+            if case .previewReady(_, let previewCacheURL, .ready) = coordinator.state {
+                return previewCacheURL.standardizedFileURL != clipboardCacheURL.standardizedFileURL
+            }
+
+            return false
+        }
+
+        guard case .previewReady(_, let previewCacheURL, .ready) = coordinator.state else {
+            return XCTFail("Expected file screenshot preview-ready state")
+        }
+
+        XCTAssertTrue(previewCacheURL.path.hasPrefix(cacheURL.path))
+        XCTAssertEqual(try Data(contentsOf: previewCacheURL), screenshotData)
     }
 
     private func makeCandidate(filename: String, directory: URL) -> RecentScreenshotCandidate {

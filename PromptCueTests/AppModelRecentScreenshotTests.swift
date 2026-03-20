@@ -240,6 +240,102 @@ final class AppModelRecentScreenshotTests: XCTestCase {
         XCTAssertTrue(model.cards.first?.screenshotURL?.path.hasPrefix(attachmentDirectoryURL.path) == true)
     }
 
+    func testSubmitCaptureAttemptsLateScreenshotResolutionEvenWhenStateIsIdle() async throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let attachmentDirectoryURL = tempDirectoryURL.appendingPathComponent("Attachments")
+        let cacheURL = tempDirectoryURL.appendingPathComponent("recent-preview-late.png")
+        try Data("png".utf8).write(to: cacheURL)
+
+        let cardStore = CardStore(databaseURL: databaseURL)
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentDirectoryURL)
+        let coordinator = TestRecentScreenshotCoordinator()
+        coordinator.resolveDelay = 0.12
+        coordinator.resolvedAttachmentURL = cacheURL
+        let model = AppModel(
+            cardStore: cardStore,
+            attachmentStore: attachmentStore,
+            recentScreenshotCoordinator: coordinator
+        )
+
+        model.start()
+        model.beginCaptureSession()
+
+        XCTAssertEqual(model.recentScreenshotState, .idle)
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(coordinator.resolveCurrentCaptureAttachmentCallCount, 1)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertTrue(model.cards.first?.screenshotURL?.path.hasPrefix(attachmentDirectoryURL.path) == true)
+    }
+
+    func testBeginCaptureSessionTreatsRecentTemporaryScreenshotSignalAsPendingDetection() async throws {
+        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        let attachmentDirectoryURL = tempDirectoryURL.appendingPathComponent("Attachments")
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let transientCacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let referenceDate = Date()
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-19 at 07.31.00 PM.png")
+        let screenshotData = Data("png".utf8)
+        try screenshotData.write(to: screenshotURL)
+
+        let candidate = RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: screenshotURL.path,
+                modifiedAt: referenceDate,
+                fileSize: screenshotData.count
+            ),
+            sourceKey: screenshotURL.lastPathComponent.lowercased()
+        )
+        let signalResult = RecentScreenshotScanResult(
+            signalCandidate: nil,
+            readableCandidate: nil,
+            recentTemporaryContainerDate: referenceDate
+        )
+        let fullResult = RecentScreenshotScanResult(
+            signalCandidate: candidate,
+            readableCandidate: candidate,
+            recentTemporaryContainerDate: referenceDate
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: AppModelTestRecentScreenshotObserver(),
+            locator: AppModelDelayedSignalProbeLocator(
+                fullScanDelay: 0.2,
+                signalResult: signalResult,
+                fullResult: fullResult
+            ),
+            cache: TransientScreenshotCache(baseDirectoryURL: transientCacheURL),
+            clipboardProvider: AppModelNilClipboardProvider(),
+            maxAge: 30,
+            settleGrace: 0.4,
+            now: { referenceDate }
+        )
+        let cardStore = CardStore(databaseURL: databaseURL)
+        let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentDirectoryURL)
+        let model = AppModel(
+            cardStore: cardStore,
+            attachmentStore: attachmentStore,
+            recentScreenshotCoordinator: coordinator
+        )
+
+        model.start()
+        model.beginCaptureSession()
+
+        if case .detected = model.recentScreenshotState {
+        } else {
+            XCTFail("Expected pending detected state from recent temporary screenshot signal")
+        }
+
+        let didSubmit = await model.submitCapture()
+
+        XCTAssertTrue(didSubmit)
+        XCTAssertEqual(model.cards.count, 1)
+        XCTAssertTrue(model.cards.first?.screenshotURL?.path.hasPrefix(attachmentDirectoryURL.path) == true)
+    }
+
 }
 
 @MainActor
@@ -252,6 +348,7 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
     private(set) var startCallCount = 0
     private(set) var prepareForCaptureSessionCallCount = 0
     private(set) var consumeCurrentCallCount = 0
+    private(set) var resolveCurrentCaptureAttachmentCallCount = 0
 
     func start() {
         startCallCount += 1
@@ -269,6 +366,8 @@ private final class TestRecentScreenshotCoordinator: RecentScreenshotCoordinatin
     }
 
     func resolveCurrentCaptureAttachment(timeout: TimeInterval) async -> URL? {
+        resolveCurrentCaptureAttachmentCallCount += 1
+
         if resolveDelay > 0 {
             try? await Task.sleep(nanoseconds: UInt64(resolveDelay * 1_000_000_000))
         }

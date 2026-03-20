@@ -1262,6 +1262,145 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 401)
     }
 
+    func testHTTPHandlerReturnsOKForEmptyPostProbeWithoutAuthorization() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: tempDirectoryURL.appendingPathComponent("oauth-empty-probe.json")
+            )
+        )
+        let request = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "content-length": "0",
+                "content-type": "application/json",
+            ],
+            body: Data()
+        )
+
+        let response = await handler.response(for: request)
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertTrue(response.body.isEmpty)
+    }
+
+    func testHTTPHandlerAddsMcpSessionIDHeaderAfterInitialize() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration()
+        )
+        let initializeBody = try requestBody(
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "http-test",
+                    "version": "0.1.0",
+                ],
+            ]
+        )
+        let initializeRequest = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "content-length": "\(initializeBody.count)",
+                "content-type": "application/json",
+            ],
+            body: initializeBody
+        )
+
+        let initializeResponse = await handler.response(for: initializeRequest)
+        XCTAssertEqual(initializeResponse.statusCode, 200)
+        let sessionID = try XCTUnwrap(initializeResponse.headers["Mcp-Session-Id"])
+        XCTAssertFalse(sessionID.isEmpty)
+
+        let notificationBody = Data(
+            #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#.utf8
+        )
+        let notificationRequest = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "content-length": "\(notificationBody.count)",
+                "content-type": "application/json",
+            ],
+            body: notificationBody
+        )
+
+        let notificationResponse = await handler.response(for: notificationRequest)
+        XCTAssertEqual(notificationResponse.statusCode, 202)
+        XCTAssertEqual(notificationResponse.headers["Mcp-Session-Id"], sessionID)
+    }
+
+    func testOAuthProtectedEndpointsSupportPathScopedDiscoveryVariants() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: tempDirectoryURL.appendingPathComponent("oauth-path-scoped.json")
+            )
+        )
+
+        let paths = [
+            "/mcp/.well-known/oauth-protected-resource",
+            "/.well-known/oauth-protected-resource/mcp",
+            "/.well-known/oauth-authorization-server/mcp",
+            "/.well-known/openid-configuration/mcp",
+        ]
+
+        for path in paths {
+            let response = await handler.response(
+                for: BacktickMCPHTTPRequest(
+                    method: "GET",
+                    path: path,
+                    headers: [:],
+                    body: Data()
+                )
+            )
+            XCTAssertEqual(response.statusCode, 200, "Expected 200 for \(path)")
+        }
+    }
+
+    func testOAuthUnauthorizedResponseAdvertisesPathScopedResourceMetadataURL() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: tempDirectoryURL.appendingPathComponent("oauth-unauthorized.json")
+            )
+        )
+        let body = try requestBody(id: 1, method: "initialize")
+        let request = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "content-length": "\(body.count)",
+                "content-type": "application/json",
+            ],
+            body: body
+        )
+
+        let response = await handler.response(for: request)
+        XCTAssertEqual(response.statusCode, 401)
+        XCTAssertEqual(
+            response.headers["WWW-Authenticate"],
+            #"Bearer resource_metadata="https://backtick.test/.well-known/oauth-protected-resource/mcp""#
+        )
+    }
+
     func testOAuthMetadataAndAuthorizationCodeFlowIssueAccessToken() async throws {
         let session = await makeSession()
         let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-state.json", isDirectory: false)

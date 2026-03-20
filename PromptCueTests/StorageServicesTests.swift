@@ -71,38 +71,6 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertLessThan(abs(loadedCopiedAt.timeIntervalSince(copiedAt)), 1)
     }
 
-    func testCardStoreRoundTripsSuggestedTargetMetadata() throws {
-        let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
-        let store = CardStore(databaseURL: databaseURL)
-        let capturedAt = Date(timeIntervalSince1970: 1_000)
-        let suggestedTarget = CaptureSuggestedTarget(
-            appName: "Cursor",
-            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
-            windowTitle: "PromptCue.swift",
-            sessionIdentifier: "tab-7",
-            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue/App",
-            repositoryRoot: "/Users/ilwon/dev/PromptCue",
-            repositoryName: "PromptCue",
-            branch: "feature/ide-targets",
-            capturedAt: capturedAt,
-            confidence: .low
-        )
-        let expectedCard = CaptureCard(
-            id: UUID(),
-            text: "Round trip suggested target",
-            suggestedTarget: suggestedTarget,
-            createdAt: Date(),
-            sortOrder: 42
-        )
-
-        try store.save([expectedCard])
-        let loadedCards = try store.load()
-
-        XCTAssertEqual(loadedCards.count, 1)
-        XCTAssertEqual(loadedCards.first?.id, expectedCard.id)
-        XCTAssertEqual(loadedCards.first?.suggestedTarget, suggestedTarget)
-    }
-
     func testCardStoreBatchUpsertUpdatesExistingCardAndInsertsNewCard() throws {
         let databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         let store = CardStore(databaseURL: databaseURL)
@@ -222,7 +190,6 @@ final class StorageServicesTests: XCTestCase {
         XCTAssertEqual(loadedCards.first?.lastCopiedAt, copiedAt)
         XCTAssertEqual(loadedCards.first?.sortOrder, createdAt.timeIntervalSinceReferenceDate)
         XCTAssertTrue(cardColumns.contains("sortOrder"))
-        XCTAssertTrue(cardColumns.contains("suggestedTargetJSON"))
         XCTAssertTrue(cardColumns.contains("tagsJSON"))
     }
 

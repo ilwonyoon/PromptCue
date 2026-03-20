@@ -23,26 +23,6 @@ enum AppStartupMode {
     case deferredMaintenance
 }
 
-enum CaptureSuggestedTargetChoice: Equatable {
-    case automatic(CaptureSuggestedTarget)
-    case explicit(CaptureSuggestedTarget)
-
-    var target: CaptureSuggestedTarget {
-        switch self {
-        case .automatic(let target), .explicit(let target):
-            return target
-        }
-    }
-
-    var isAutomatic: Bool {
-        if case .automatic = self {
-            return true
-        }
-
-        return false
-    }
-}
-
 enum CloudSyncInitialFetchMode {
     case immediate
     case deferred
@@ -70,10 +50,6 @@ final class AppModel: ObservableObject {
     @Published var recentScreenshotState: RecentScreenshotState = .idle
     @Published var draftText = ""
     @Published var draftEditorMetrics: CaptureEditorMetrics = .empty
-    @Published var availableSuggestedTargets: [CaptureSuggestedTarget] = []
-    @Published var isShowingCaptureSuggestedTargetChooser = false
-    @Published var selectedCaptureSuggestedTargetIndex = 0
-    @Published var focusedCaptureSuggestedTargetChoiceID: String?
     @Published var selectedCardIDs: Set<UUID> = []
     @Published private(set) var isMultiSelectMode = false
     @Published private(set) var stagedCopiedCardIDs: [UUID] = []
@@ -83,24 +59,19 @@ final class AppModel: ObservableObject {
     let cardStore: CardStore
     let attachmentStore: AttachmentStoring
     let recentScreenshotCoordinator: RecentScreenshotCoordinating
-    let suggestedTargetProvider: any SuggestedTargetProviding
     private let cloudSyncEngineFactory: @MainActor () -> any CloudSyncControlling
     private let cleanupInterval: TimeInterval
     private let requiresCloudEntitlements: Bool
     var cloudSyncEngine: (any CloudSyncControlling)?
     private var cleanupTimer: Timer?
     var captureSubmissionTask: Task<Bool, Never>?
-    var hasStartedSuggestedTargetProvider = false
     var hasStartedRecentScreenshotCoordinator = false
-    var isCaptureSuggestedTargetPresentationActive = false
-    var isStackSuggestedTargetPresentationActive = false
     private var retentionSettingsObserver: NSObjectProtocol?
     private var syncToggleObserver: NSObjectProtocol?
     private var deferredStartupMaintenanceTask: Task<Void, Never>?
     private var deferredCloudSyncFetchTask: Task<Void, Never>?
     private var remoteApplyTask: Task<Void, Never>?
     private var pendingRemoteChanges: [SyncChange] = []
-    var draftSuggestedTargetOverride: CaptureSuggestedTarget?
     var draftRecentScreenshotStateOverride: RecentScreenshotState?
     var isSeedingCaptureFromCopiedCard = false
 
@@ -108,7 +79,6 @@ final class AppModel: ObservableObject {
         cardStore: CardStore,
         attachmentStore: AttachmentStoring,
         recentScreenshotCoordinator: RecentScreenshotCoordinating,
-        suggestedTargetProvider: (any SuggestedTargetProviding)? = nil,
         cloudSyncEngine: (any CloudSyncControlling)? = nil,
         cloudSyncEngineFactory: @escaping @MainActor () -> any CloudSyncControlling = { CloudSyncEngine() },
         cleanupInterval: TimeInterval = 60,
@@ -117,16 +87,10 @@ final class AppModel: ObservableObject {
         self.cardStore = cardStore
         self.attachmentStore = attachmentStore
         self.recentScreenshotCoordinator = recentScreenshotCoordinator
-        self.suggestedTargetProvider = suggestedTargetProvider ?? NoopSuggestedTargetProvider()
         self.cloudSyncEngine = cloudSyncEngine
         self.cloudSyncEngineFactory = cloudSyncEngineFactory
         self.cleanupInterval = cleanupInterval
         self.requiresCloudEntitlements = requiresCloudEntitlements
-        self.suggestedTargetProvider.onChange = { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.syncAvailableSuggestedTargets()
-            }
-        }
     }
 
     convenience init() {
@@ -136,7 +100,6 @@ final class AppModel: ObservableObject {
             cardStore: CardStore(),
             attachmentStore: AttachmentStore(),
             recentScreenshotCoordinator: RecentScreenshotCoordinator(),
-            suggestedTargetProvider: RecentSuggestedAppTargetTracker(),
             cloudSyncEngine: syncEnabled && Self.hasCloudEntitlements ? CloudSyncEngine() : nil
         )
     }
@@ -174,7 +137,6 @@ final class AppModel: ObservableObject {
                 self?.syncRecentScreenshotState()
             }
         }
-        ensureSuggestedTargetProviderStarted()
         syncRecentScreenshotState()
         reloadCards(runNonCriticalMaintenance: startupMode == .immediateMaintenance)
         refreshCleanupTimer()
@@ -200,23 +162,15 @@ final class AppModel: ObservableObject {
             NotificationCenter.default.removeObserver(retentionSettingsObserver)
         }
         retentionSettingsObserver = nil
-        isCaptureSuggestedTargetPresentationActive = false
-        isStackSuggestedTargetPresentationActive = false
-        stopSuggestedTargetProvider()
         recentScreenshotCoordinator.onStateChange = nil
         if hasStartedRecentScreenshotCoordinator {
             recentScreenshotCoordinator.stop()
             hasStartedRecentScreenshotCoordinator = false
         }
         applyRecentScreenshotState(.idle)
-        availableSuggestedTargets = []
-        draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
         isSeedingCaptureFromCopiedCard = false
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         isMultiSelectMode = false
         selectedCardIDs.removeAll()
         stagedCopiedCardIDs.removeAll()
@@ -269,30 +223,6 @@ final class AppModel: ObservableObject {
 
     func clearSelection() {
         selectedCardIDs.removeAll()
-    }
-
-    func assignSuggestedTarget(_ target: CaptureSuggestedTarget, to card: CaptureCard) {
-        let updatedCard = card.updatingSuggestedTarget(target)
-        let updatedCards = sortedCards(
-            cards.map { existingCard in
-                guard existingCard.id == card.id else {
-                    return existingCard
-                }
-
-                return updatedCard
-            }
-        )
-
-        do {
-            try cardStore.upsert(updatedCard)
-            storageErrorMessage = nil
-        } catch {
-            logStorageFailure("Suggested target update failed", error: error)
-            return
-        }
-
-        cards = updatedCards
-        cloudSyncEngine?.pushLocalChange(card: updatedCard)
     }
 
     @discardableResult
@@ -588,7 +518,6 @@ final class AppModel: ObservableObject {
                     id: card.id,
                     text: card.text,
                     tags: card.tags,
-                    suggestedTarget: card.suggestedTarget,
                     createdAt: card.createdAt,
                     screenshotPath: migratedPath,
                     lastCopiedAt: card.lastCopiedAt,
@@ -645,41 +574,6 @@ final class AppModel: ObservableObject {
             }
         }
         cleanupTimer?.tolerance = min(cleanupInterval * 0.25, 15)
-    }
-
-    func ensureSuggestedTargetProviderStarted() {
-        guard !hasStartedSuggestedTargetProvider else {
-            return
-        }
-
-        suggestedTargetProvider.start()
-        hasStartedSuggestedTargetProvider = true
-        syncAvailableSuggestedTargets()
-    }
-
-    func refreshSuggestedTargetProviderLifecycle() {
-        guard !hasStartedSuggestedTargetProvider else {
-            return
-        }
-
-        guard isCaptureSuggestedTargetPresentationActive || isStackSuggestedTargetPresentationActive else {
-            return
-        }
-
-        ensureSuggestedTargetProviderStarted()
-    }
-
-    func stopSuggestedTargetProvider() {
-        guard hasStartedSuggestedTargetProvider else {
-            availableSuggestedTargets = []
-            syncCaptureSuggestedTargetSelection()
-            return
-        }
-
-        suggestedTargetProvider.stop()
-        hasStartedSuggestedTargetProvider = false
-        availableSuggestedTargets = []
-        syncCaptureSuggestedTargetSelection()
     }
 
     private func scheduleDeferredStartupMaintenance() {
@@ -971,7 +865,6 @@ extension AppModel: CloudSyncDelegate {
             id: card.id,
             text: card.text,
             tags: card.tags,
-            suggestedTarget: card.suggestedTarget,
             createdAt: card.createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: card.lastCopiedAt,

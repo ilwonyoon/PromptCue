@@ -145,7 +145,6 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
     let id: String
     let text: String
     let tagsJSON: String?
-    let suggestedTargetJSON: String?
     let createdAt: Date
     let screenshotPath: String?
     let lastCopiedAt: Date?
@@ -156,21 +155,10 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
             id: UUID(uuidString: id) ?? UUID(),
             text: text,
             tags: CaptureTag.decodeJSONArray(tagsJSON),
-            suggestedTarget: Self.decodeSuggestedTarget(suggestedTargetJSON),
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
             sortOrder: sortOrder
         )
-    }
-
-    private static func decodeSuggestedTarget(_ json: String?) -> CaptureSuggestedTarget? {
-        guard let json,
-              let data = json.data(using: .utf8),
-              let target = try? JSONDecoder().decode(CaptureSuggestedTarget.self, from: data) else {
-            return nil
-        }
-
-        return target
     }
 }

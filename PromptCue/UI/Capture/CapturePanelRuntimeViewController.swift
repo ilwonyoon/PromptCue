@@ -78,7 +78,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private let screenshotImageView = CaptureScreenshotPreviewView()
     private let screenshotSpinner = NSProgressIndicator()
     private let removeScreenshotButton = HoverTintButton()
-    private let suggestedTargetAccessoryView: NSHostingView<CaptureSuggestedTargetAccessoryView>
     private let editorHost = CaptureEditorRuntimeHostView()
     private let inlineTagSuggestionView: NSHostingView<CaptureInlineTagSuggestionView>
     private let bootstrapSurfaceHeight: CGFloat
@@ -104,9 +103,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     init(model: AppModel) {
         self.model = model
-        self.suggestedTargetAccessoryView = NSHostingView(
-            rootView: Self.makeSuggestedTargetAccessoryView(model: model)
-        )
         self.inlineTagSuggestionView = NSHostingView(
             rootView: CaptureInlineTagSuggestionView(
                 suggestions: [],
@@ -114,14 +110,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 onSelectSuggestion: { _ in }
             )
         )
-        let bootstrapAccessoryHeight = max(
-            self.suggestedTargetAccessoryView.fittingSize.height,
-            AppUIConstants.captureDebugLineHeight
-        )
         self.bootstrapSurfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: CaptureRuntimeMetrics.editorMinimumVisibleHeight,
             inlineTagSuggestionHeight: 0,
-            suggestedTargetHeight: bootstrapAccessoryHeight + PrimitiveTokens.Space.sm,
             screenshotHeight: 0
         )
         self.preferredPanelHeight = Self.preferredPanelHeight(
@@ -183,12 +174,9 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         screenshotSurface.refreshAppearance()
         if didChangeAppearance {
             view.layer?.contents = nil
-            suggestedTargetAccessoryView.rootView = Self.makeSuggestedTargetAccessoryView(model: model)
-            suggestedTargetAccessoryView.layer?.contents = nil
             inlineTagSuggestionView.rootView = makeInlineTagSuggestionView()
             inlineTagSuggestionView.layer?.contents = nil
         }
-        suggestedTargetAccessoryView.needsDisplay = true
         inlineTagSuggestionView.needsDisplay = true
     }
 
@@ -284,12 +272,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             removeScreenshotButton.trailingAnchor.constraint(equalTo: screenshotContainer.trailingAnchor, constant: -PrimitiveTokens.Space.xs),
         ])
 
-        suggestedTargetAccessoryView.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.addArrangedSubview(suggestedTargetAccessoryView)
-        NSLayoutConstraint.activate([
-            suggestedTargetAccessoryView.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
-        ])
-
         editorHost.translatesAutoresizingMaskIntoConstraints = false
         editorHost.textView.delegate = self
         contentStack.addArrangedSubview(editorHost)
@@ -324,20 +306,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     }
 
     private func bindModel() {
-        model.$availableSuggestedTargets
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateSuggestedTargetAccessory()
-            }
-            .store(in: &cancellables)
-
-        model.$isShowingCaptureSuggestedTargetChooser
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateSuggestedTargetAccessory()
-            }
-            .store(in: &cancellables)
-
         model.$recentScreenshotState
             .receive(on: RunLoop.main)
             .sink { [weak self] state in
@@ -366,8 +334,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
                 self?.applySubmittingState(isSubmitting)
             }
             .store(in: &cancellables)
-
-        updateSuggestedTargetAccessory()
     }
 
     private func applyDraftText(_ text: String, forceScrollToSelection: Bool = false) {
@@ -491,16 +457,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func recomputePreferredPanelHeight() {
         let screenshotHeight = screenshotContainer.isHidden ? 0 : (PrimitiveTokens.Size.captureAttachmentPreviewSize + PrimitiveTokens.Space.sm)
-        suggestedTargetAccessoryView.layoutSubtreeIfNeeded()
-        let suggestedTargetHeight = max(
-            suggestedTargetAccessoryView.fittingSize.height,
-            AppUIConstants.captureDebugLineHeight
-        ) + PrimitiveTokens.Space.sm
         let editorHeight = max(editorHost.currentMetrics.visibleHeight, CaptureRuntimeMetrics.editorMinimumVisibleHeight)
         let surfaceHeight = Self.minimumSurfaceHeight(
             editorHeight: editorHeight,
             inlineTagSuggestionHeight: 0,
-            suggestedTargetHeight: suggestedTargetHeight,
             screenshotHeight: screenshotHeight
         )
 
@@ -523,7 +483,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
     private static func minimumSurfaceHeight(
         editorHeight: CGFloat,
         inlineTagSuggestionHeight: CGFloat,
-        suggestedTargetHeight: CGFloat,
         screenshotHeight: CGFloat
     ) -> CGFloat {
         max(
@@ -531,7 +490,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             editorHeight
                 + inlineTagSuggestionHeight
                 + screenshotHeight
-                + suggestedTargetHeight
                 + (captureSurfaceVerticalInset * 2)
         )
     }
@@ -556,30 +514,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return true
         }
 
-        if model.isShowingCaptureSuggestedTargetChooser {
-            switch command {
-            case .moveSelectionUp:
-                return model.moveCaptureSuggestedTargetSelection(by: -1)
-            case .moveSelectionDown:
-                return model.moveCaptureSuggestedTargetSelection(by: 1)
-            case .completeSelection:
-                return model.completeCaptureSuggestedTargetSelection()
-            case .cancelSelection:
-                return model.cancelCaptureSuggestedTargetSelection()
-            }
-        }
-
-        switch command {
-        case .moveSelectionUp:
-            guard model.canChooseSuggestedTarget,
-                  shouldPromoteUpArrowToChooserOpen() else {
-                return false
-            }
-            model.toggleCaptureSuggestedTargetChooser()
-            return true
-        case .moveSelectionDown, .completeSelection, .cancelSelection:
-            return false
-        }
+        return false
     }
 
     private func handleInlineTagCommand(_ command: CueEditorCommand) -> Bool {
@@ -605,36 +540,6 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             updateInlineTagSuggestionView()
             return true
         }
-    }
-
-    private func shouldPromoteUpArrowToChooserOpen() -> Bool {
-        let selectedRange = editorHost.textView.selectedRange()
-        guard selectedRange.length == 0 else {
-            return false
-        }
-
-        let text = editorHost.textView.string as NSString
-        let caretLocation = max(0, min(selectedRange.location, text.length))
-        let lineRange = text.lineRange(for: NSRange(location: caretLocation, length: 0))
-        return lineRange.location == 0
-    }
-
-    private func updateSuggestedTargetAccessory() {
-        suggestedTargetAccessoryView.rootView = Self.makeSuggestedTargetAccessoryView(model: model)
-        recomputePreferredPanelHeight()
-    }
-
-    private static func makeSuggestedTargetAccessoryView(model: AppModel) -> CaptureSuggestedTargetAccessoryView {
-        CaptureSuggestedTargetAccessoryView(
-            currentTarget: model.captureChooserTarget,
-            availableTargets: model.availableSuggestedTargets,
-            automaticTarget: model.automaticSuggestedTarget,
-            isAutomaticSelectionActive: model.isCaptureSuggestedTargetAutomatic,
-            onRefreshTargets: model.refreshAvailableSuggestedTargets,
-            onSelectTarget: model.chooseDraftSuggestedTarget,
-            onUseAutomaticTarget: model.clearDraftSuggestedTargetOverride,
-            onActivateInlineChooser: model.toggleCaptureSuggestedTargetChooser
-        )
     }
 
     private static func appearanceSignature(for appearance: NSAppearance?) -> String {

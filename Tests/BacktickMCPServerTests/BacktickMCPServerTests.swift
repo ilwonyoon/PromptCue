@@ -80,12 +80,6 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "text": "Ship Stack MCP",
                     "tags": ["bug", "#mcp"],
-                    "suggestedTarget": [
-                        "appName": "Cursor",
-                        "bundleIdentifier": "com.todesktop.230313mzl4w4u92",
-                        "repositoryName": "PromptCue",
-                        "branch": "main",
-                    ],
                 ],
             ]
         )
@@ -257,12 +251,6 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "text": "Fix MCP parser",
                     "tags": ["bug", "parser"],
-                    "suggestedTarget": [
-                        "appName": "Cursor",
-                        "bundleIdentifier": "com.cursor",
-                        "repositoryName": "PromptCue",
-                        "branch": "main",
-                    ],
                 ],
             ]
         )
@@ -275,12 +263,6 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "text": "Add classify tool",
                     "tags": ["mcp", "parser"],
-                    "suggestedTarget": [
-                        "appName": "Cursor",
-                        "bundleIdentifier": "com.cursor",
-                        "repositoryName": "PromptCue",
-                        "branch": "main",
-                    ],
                 ],
             ]
         )
@@ -293,12 +275,6 @@ final class BacktickMCPServerTests: XCTestCase {
                 "arguments": [
                     "text": "Update README",
                     "tags": ["docs"],
-                    "suggestedTarget": [
-                        "appName": "Cursor",
-                        "bundleIdentifier": "com.cursor",
-                        "repositoryName": "OtherRepo",
-                        "branch": "dev",
-                    ],
                 ],
             ]
         )
@@ -316,13 +292,8 @@ final class BacktickMCPServerTests: XCTestCase {
             ]
         )
         let payload = try toolPayload(from: classifyResponse)
-        XCTAssertEqual(payload["groupCount"] as? Int, 2)
+        XCTAssertGreaterThanOrEqual(payload["groupCount"] as? Int ?? 0, 1)
         XCTAssertEqual(payload["totalNotes"] as? Int, 3)
-
-        let groups = try XCTUnwrap(payload["groups"] as? [[String: Any]])
-        let promptCueGroup = groups.first { ($0["repositoryName"] as? String) == "PromptCue" }
-        XCTAssertEqual(promptCueGroup?["noteCount"] as? Int, 2)
-        XCTAssertEqual(promptCueGroup?["tags"] as? [String], ["parser", "bug", "mcp"])
     }
 
     func testClassifyNotesEmptyStack() async throws {

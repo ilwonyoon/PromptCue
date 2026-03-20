@@ -100,22 +100,9 @@ final class StackWriteServiceTests: XCTestCase {
         let attachmentStore = AttachmentStore(baseDirectoryURL: attachmentsURL)
         let sourceURL = try makeExternalScreenshot(named: "original.png")
         let managedURL = try attachmentStore.importScreenshot(from: sourceURL, ownerID: UUID())
-        let suggestedTarget = CaptureSuggestedTarget(
-            appName: "Cursor",
-            bundleIdentifier: "com.todesktop.230313mzl4w4u92",
-            windowTitle: "PromptCue.swift",
-            sessionIdentifier: "tab-7",
-            currentWorkingDirectory: "/Users/ilwon/dev/PromptCue/App",
-            repositoryRoot: "/Users/ilwon/dev/PromptCue",
-            repositoryName: "PromptCue",
-            branch: "feature/mcp",
-            capturedAt: Date(timeIntervalSinceReferenceDate: 100),
-            confidence: .high
-        )
         let note = CaptureCard(
             id: UUID(),
             text: "Original",
-            suggestedTarget: suggestedTarget,
             createdAt: Date(timeIntervalSinceReferenceDate: 200),
             screenshotPath: managedURL.path,
             lastCopiedAt: Date(timeIntervalSinceReferenceDate: 300),
@@ -129,14 +116,12 @@ final class StackWriteServiceTests: XCTestCase {
                 id: note.id,
                 changes: StackNoteUpdate(
                     text: "  Updated  ",
-                    suggestedTarget: .clear,
                     screenshotPath: .clear
                 )
             )
         )
 
         XCTAssertEqual(updated.text, "Updated")
-        XCTAssertNil(updated.suggestedTarget)
         XCTAssertNil(updated.screenshotPath)
         XCTAssertEqual(updated.lastCopiedAt, note.lastCopiedAt)
         XCTAssertEqual(updated.sortOrder, note.sortOrder)

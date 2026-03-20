@@ -9,15 +9,8 @@ extension AppModel {
 
     func beginCaptureSession() {
         prepareDraftMetricsForPresentation()
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
-        isCaptureSuggestedTargetPresentationActive = true
-        refreshSuggestedTargetProviderLifecycle()
-        refreshAvailableSuggestedTargets()
         ensureRecentScreenshotCoordinatorStarted()
         if !hasSeededCaptureSession {
-            draftSuggestedTargetOverride = nil
             draftRecentScreenshotStateOverride = nil
             recentScreenshotCoordinator.prepareForCaptureSession()
         }
@@ -32,14 +25,8 @@ extension AppModel {
 
     func endCaptureSession() {
         if !hasSeededCaptureSession {
-            draftSuggestedTargetOverride = nil
             draftRecentScreenshotStateOverride = nil
         }
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
-        isCaptureSuggestedTargetPresentationActive = false
-        refreshSuggestedTargetProviderLifecycle()
         recentScreenshotCoordinator.resumeExpiration()
         recentScreenshotCoordinator.endCaptureSession()
         syncRecentScreenshotState()
@@ -50,10 +37,6 @@ extension AppModel {
         isSeedingCaptureFromCopiedCard = card.isCopied
         draftText = CaptureTagText.editorText(tags: card.tags, bodyText: card.text)
         draftEditorMetrics = .empty
-        draftSuggestedTargetOverride = card.suggestedTarget
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         if let screenshotURL = card.screenshotURL {
             draftRecentScreenshotStateOverride = .previewReady(
                 sessionID: UUID(),
@@ -64,7 +47,6 @@ extension AppModel {
             draftRecentScreenshotStateOverride = .idle
         }
         prepareDraftMetricsForPresentation()
-        syncCaptureSuggestedTargetSelection()
         syncRecentScreenshotState()
     }
 
@@ -166,7 +148,6 @@ extension AppModel {
             id: newCardID,
             text: trimmed.isEmpty ? "Screenshot attached" : trimmed,
             tags: tags,
-            suggestedTarget: effectiveCaptureSuggestedTarget,
             createdAt: Date(),
             screenshotPath: importedScreenshotPath,
             sortOrder: nextTopSortOrder(in: .active)
@@ -185,12 +166,8 @@ extension AppModel {
         cards = updatedCards
         draftText = ""
         draftEditorMetrics = .empty
-        draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         isSeedingCaptureFromCopiedCard = false
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         if attachment != nil {
             recentScreenshotCoordinator.consumeCurrent()
         }
@@ -202,13 +179,9 @@ extension AppModel {
     func clearDraft() {
         draftText = ""
         draftEditorMetrics = .empty
-        draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
         isSeedingCaptureFromCopiedCard = false
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         syncRecentScreenshotState()
     }
 
@@ -307,7 +280,6 @@ extension AppModel {
         let updatedCard = card.updatingContent(
             text: updatedText,
             tags: tags,
-            suggestedTarget: effectiveCaptureSuggestedTarget,
             screenshotPath: updatedScreenshotPath
         )
         let updatedCards = sortedCards(
@@ -335,13 +307,9 @@ extension AppModel {
         cleanupManagedAttachments(removedCards: [card], remainingCards: updatedCards)
         draftText = ""
         draftEditorMetrics = .empty
-        draftSuggestedTargetOverride = nil
         draftRecentScreenshotStateOverride = nil
         editingCaptureCardID = nil
         isSeedingCaptureFromCopiedCard = false
-        isShowingCaptureSuggestedTargetChooser = false
-        selectedCaptureSuggestedTargetIndex = 0
-        focusedCaptureSuggestedTargetChoiceID = nil
         syncRecentScreenshotState()
         cloudSyncEngine?.pushLocalChange(card: updatedCard)
         return true

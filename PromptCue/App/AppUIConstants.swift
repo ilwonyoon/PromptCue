@@ -13,25 +13,6 @@ enum AppUIConstants {
     static let captureSurfaceBottomPadding: CGFloat = PanelMetrics.captureSurfaceBottomPadding
     static let capturePanelOuterPadding: CGFloat = PanelMetrics.capturePanelOuterPadding
     static let capturePanelVerticalSpacing: CGFloat = PanelMetrics.capturePanelVerticalSpacing
-    static let captureChooserPanelVerticalSpacing: CGFloat = 12
-    static let captureChooserPanelShadowTopInset: CGFloat = PanelMetrics.capturePanelShadowTopInset
-    static let captureChooserPanelShadowBottomInset: CGFloat = captureChooserPanelVerticalSpacing
-    static let captureChooserSurfaceHorizontalPadding: CGFloat = 0
-    static let captureChooserSurfaceVerticalPadding: CGFloat = PanelMetrics.captureSurfaceInnerPadding
-    static let captureChooserPanelSurfaceTopPadding: CGFloat = PrimitiveTokens.Space.md
-    static let captureChooserPanelSurfaceBottomPadding: CGFloat = PrimitiveTokens.Space.xl
-    static let captureChooserPanelHeaderTopPadding: CGFloat = PrimitiveTokens.Space.xxs
-    static let captureChooserPanelHeaderBottomPadding: CGFloat = PrimitiveTokens.Space.xs
-    static let captureSelectorControlWidth: CGFloat =
-        PanelMetrics.captureSurfaceWidth - (PanelMetrics.captureSurfaceInnerPadding * 2)
-    static let captureChooserPromptLineHeight: CGFloat = 16
-    static let captureChooserPromptVerticalPadding: CGFloat = 6
-    static let captureChooserPromptBottomSpacing: CGFloat = 12
-    static let captureChooserSectionSpacing: CGFloat = 6
-    static let captureChooserRowHeight: CGFloat = 34
-    static let captureChooserRowSpacing: CGFloat = 4
-    static let captureChooserMaxVisibleRows: Int = 4
-    static let captureChooserPeekRowFraction: CGFloat = 0.25
     static let captureDebugLineHeight: CGFloat = 18
     static let settingsPanelWidth: CGFloat = PanelMetrics.settingsPanelWidth
     static let settingsPanelHeight: CGFloat = PanelMetrics.settingsPanelHeight
@@ -58,22 +39,4 @@ enum AppUIConstants {
     static let recentScreenshotPlaceholderGrace: TimeInterval = AppTiming.recentScreenshotPlaceholderGrace
     static let recentScreenshotSubmitResolveTimeout: TimeInterval = AppTiming.recentScreenshotSubmitResolveTimeout
     static let captureSubmissionFlushTimeout: TimeInterval = AppTiming.captureSubmissionFlushTimeout
-    static let suggestedTargetFreshness: TimeInterval = 60
-
-    static func captureChooserVisibleRowUnits(
-        for totalRows: Int,
-        allowsPeekRow: Bool = true
-    ) -> CGFloat {
-        let clampedRows = max(totalRows, 1)
-
-        if clampedRows <= captureChooserMaxVisibleRows {
-            return CGFloat(clampedRows)
-        }
-
-        if allowsPeekRow {
-            return CGFloat(captureChooserMaxVisibleRows) + captureChooserPeekRowFraction
-        }
-
-        return CGFloat(captureChooserMaxVisibleRows)
-    }
 }

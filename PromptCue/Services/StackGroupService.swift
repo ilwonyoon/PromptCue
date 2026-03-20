@@ -69,13 +69,11 @@ final class StackGroupService {
             separator: request.separator
         )
         let inheritedTags = CaptureTag.deduplicatePreservingOrder(sourceNotes.flatMap(\.tags))
-        let inheritedTarget = sourceNotes.first(where: { $0.suggestedTarget != nil })?.suggestedTarget
 
         let groupedNote = try writeService.createNote(
             StackNoteCreateRequest(
                 text: mergedText,
-                tags: inheritedTags,
-                suggestedTarget: inheritedTarget
+                tags: inheritedTags
             )
         )
 

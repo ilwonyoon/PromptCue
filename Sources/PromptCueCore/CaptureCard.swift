@@ -6,7 +6,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     public let id: UUID
     public let text: String
     public let tags: [CaptureTag]
-    public let suggestedTarget: CaptureSuggestedTarget?
     public let createdAt: Date
     public let screenshotPath: String?
     public let lastCopiedAt: Date?
@@ -17,7 +16,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         id: UUID = UUID(),
         text: String,
         tags: [CaptureTag] = [],
-        suggestedTarget: CaptureSuggestedTarget? = nil,
         createdAt: Date,
         screenshotPath: String? = nil,
         lastCopiedAt: Date? = nil,
@@ -27,7 +25,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         self.id = id
         self.text = text
         self.tags = CaptureTag.deduplicatePreservingOrder(tags)
-        self.suggestedTarget = suggestedTarget
         self.createdAt = createdAt
         self.screenshotPath = screenshotPath
         self.lastCopiedAt = lastCopiedAt
@@ -39,7 +36,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         case id
         case text
         case tags
-        case suggestedTarget
         case createdAt
         case screenshotPath
         case lastCopiedAt
@@ -54,7 +50,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         tags = CaptureTag.deduplicatePreservingOrder(
             try container.decodeIfPresent([CaptureTag].self, forKey: .tags) ?? []
         )
-        suggestedTarget = try container.decodeIfPresent(CaptureSuggestedTarget.self, forKey: .suggestedTarget)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         screenshotPath = try container.decodeIfPresent(String.self, forKey: .screenshotPath)
         lastCopiedAt = try container.decodeIfPresent(Date.self, forKey: .lastCopiedAt)
@@ -68,7 +63,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
         try container.encode(id, forKey: .id)
         try container.encode(text, forKey: .text)
         try container.encode(tags, forKey: .tags)
-        try container.encodeIfPresent(suggestedTarget, forKey: .suggestedTarget)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(screenshotPath, forKey: .screenshotPath)
         try container.encodeIfPresent(lastCopiedAt, forKey: .lastCopiedAt)
@@ -139,7 +133,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             id: id,
             text: text,
             tags: tags,
-            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: date,
@@ -153,21 +146,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             id: id,
             text: text,
             tags: tags,
-            suggestedTarget: suggestedTarget,
-            createdAt: createdAt,
-            screenshotPath: screenshotPath,
-            lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder,
-            isPinned: isPinned
-        )
-    }
-
-    public func updatingSuggestedTarget(_ suggestedTarget: CaptureSuggestedTarget?) -> CaptureCard {
-        CaptureCard(
-            id: id,
-            text: text,
-            tags: tags,
-            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
@@ -179,14 +157,12 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
     public func updatingContent(
         text: String,
         tags: [CaptureTag],
-        suggestedTarget: CaptureSuggestedTarget?,
         screenshotPath: String?
     ) -> CaptureCard {
         CaptureCard(
             id: id,
             text: text,
             tags: tags,
-            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
@@ -200,7 +176,6 @@ public struct CaptureCard: Codable, Identifiable, Equatable, Sendable {
             id: id,
             text: text,
             tags: tags,
-            suggestedTarget: suggestedTarget,
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,

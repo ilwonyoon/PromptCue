@@ -187,7 +187,9 @@ final class BacktickMCPHTTPHandler {
                 reasonPhrase: "OK",
                 body: Data(#"{"status":"ok"}"#.utf8)
             )
-        case "/.well-known/oauth-protected-resource":
+        case "/.well-known/oauth-protected-resource",
+             "/mcp/.well-known/oauth-protected-resource",
+             "/.well-known/oauth-protected-resource/mcp":
             guard let oauthProvider else {
                 return textResponse(
                     statusCode: 404,
@@ -200,7 +202,8 @@ final class BacktickMCPHTTPHandler {
                 reasonPhrase: "OK",
                 object: await oauthProvider.protectedResourceMetadata()
             )
-        case "/.well-known/oauth-authorization-server":
+        case "/.well-known/oauth-authorization-server",
+             "/.well-known/oauth-authorization-server/mcp":
             guard let oauthProvider else {
                 return textResponse(
                     statusCode: 404,
@@ -213,7 +216,8 @@ final class BacktickMCPHTTPHandler {
                 reasonPhrase: "OK",
                 object: await oauthProvider.authorizationServerMetadata()
             )
-        case "/.well-known/openid-configuration":
+        case "/.well-known/openid-configuration",
+             "/.well-known/openid-configuration/mcp":
             guard let oauthProvider else {
                 return textResponse(
                     statusCode: 404,
@@ -285,23 +289,28 @@ final class BacktickMCPHTTPHandler {
             )
         }
 
+        guard !request.body.isEmpty else {
+            return BacktickMCPHTTPResponse(
+                statusCode: 200,
+                reasonPhrase: "OK",
+                headers: corsHeaders(),
+                body: Data()
+            )
+        }
+
         guard await isAuthorized(headers: request.headers) else {
             return unauthorizedResponse()
         }
 
-        guard !request.body.isEmpty else {
-            return textResponse(
-                statusCode: 400,
-                reasonPhrase: "Bad Request",
-                body: "POST body is required."
-            )
-        }
-
         guard let responseData = await session.handleRequestData(request.body) else {
+            var notificationHeaders = corsHeaders()
+            if let sessionID = await session.sessionID {
+                notificationHeaders["Mcp-Session-Id"] = sessionID
+            }
             return BacktickMCPHTTPResponse(
                 statusCode: 202,
                 reasonPhrase: "Accepted",
-                headers: corsHeaders(),
+                headers: notificationHeaders,
                 body: Data()
             )
         }
@@ -310,13 +319,18 @@ final class BacktickMCPHTTPHandler {
             logProtectedRemoteRequest(request)
         }
 
+        var extraHeaders = [
+            "Cache-Control": "no-store",
+        ]
+        if let sessionID = await session.sessionID {
+            extraHeaders["Mcp-Session-Id"] = sessionID
+        }
+
         return jsonResponse(
             statusCode: 200,
             reasonPhrase: "OK",
             body: responseData,
-            extraHeaders: [
-                "Cache-Control": "no-store",
-            ]
+            extraHeaders: extraHeaders
         )
     }
 
@@ -496,7 +510,7 @@ final class BacktickMCPHTTPHandler {
             )
         case .oauth:
             if let publicBaseURL = configuration.publicBaseURL {
-                headers["WWW-Authenticate"] = "Bearer resource_metadata=\"\(publicBaseURL.appending(path: ".well-known/oauth-protected-resource").absoluteString)\""
+                headers["WWW-Authenticate"] = "Bearer resource_metadata=\"\(publicBaseURL.appending(path: ".well-known/oauth-protected-resource/mcp").absoluteString)\""
             } else {
                 headers["WWW-Authenticate"] = "Bearer"
             }

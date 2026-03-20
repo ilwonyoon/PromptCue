@@ -9,6 +9,8 @@ final class BacktickMCPServerSession {
     private let groupService: StackGroupService
     private let documentStore: ProjectDocumentStore
 
+    private(set) var sessionID: String?
+
     private static let supportedProtocolVersions = [
         "2025-03-26",
         "2024-11-05",
@@ -188,6 +190,8 @@ final class BacktickMCPServerSession {
             .flatMap { version in
                 Self.supportedProtocolVersions.first(where: { $0 == version })
             } ?? Self.supportedProtocolVersions[0]
+
+        sessionID = UUID().uuidString.lowercased()
 
         return [
             "protocolVersion": protocolVersion,

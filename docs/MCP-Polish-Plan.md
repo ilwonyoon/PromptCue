@@ -133,6 +133,7 @@ The model should be allowed to propose topics from the actual conversation conte
 - prefer narrower subject names over broad buckets
 - avoid internal jargon
 - avoid near-duplicates
+- do not treat proposal count as a target; choose the smallest number of docs that preserves meaningful durable boundaries
 
 ## Save Behavior
 
@@ -176,6 +177,11 @@ If the boundaries are unclear:
 - if needed, fall back to one reviewed Memory summary
 - only extract multiple shaped documents after review
 
+The quality bar is semantic, not numeric:
+
+- one good reviewed `discussion` doc is better than three thin or arbitrary docs
+- multiple docs are better only when each one preserves a cleaner durable unit than the merged alternative
+
 ## Proactive Behavior
 
 Backtick should proactively notice when a save might help.
@@ -194,8 +200,8 @@ The desired behavior is:
 
 Preferred wording:
 
-- `이 내용을 Backtick Memory에 저장할까요?`
-- `이 결정 백틱 메모리에 남겨둘까요?`
+- `이 내용을 백틱에 저장할까요?`
+- `이 결정을 Backtick에 남겨둘까요?`
 
 Do not say only:
 
@@ -245,6 +251,14 @@ It should read like:
 - clear decisions
 - active direction
 - useful durable state
+
+Mixed engineering discussions can still produce good Memory docs when the saved result captures:
+
+- why a product or UX decision was made
+- what constraint or scope lock now matters
+- what future sessions need to remember
+
+They should not collapse into raw command output, file-level implementation sludge, or code-history narration just because the source discussion mentioned engineering details.
 
 ## MCP Contract Implications
 
@@ -369,6 +383,8 @@ Field meanings:
 - `globalWarnings` = discussion-level issues that affect all proposals
 - `recommendation` = how the next write step should proceed if the user confirms
 
+`review.confirmPrompt` should be treated as fallback example wording, not fixed UI copy. The assistant should adapt the final user-facing ask to the current conversation language while preserving the same meaning.
+
 Recommended warning values:
 
 - `mixed_content`
@@ -409,6 +425,8 @@ Recommended `review` shape:
   "hideInternalFieldsByDefault": true
 }
 ```
+
+The same review payload can still support natural Korean or English chat phrasing. For example, the assistant may render the ask as "이 내용을 백틱에 저장할까요?" even if the fallback `confirmPrompt` example is English.
 
 The safest fit is to keep the existing MCP outer envelope unchanged and only add this proposal payload as the tool result body, following the same `content -> text -> JSON` pattern the current server already uses for tool results.
 
@@ -564,13 +582,26 @@ Examples to avoid going forward:
 
 ## Next Slices
 
-1. lock `Prompt / Memory` terminology in docs and MCP copy
-2. add `propose_document_saves` with the request/response shape above
-3. add proposal/review/confirm behavior to MCP instructions and prompts
-4. ship chat-level review UX before native review UI
-5. add a lightweight native save-review surface inside Memory
-6. add lint rules that flag noisy or overmixed save proposals
-7. clean up existing example docs and eval fixtures to use better topic naming
+Latest repo-grounded eval result:
+
+- useful docs are already being produced in several cases
+- the bigger remaining problem is that type drift and routine-status overcapture make those good docs harder to update cleanly over time
+
+That shifts the next slice priority from generic proposal UX to durable update quality.
+
+1. strengthen same-topic update matching so a narrow amendment still finds the existing document even when the inferred `documentType` is slightly wrong
+2. tighten `do_not_write` behavior for routine execution status that lacks a durable decision, constraint, milestone, or release-significant change
+3. reduce `plan` over-classification in repo-grounded content
+   - especially when file names or doc references such as `*-Plan.md` appear inside otherwise non-plan material
+4. add focused regression tests for:
+   - same-topic amendment with mismatched inferred type
+   - repo-grounded content that should be `decision` or `reference`, not `plan`
+   - routine status that should return `do_not_write`
+5. keep `Prompt / Memory` terminology locked in docs and MCP copy
+6. continue proposal/review/confirm behavior in MCP instructions and prompts
+7. ship chat-level review UX before any native review UI expansion
+8. add lint rules that flag noisy or overmixed save proposals
+9. clean up existing example docs and eval fixtures to use better topic naming
 
 ## Success Criteria
 
@@ -581,4 +612,6 @@ This polish slice is successful when:
 - save behavior is proposal-first instead of silent or direct
 - topics feel like real subjects, not internal categories
 - saved docs stop accumulating technical/session noise
+- narrow follow-on information usually updates the right existing doc instead of creating sibling sprawl
+- repo-grounded durable summaries do not drift into `plan` merely because the source text mentioned plan-file names or implementation docs
 - future AI sessions can resume work from Memory without reading a transcript

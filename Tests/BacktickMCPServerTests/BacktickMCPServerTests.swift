@@ -50,6 +50,8 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(instructions.contains("Backtick"))
         XCTAssertTrue(instructions.contains("백틱"))
         XCTAssertTrue(instructions.contains("Do not save silently"))
+        XCTAssertTrue(instructions.contains("Good examples"))
+        XCTAssertTrue(instructions.contains("Bad examples"))
 
         let toolsResponse = try await sendRequest(session: session, id: 2, method: "tools/list")
         let toolsResult = try XCTUnwrap(toolsResponse["result"] as? [String: Any])
@@ -71,6 +73,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 "propose_document_saves",
                 "save_document",
                 "update_document",
+                "delete_document",
             ]
         )
         let proposeTool = try XCTUnwrap(
@@ -79,6 +82,14 @@ final class BacktickMCPServerTests: XCTestCase {
         let inputSchema = try XCTUnwrap(proposeTool["inputSchema"] as? [String: Any])
         XCTAssertEqual(inputSchema["additionalProperties"] as? Bool, false)
         XCTAssertEqual(inputSchema["required"] as? [String], ["project", "content"])
+        XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Good:"))
+        XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Bad:"))
+        let saveTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "save_document" }))
+        XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Good:"))
+        XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Bad:"))
+        let updateTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "update_document" }))
+        XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Good:"))
+        XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Bad:"))
         let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
         XCTAssertNotNil(properties["userIntent"])
         XCTAssertNotNil(properties["preferredTopic"])
@@ -391,7 +402,9 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(proposal["existingDocument"] is NSNull)
         let review = try XCTUnwrap(proposal["review"] as? [String: Any])
         XCTAssertEqual(review["displayTopic"] as? String, "memory save flow")
-        XCTAssertEqual(review["confirmPrompt"] as? String, "Save this to Backtick?")
+        let confirmPrompt = try XCTUnwrap(review["confirmPrompt"] as? String)
+        XCTAssertTrue(confirmPrompt.contains("Backtick"))
+        XCTAssertFalse(confirmPrompt.isEmpty)
         XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
         let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
         XCTAssertEqual(recommendation["tool"] as? String, "save_document")
@@ -474,10 +487,9 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(existingDocument["documentType"] as? String, "decision")
         let review = try XCTUnwrap(proposal["review"] as? [String: Any])
         XCTAssertEqual(review["displayTopic"] as? String, "memory save flow")
-        XCTAssertEqual(
-            review["confirmPrompt"] as? String,
-            "Should I add this to the existing Backtick memo?"
-        )
+        let confirmPrompt = try XCTUnwrap(review["confirmPrompt"] as? String)
+        XCTAssertTrue(confirmPrompt.contains("Backtick"))
+        XCTAssertTrue(confirmPrompt.localizedCaseInsensitiveContains("existing"))
         XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
         let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
         XCTAssertEqual(recommendation["tool"] as? String, "update_document")
@@ -494,6 +506,182 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let listPayload = try toolPayload(from: listResponse)
         XCTAssertEqual(listPayload["count"] as? Int, 1)
+    }
+
+    func testProposeDocumentSavesKeepsPreferredTopicForStructuredMarkdownUpdates() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let existingContent = """
+        ## Decision
+        - Full markdown rendering should support the main block types we rely on in coding conversations.
+        - The first pass should render headings, paragraphs, lists, fenced code blocks, and tables inside the Backtick memory viewer.
+        - Links should remain tappable so stored references are still actionable.
+
+        ## Follow-on
+        - Add screenshot-backed visual QA before widening the surface.
+        - Keep the renderer local and deterministic instead of embedding a web view.
+        - Prefer update-in-place for future rendering tweaks instead of creating duplicate docs for the same extension topic.
+        """
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "markdown-rendering-extension",
+                    "documentType": "decision",
+                    "content": existingContent,
+                ],
+            ]
+        )
+
+        let response = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "markdown-rendering-extension",
+                    "userIntent": "latest_decisions",
+                    "content": """
+                    ## Latest Changes
+                    - Inline emphasis and code-span polish are the next rendering follow-up.
+                    - Table spacing should improve without changing the topic or document type.
+                    - This should extend the existing markdown rendering extension doc instead of creating a new one.
+
+                    ## Constraints
+                    - Keep the rendering native and deterministic.
+                    - Avoid introducing a web view just to support markdown.
+                    - Reuse the same project topic for follow-on updates.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["count"] as? Int, 1)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "markdown-rendering-extension")
+        XCTAssertEqual(proposal["documentType"] as? String, "decision")
+        XCTAssertEqual(proposal["operation"] as? String, "update")
+        let existingDocument = try XCTUnwrap(proposal["existingDocument"] as? [String: Any])
+        XCTAssertEqual(existingDocument["topic"] as? String, "markdown-rendering-extension")
+        XCTAssertEqual(existingDocument["documentType"] as? String, "decision")
+        let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
+        XCTAssertEqual(recommendation["tool"] as? String, "update_document")
+        XCTAssertEqual(recommendation["needsRecall"] as? Bool, true)
+    }
+
+    func testProposeDocumentSavesDoesNotInferPlanFromRepoPlanFileReferences() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "memory-save-contract",
+                    "content": """
+                    ## Backtick Memory Save Contract
+
+                    The durable rule is that Memory writes go through proposal, review, confirm, and then write.
+
+                    ## Rules
+
+                    - Ask first and do not save silently.
+                    - One reviewed discussion can be better than a forced split.
+                    - Shell and test transcripts do not belong in Memory.
+
+                    ## Repo Grounding
+
+                    This contract is described in docs/MCP-Polish-Plan.md and docs/Warm-MCP-Eval-Plan.md, but those file references should not turn this into an execution plan.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "memory-save-contract")
+        XCTAssertNotEqual(proposal["documentType"] as? String, "plan")
+    }
+
+    func testProposeDocumentSavesReusesExistingTopicWhenTypeInferenceWouldOtherwiseDrift() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let existingContent = """
+        ## Contract
+        - Backtick Memory writes should go through proposal, review, confirm, and then write.
+        - Silent saves are disallowed.
+
+        ## Rules
+        - One reviewed discussion can be better than several forced splits.
+        - Follow-on amendments should update the same durable subject when possible.
+
+        ## Why
+        - Future sessions should reuse one stable contract document instead of creating sibling docs for narrow deltas.
+        """
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "memory-save-contract",
+                    "documentType": "decision",
+                    "content": existingContent,
+                ],
+            ]
+        )
+
+        let response = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "memory-save-contract",
+                    "content": """
+                    ## Amendment
+
+                    This adds one durable clarification from docs/MCP-Polish-Plan.md and docs/Warm-MCP-Eval-Plan.md.
+
+                    ## Clarification
+
+                    - Proposal count is not the goal.
+                    - Mixed engineering input should be lifted into product-level meaning before saving.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "memory-save-contract")
+        XCTAssertEqual(proposal["documentType"] as? String, "decision")
+        XCTAssertEqual(proposal["operation"] as? String, "update")
+        let existingDocument = try XCTUnwrap(proposal["existingDocument"] as? [String: Any])
+        XCTAssertEqual(existingDocument["topic"] as? String, "memory-save-contract")
+        XCTAssertEqual(existingDocument["documentType"] as? String, "decision")
     }
 
     func testProposeDocumentSavesReturnsNoProposalForExplicitNoSaveContent() async throws {
@@ -535,6 +723,33 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let listPayload = try toolPayload(from: listResponse)
         XCTAssertEqual(listPayload["count"] as? Int, 0)
+    }
+
+    func testProposeDocumentSavesReturnsNoProposalForRoutineExecutionStatusWithoutExplicitNoSaveMarker() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "content": """
+                    xcodegen generate, swift test, xcodebuild build all passed, and I reopened the app bundle to check the latest helper.
+                    This is just routine execution status from today's run and does not include any lasting decision, constraint, scope lock, or release milestone.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["count"] as? Int, 0)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        XCTAssertTrue(proposals.isEmpty)
+        XCTAssertEqual(payload["recommendedNextStep"] as? String, "do_not_write")
     }
 
     func testProposeDocumentSavesFlagsWarningsAndFallsBackToDiscussionForMixedNoisyContent() async throws {
@@ -799,6 +1014,71 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let errorPayload = try toolErrorPayload(from: updateResponse)
         XCTAssertEqual(errorPayload["error"] as? String, "Section not found: Missing Section")
+    }
+
+    func testDeleteDocumentRemovesActiveDocumentThroughJsonRPC() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let content = """
+        ## Decision
+        - Delete document should soft-delete the active project document row.
+        - The delete tool should target the exact project, topic, and document type.
+
+        ## Cleanup
+        - List documents should stop returning the deleted document.
+        - Follow-up test runs should be able to recreate the same key without conflicts.
+        """
+
+        let saveResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "delete-flow",
+                    "documentType": "decision",
+                    "content": content,
+                ],
+            ]
+        )
+        let savedDocument = try documentPayload(from: saveResponse)
+        XCTAssertEqual(savedDocument["topic"] as? String, "delete-flow")
+
+        let deleteResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "delete_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "delete-flow",
+                    "documentType": "decision",
+                ],
+            ]
+        )
+        let deletePayload = try toolPayload(from: deleteResponse)
+        XCTAssertEqual(deletePayload["deleted"] as? Bool, true)
+        let deletedDocument = try XCTUnwrap(deletePayload["document"] as? [String: Any])
+        XCTAssertEqual(deletedDocument["topic"] as? String, "delete-flow")
+        XCTAssertEqual(deletedDocument["documentType"] as? String, "decision")
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": [
+                    "project": "backtick",
+                ],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        XCTAssertEqual(listPayload["count"] as? Int, 0)
     }
 
     func testCreateNotePostsStackDidChangeNotification() async throws {

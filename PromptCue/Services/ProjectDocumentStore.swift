@@ -104,6 +104,37 @@ final class ProjectDocumentStore {
         }
     }
 
+    func currentDocuments(
+        project: String,
+        topic: String
+    ) throws -> [ProjectDocumentSummary] {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.read { db in
+                let records = try ProjectDocumentRecord.fetchAll(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL
+                      AND project = ?
+                      AND topic = ?
+                    ORDER BY updatedAt DESC, documentType ASC
+                    """,
+                    arguments: [project, topic]
+                )
+
+                return records.map(\.summary)
+            }
+        } catch {
+            NSLog("ProjectDocumentStore currentDocuments failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.loadFailed(error)
+        }
+    }
+
     func saveDocument(
         project: String,
         topic: String,

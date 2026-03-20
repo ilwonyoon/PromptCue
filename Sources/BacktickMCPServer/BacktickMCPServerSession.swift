@@ -227,7 +227,15 @@ final class BacktickMCPServerSession {
         3. Do not save silently. Wait for the user to confirm which proposals to save before writing anything.
         4. Before writing, list or recall existing docs so you can update the right document instead of creating a duplicate.
         5. If a long discussion is mixed and classification is uncertain, default to one reviewed discussion doc instead of forcing a multi-document split.
-        6. When asking the user, use short natural language such as "Save this to Backtick?" or "Should I add this to the existing Backtick memo?" Hide tool jargon like documentType, create/update, or internal schemas unless the user asks for those details.
+        6. When asking the user, use short natural language in the current conversation language. Any confirmPrompt text returned by tools is fallback example copy, not fixed UI wording.
+        7. Good examples:
+           - "Save this to Backtick?"
+           - "Should I add this to the existing Backtick memo?"
+           - "이 내용을 백틱에 저장할까요?"
+        8. Bad examples:
+           - "I already saved this to memory."
+           - "Should I create a decision document with operation update?"
+           - "This went into generic memory."
 
         Content rules:
         - Save durable context, decisions, plans, constraints, and structured summaries that will help a future AI session resume work.
@@ -441,7 +449,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "propose_document_saves",
-                "description": "REQUIRED before any save_document or update_document call. Draft reviewed save proposals without writing anything yet. Focus on decisions, direction changes, and topics discussed at length — skip anything only briefly mentioned. Each proposal includes a one-line summary so the user can quickly select which to keep. Never skip this step.",
+                "description": "REQUIRED before any save_document or update_document call. Draft reviewed save proposals without writing anything yet. Focus on decisions, direction changes, and topics discussed at length — skip anything only briefly mentioned. Each proposal includes a one-line summary so the user can quickly select which to keep. Good: list_documents or recall_document when needed, then propose_document_saves, then ask the user in natural language. Bad: jump straight to save_document because the thread feels important. Never skip this step.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -468,7 +476,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "save_document",
-                "description": "Save a durable project document. Only call this AFTER the user has reviewed and confirmed a proposal from propose_document_saves. Never call directly without a prior proposal step. List or recall existing docs first to update instead of creating duplicates. Store structured markdown with ## headers (at least two sections, 200+ characters). Map actionable PRDs to plan, settled choices to decision, exploration recaps to discussion, durable facts to reference. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.",
+                "description": "Save a durable project document. Only call this AFTER the user has reviewed and confirmed a proposal from propose_document_saves. Never call directly without a prior proposal step. Good: propose -> user confirms -> save_document. Bad: save_document immediately at the end of a mixed conversation. List or recall existing docs first to update instead of creating duplicates. Store structured markdown with ## headers (at least two sections, 200+ characters). Map actionable PRDs to plan, settled choices to decision, exploration recaps to discussion, durable facts to reference. Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -483,7 +491,7 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "update_document",
-                "description": "Partially update an existing durable project document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes such as latest-decision deltas or one section of an existing plan, decision, discussion, or reference doc. Always list or recall first so you update the right project/topic/documentType document. When summarizing a long discussion, do not jump straight into updating multiple docs unless the user has confirmed the proposed split; under uncertainty, prefer one reviewed discussion doc first. Do not use this to append coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history; use it only for durable context changes that future AI sessions should remember.",
+                "description": "Partially update an existing durable project document by appending a new ## section, replacing one ## section, or deleting one ## section. Prefer this over save_document for small changes such as latest-decision deltas or one section of an existing plan, decision, discussion, or reference doc. Good: recall the current doc, propose the update, wait for confirmation, then update_document. Bad: update_document directly because an old doc probably exists. Always list or recall first so you update the right project/topic/documentType document. When summarizing a long discussion, do not jump straight into updating multiple docs unless the user has confirmed the proposed split; under uncertainty, prefer one reviewed discussion doc first. Do not use this to append coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history; use it only for durable context changes that future AI sessions should remember.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -855,9 +863,10 @@ final class BacktickMCPServerSession {
 
         for segment in segments {
             let segmentDocumentType = inferredDocumentType(content: segment.body, userIntent: userIntent)
-            // Use segment heading as preferredTopic when available — this ensures
-            // each ## section gets its own topic instead of merging into one.
-            let effectivePreferredTopic = segment.heading ?? preferredTopic
+            // Respect an explicit preferred topic so structured markdown can still
+            // target one existing document. Fall back to per-section headings only
+            // when the caller did not supply a topic hint.
+            let effectivePreferredTopic = preferredTopic ?? segment.heading
             let segmentTopic = inferredProposalTopic(
                 content: segment.body,
                 userIntent: userIntent,
@@ -879,13 +888,20 @@ final class BacktickMCPServerSession {
 
         for segmentTopic in topicOrder {
             let mergedContent = segmentContentByTopic[segmentTopic] ?? ""
-            let segmentDocumentType = inferredDocumentType(content: mergedContent, userIntent: userIntent)
+            let inferredType = inferredDocumentType(content: mergedContent, userIntent: userIntent)
 
-            let existingDocument = try documentStore.currentDocument(
+            let exactExistingDocument = try documentStore.currentDocument(
                 project: project,
                 topic: segmentTopic,
-                documentType: segmentDocumentType
+                documentType: inferredType
             )
+            let sameTopicDocuments = exactExistingDocument == nil && !isBroadProposalTopic(segmentTopic)
+                ? try documentStore.currentDocuments(project: project, topic: segmentTopic)
+                : []
+            let fallbackExistingDocument = exactExistingDocument == nil && sameTopicDocuments.count == 1
+                ? sameTopicDocuments[0]
+                : nil
+            let segmentDocumentType = fallbackExistingDocument?.documentType ?? inferredType
 
             let segmentWarnings = proposalWarnings(
                 project: project,
@@ -894,10 +910,12 @@ final class BacktickMCPServerSession {
                 content: mergedContent,
                 userIntent: userIntent
             )
+            let existingDocumentSummary = exactExistingDocument.map(documentSummaryDictionary)
+                ?? fallbackExistingDocument.map(documentSummaryDictionary)
 
-            let recommendationTool = existingDocument == nil ? "save_document" : "update_document"
-            let operation = existingDocument == nil ? "create" : "update"
-            let needsRecall = existingDocument != nil
+            let recommendationTool = existingDocumentSummary == nil ? "save_document" : "update_document"
+            let operation = existingDocumentSummary == nil ? "create" : "update"
+            let needsRecall = existingDocumentSummary != nil
             let proposalID = UUID().uuidString.lowercased()
             let filteredBody = filterNoisyLines(mergedContent)
             let preview = proposalPreview(
@@ -908,7 +926,7 @@ final class BacktickMCPServerSession {
             let oneLiner = proposalOneLiner(filteredBody, topic: segmentTopic)
             let review = proposalReview(
                 topic: segmentTopic,
-                existingDocument: existingDocument != nil,
+                existingDocument: existingDocumentSummary != nil,
                 summary: oneLiner
             )
 
@@ -921,11 +939,11 @@ final class BacktickMCPServerSession {
                 "rationale": proposalRationale(
                     topic: segmentTopic,
                     documentType: segmentDocumentType,
-                    existingDocument: existingDocument != nil,
+                    existingDocument: existingDocumentSummary != nil,
                     userIntent: userIntent
                 ),
                 "preview": preview,
-                "existingDocument": existingDocument.map(documentSummaryDictionary) ?? NSNull(),
+                "existingDocument": existingDocumentSummary ?? NSNull(),
                 "warnings": segmentWarnings,
                 "review": review,
                 "recommendation": [
@@ -1423,7 +1441,7 @@ final class BacktickMCPServerSession {
         userIntent: String?
     ) -> ProjectDocumentType {
         let normalizedIntent = (userIntent ?? "").lowercased()
-        let normalizedContent = content.lowercased()
+        let normalizedContent = normalizedClassificationContent(content)
 
         if normalizedIntent.contains("decision") || normalizedIntent.contains("latest_decisions") {
             return .decision
@@ -1439,13 +1457,17 @@ final class BacktickMCPServerSession {
         }
 
         let decisionScore = keywordScore(in: normalizedContent, keywords: [
-            "latest decisions", "we decided", "decision", "settled", "agreed", "current direction",
+            "latest decisions", "we decided", "decision", "decisions", "settled", "agreed",
+            "current direction", "contract", "rule", "rules", "policy", "default",
+            "locked decision", "ask first", "silent save",
         ])
         let planScore = keywordScore(in: normalizedContent, keywords: [
-            "next steps", "timeline", "plan", "implementation", "phase 1", "roadmap", "requirements",
+            "next steps", "timeline", "roadmap", "requirements", "goal", "goals",
+            "tasks", "milestone", "milestones", "execution plan", "implementation plan", "phase 1",
         ])
         let referenceScore = keywordScore(in: normalizedContent, keywords: [
-            "architecture", "background", "constraints", "market", "reference", "overview",
+            "architecture", "background", "constraints", "reference", "overview",
+            "principles", "vocabulary", "product boundary", "what it is", "what it is not", "mental model",
         ])
 
         let strongSignals = [decisionScore, planScore, referenceScore].filter { $0 > 0 }.count
@@ -1457,10 +1479,19 @@ final class BacktickMCPServerSession {
             (.decision, decisionScore),
             (.plan, planScore),
             (.reference, referenceScore),
-            (.discussion, 1),
         ]
 
-        return scores.max { lhs, rhs in lhs.1 < rhs.1 }?.0 ?? .discussion
+        let maxScore = scores.map(\.1).max() ?? 0
+        guard maxScore > 0 else {
+            return .discussion
+        }
+
+        let topMatches = scores.filter { $0.1 == maxScore }
+        if topMatches.count == 1 {
+            return topMatches[0].0
+        }
+
+        return .discussion
     }
 
     private func inferredProposalTopic(
@@ -1609,6 +1640,26 @@ final class BacktickMCPServerSession {
         }
     }
 
+    private func normalizedClassificationContent(_ content: String) -> String {
+        var normalized = content.lowercased()
+        let replacements: [(String, String)] = [
+            (#"\b(?:docs|sources|promptcue|tests)/[^\s,)]+(?:\.[a-z0-9]+)?\b"#, " "),
+            (#"\b[a-z0-9._-]+\.md\b"#, " "),
+            (#"\b[a-z0-9._-]+\.swift\b"#, " "),
+            (#"`[^`]+`"#, " "),
+        ]
+
+        for (pattern, replacement) in replacements {
+            normalized = normalized.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: .regularExpression
+            )
+        }
+
+        return normalized
+    }
+
     private func looksTechnicallyNoisy(_ content: String) -> Bool {
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
         let noisyLineCount = lines.filter { line in
@@ -1636,17 +1687,85 @@ final class BacktickMCPServerSession {
         }
 
         let noSaveMarkers = [
-            "do not save",
+            "do not save this",
             "don't save",
             "not ready to save",
-            "skip saving",
-            "do not store",
+            "skip saving this",
+            "do not store this",
         ]
         if noSaveMarkers.contains(where: normalizedContent.contains) {
             return true
         }
 
-        return normalizedContent.count < 120 && looksTechnicallyNoisy(content)
+        if normalizedContent.count < 120 && looksTechnicallyNoisy(content) {
+            return true
+        }
+
+        if looksRoutineExecutionStatus(content)
+            && (!hasDurableMemorySignals(content) || containsNegatedDurableStatement(content)) {
+            return true
+        }
+
+        return false
+    }
+
+    private func looksRoutineExecutionStatus(_ content: String) -> Bool {
+        let normalizedContent = content.lowercased()
+        let routineSignals = [
+            "xcodegen generate",
+            "swift test",
+            "xcodebuild",
+            "build passed",
+            "tests passed",
+            "all tests passed",
+            "app reopened",
+            "reopened the app",
+            "restarted the app",
+            "opened the app",
+            "앱 번들",
+            "앱 다시 켰",
+            "앱을 다시 켰",
+            "테스트 통과",
+            "빌드 통과",
+            "다 통과",
+        ]
+
+        let routineHitCount = routineSignals.reduce(into: 0) { count, signal in
+            if normalizedContent.contains(signal) {
+                count += 1
+            }
+        }
+
+        return routineHitCount >= 2
+    }
+
+    private func hasDurableMemorySignals(_ content: String) -> Bool {
+        let normalizedContent = normalizedClassificationContent(content)
+        let durableSignals = [
+            "we decided", "decision is", "decisions are", "agreed", "settled", "contract", "rules",
+            "policy", "scope lock", "priorities", "current direction", "must not regress",
+            "architecture", "principles", "vocabulary", "product boundary", "release gate",
+            "backtick memory", "memory save", "ask first", "silent save", "product model",
+        ]
+
+        return durableSignals.contains(where: normalizedContent.contains)
+    }
+
+    private func containsNegatedDurableStatement(_ content: String) -> Bool {
+        let normalizedContent = normalizedClassificationContent(content)
+        let negatedSignals = [
+            "routine execution status",
+            "just routine status",
+            "does not include any lasting decision",
+            "does not include any durable decision",
+            "does not include any lasting",
+            "no lasting decision",
+            "no durable decision",
+            "단순 상태 보고",
+            "지속될 결정은 없다",
+        ]
+
+        return negatedSignals.contains(where: normalizedContent.contains)
     }
 
     private func firstMarkdownHeading(in content: String) -> String? {

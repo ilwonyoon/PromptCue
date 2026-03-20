@@ -270,6 +270,160 @@ The next MCP contract should reflect the review-first model.
 - preview text
 - warnings if the content is noisy or overmixed
 
+### `propose_document_saves` Request Shape
+
+The first implementation should stay minimal and explicit.
+
+Proposed input:
+
+```json
+{
+  "project": "backtick",
+  "content": "Short reviewed summary of what the user may want to keep.",
+  "userIntent": "latest_decisions",
+  "preferredTopic": null,
+  "maxProposals": 3
+}
+```
+
+Rules:
+
+- `project` is required
+- `content` is required
+- `userIntent` is optional but encouraged
+- `preferredTopic` is optional
+- `maxProposals` defaults to `3`
+
+Why `content` exists:
+
+- MCP tools do not directly receive the whole chat transcript
+- the model must pass a concise candidate summary instead of forcing the server to classify an implicit conversation it cannot see
+- the supplied content should be shorter and cleaner than a raw transcript
+
+Recommended `userIntent` values:
+
+- `general`
+- `latest_decisions`
+- `project_brief`
+- `architecture_summary`
+- `discussion_recap`
+- `implementation_plan`
+- `prd`
+
+This is a hint, not a hard taxonomy.
+
+### `propose_document_saves` Response Shape
+
+The tool should return a small list of candidate proposals plus review warnings.
+
+Proposed output:
+
+```json
+{
+  "project": "backtick",
+  "count": 1,
+  "warnings": [],
+  "proposals": [
+    {
+      "proposalID": "uuid",
+      "topic": "memory-save-flow",
+      "documentType": "decision",
+      "confidence": "high",
+      "operation": "create",
+      "rationale": "The discussion reached a settled save-flow decision.",
+      "preview": "## Save Flow Decision\\n\\n...",
+      "existingDocument": null,
+      "warnings": [],
+      "review": {
+        "displayTopic": "memory save flow",
+        "summary": "This looks worth keeping in Backtick as memory save flow.",
+        "confirmPrompt": "Save this to Backtick?",
+        "hideInternalFieldsByDefault": true
+      },
+      "recommendation": {
+        "kind": "create",
+        "tool": "save_document",
+        "needsRecall": false
+      }
+    }
+  ],
+  "globalWarnings": [],
+  "recommendedNextStep": "confirm_one_proposal"
+}
+```
+
+Field meanings:
+
+- `project` = project namespace proposals were generated against
+- `count` = number of returned proposals
+- `proposalID` = ephemeral identifier for the review step
+- `topic` = subject name the user will mostly recognize
+- `documentType` = internal storage shape
+- `confidence` = low, medium, or high confidence in the proposal fit
+- `operation` = `create` or `update`
+- `rationale` = one short explanation of why this candidate exists
+- `preview` = reviewed markdown preview, not transcript text
+- `existingDocument` = optional current doc summary if the best action is update
+- `warnings` = proposal-local quality issues
+- `review` = chat-first review copy the assistant can use without exposing tool jargon
+- `globalWarnings` = discussion-level issues that affect all proposals
+- `recommendation` = how the next write step should proceed if the user confirms
+
+Recommended warning values:
+
+- `mixed_content`
+- `too_much_technical_noise`
+- `topic_too_broad`
+- `topic_may_duplicate_existing_doc`
+- `classification_uncertain`
+- `preview_needs_trimming`
+
+Recommended `existingDocument` shape:
+
+```json
+{
+  "project": "backtick",
+  "topic": "memory-save-flow",
+  "documentType": "decision",
+  "updatedAt": "2026-03-19T22:59:38Z"
+}
+```
+
+Recommended `recommendation` shape:
+
+```json
+{
+  "kind": "update",
+  "tool": "update_document",
+  "needsRecall": true
+}
+```
+
+Recommended `review` shape:
+
+```json
+{
+  "displayTopic": "memory save flow",
+  "summary": "This looks worth keeping in Backtick as memory save flow.",
+  "confirmPrompt": "Save this to Backtick?",
+  "hideInternalFieldsByDefault": true
+}
+```
+
+The safest fit is to keep the existing MCP outer envelope unchanged and only add this proposal payload as the tool result body, following the same `content -> text -> JSON` pattern the current server already uses for tool results.
+
+### Review Outcome Shape
+
+The user review step should reduce to one of a small set of outcomes:
+
+- `confirm`
+- `confirm_with_topic_edit`
+- `confirm_with_preview_edit`
+- `skip`
+- `ask_for_new_proposal`
+
+The important point is that write tools do not run until one of the confirm states happens.
+
 ### Behavior Rules
 
 - recall before answer when durable context likely matters
@@ -303,6 +457,90 @@ The user should be able to see:
 - whether it is a new doc or an update
 - whether technical noise should be removed first
 
+### Minimum UX: Chat Review First
+
+The first save-review UX should be chat-mediated, not app-modal.
+
+Reason:
+
+- Backtick already reaches multiple AI clients
+- the assistant can ask and receive confirmation in the current thread
+- a native macOS confirmation sheet would not help ChatGPT web or Claude iPhone
+
+Desired flow:
+
+1. a meaningful decision or wrap-up appears
+2. the model calls `propose_document_saves`
+3. the model shows 1 to 3 reviewed proposals in chat
+4. the user confirms, edits, or skips
+5. only then does the model call `save_document` or `update_document`
+
+The default chat presentation should include:
+
+- topic
+- operation
+- one-line rationale
+- short preview
+- any warning badge in plain language
+
+### Native Backtick Review Surface
+
+Backtick app UI should support this later, but it is not required for the first usable slice.
+
+The first native integration point should be lightweight:
+
+- a temporary save-review card or sheet
+- opened from Memory, not from Prompt
+- focused on confirm/edit/skip, not long-form editing first
+
+Suggested fields:
+
+- project
+- topic
+- preview
+- create vs update label
+- warning summary
+
+Suggested actions:
+
+- `Save`
+- `Edit Topic`
+- `Trim Preview`
+- `Skip`
+
+### Existing UI Reuse Direction
+
+Current insertion point is likely the Memory lane, not the Prompt lane.
+
+Why:
+
+- Memory already owns durable docs
+- [MemoryViewerView.swift](/Users/ilwonyoon/Documents/PromptCue/PromptCue/UI/Memory/MemoryViewerView.swift) already has project/topic/detail structure
+- [MemoryViewerModel.swift](/Users/ilwonyoon/Documents/PromptCue/PromptCue/UI/Memory/MemoryViewerModel.swift) already owns refresh, selection, copy, and edit/save of current docs
+
+That suggests the first native UX should be:
+
+- proposal list adjacent to document browsing
+- or a lightweight review state inside the Memory viewer
+
+not:
+
+- a brand new panel
+- a Prompt-side blocking modal
+
+### Prompt And Tooling Companion
+
+This tool should be paired with prompt/workflow guidance, not only a raw tool description.
+
+Companion prompt/workflow candidates:
+
+- `save_latest_decisions`
+- `save_project_brief`
+- `save_architecture_summary`
+- `save_as_prd`
+
+Those should remain optional UX sugar on top of the core tool contract, not replacements for it.
+
 ## Migration Work
 
 ### Vocabulary Migration
@@ -327,11 +565,12 @@ Examples to avoid going forward:
 ## Next Slices
 
 1. lock `Prompt / Memory` terminology in docs and MCP copy
-2. define the exact `propose_document_saves` response shape
+2. add `propose_document_saves` with the request/response shape above
 3. add proposal/review/confirm behavior to MCP instructions and prompts
-4. add a lightweight save-review UI
-5. add lint rules that flag noisy or overmixed save proposals
-6. clean up existing example docs and eval fixtures to use better topic naming
+4. ship chat-level review UX before native review UI
+5. add a lightweight native save-review surface inside Memory
+6. add lint rules that flag noisy or overmixed save proposals
+7. clean up existing example docs and eval fixtures to use better topic naming
 
 ## Success Criteria
 

@@ -14,7 +14,14 @@ struct MCPPromptArgument: Equatable, Sendable {
 }
 
 enum MCPPromptCatalog {
-    static let all: [MCPPromptTemplate] = [workflow, triage, diagnose, execute]
+    static let all: [MCPPromptTemplate] = [
+        workflow,
+        memoryWorkflow,
+        saveReview,
+        triage,
+        diagnose,
+        execute,
+    ]
 
     static func template(named name: String) -> MCPPromptTemplate? {
         all.first { $0.name == name }
@@ -34,6 +41,24 @@ enum MCPPromptCatalog {
         MCPPromptArgument(
             name: "branch",
             description: "Branch name for context.",
+            required: false
+        ),
+    ]
+
+    private static let saveReviewArguments: [MCPPromptArgument] = [
+        MCPPromptArgument(
+            name: "project",
+            description: "Backtick project name for the reviewed save proposal.",
+            required: true
+        ),
+        MCPPromptArgument(
+            name: "contentSummary",
+            description: "Short reviewed summary of what may be worth saving.",
+            required: true
+        ),
+        MCPPromptArgument(
+            name: "topicHint",
+            description: "Optional topic hint if one is already clear.",
             required: false
         ),
     ]
@@ -78,6 +103,67 @@ enum MCPPromptCatalog {
         - For an explicit execute request, call `mark_notes_executed` after verification for the notes that were actually completed, unless the user asks to keep them active.
         - When unsure whether to diagnose or execute, default to diagnose.
         - Show results before taking further action. Do not chain silently.
+        """
+    )
+
+    static let memoryWorkflow = MCPPromptTemplate(
+        name: "memory_workflow",
+        description: "Playbook for recalling and reviewing Backtick Memory saves without exposing tool jargon.",
+        arguments: [],
+        bodyTemplate: """
+        You are an assistant connected to Backtick Memory, a reviewed project-document system shared across AI tools.
+
+        ## Default Memory Behavior
+
+        1. When the user mentions an ongoing project, prior decisions, architecture, or plans that likely depend on saved context:
+           - call `list_documents` for lightweight discovery when the right topic is unclear
+           - call `recall_document` before answering when one specific document is likely relevant
+
+        2. When the user wants to keep something for later, or a meaningful decision / plan / recap has just been reached:
+           - call `propose_document_saves` first
+           - review the proposal before any write
+           - ask the user in short natural language, for example:
+             - "Save this to Backtick?"
+             - "Should I add this to the existing Backtick memo?"
+           - do not expose tool jargon like `documentType`, `create`, or `update` unless the user asks
+
+        3. After the user confirms:
+           - use `save_document` for a new reviewed document
+           - use `update_document` for narrow amendments to an existing document
+           - recall the existing document first when the proposal recommends an update
+
+        ## Rules
+        - Never save silently.
+        - Treat topic as the main subject bucket the user will recognize.
+        - If the discussion is mixed and classification is uncertain, prefer one reviewed discussion doc instead of forcing a split.
+        - Save durable context, decisions, plans, constraints, and structured summaries.
+        - Do not save coding-session logs, shell transcripts, test outputs, or git-like execution history.
+        """
+    )
+
+    static let saveReview = MCPPromptTemplate(
+        name: "save_review",
+        description: "Prompt for turning a candidate summary into a chat-first Backtick save review before writing.",
+        arguments: saveReviewArguments,
+        bodyTemplate: """
+        You are preparing a reviewed save proposal for Backtick project "{project}".
+
+        ## Candidate Summary
+
+        {contentSummary}
+
+        ## Topic Hint
+        {topicHint}
+
+        ## Instructions
+
+        1. Decide whether this should be saved at all.
+        2. If it should be saved, call `propose_document_saves` before any write.
+        3. Present the result to the user in one or two short sentences.
+           - Use natural language like "Save this to Backtick?" or "Should I add this to the existing Backtick memo?"
+           - Do not mention internal tool names or schema fields unless the user asks
+        4. Wait for confirmation before calling `save_document` or `update_document`.
+        5. If the content is too noisy, overmixed, or not durable, say that plainly and do not write anything yet.
         """
     )
 

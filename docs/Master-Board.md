@@ -156,6 +156,7 @@ Reason:
 - direct repository `docs/` editing is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the key memory is written back into `Stack`
 - after the current Stack-first MCP rollout, the next memory layer is reviewed project documents: long ChatGPT / Claude Desktop discussions should go through a proposal/review/confirm step before becoming typed docs, rather than being silently auto-distilled at the end of a huge thread
 - Warm behavior should be carried by server-wide MCP instructions as well as tool descriptions, so Claude Mac / iPhone / web clients all receive the same recall-first and save-proposal defaults
+- the concrete design for the next memory polish slice now lives in `docs/MCP-Polish-Plan.md`, including the `Prompt / Memory` vocabulary shift, `propose_document_saves`, and chat-first save review
 - copied state should update when an AI actually executes a note
 - derived planning surfaces add merge surface and conceptual debt without helping that path
 

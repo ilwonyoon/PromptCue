@@ -27,6 +27,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         }
     )
     private lazy var designSystemWindowController = DesignSystemWindowController()
+    private lazy var memoryWindowController = MemoryWindowController()
     private lazy var settingsWindowController = SettingsWindowController(
         screenshotSettingsModel: screenshotSettingsModel,
         exportTailSettingsModel: exportTailSettingsModel,
@@ -187,6 +188,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
             },
             onToggleStack: { [weak self] in
                 self?.toggleStackPanel()
+            },
+            onToggleMemory: { [weak self] in
+                self?.toggleMemoryWindow()
             }
         )
         configureStatusItem()
@@ -258,6 +262,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
         toggleStackItem.setShortcut(for: .toggleStackPanel)
         menu.addItem(toggleStackItem)
 
+        let toggleMemoryItem = NSMenuItem(title: "Show Memory", action: #selector(handleToggleMemory), keyEquivalent: "")
+        toggleMemoryItem.setShortcut(for: .toggleMemoryViewer)
+        menu.addItem(toggleMemoryItem)
+
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q"))
@@ -290,6 +298,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     @objc private func handleOpenSettings() {
         showSettingsWindow()
+    }
+
+    @objc private func handleToggleMemory() {
+        toggleMemoryWindow()
     }
 
     @objc private func handleQuit() {
@@ -349,6 +361,14 @@ final class AppCoordinator: AppLifecycleCoordinating {
         designSystemWindowController.show()
     }
 
+    private func toggleMemoryWindow() {
+        capturePanelController.close()
+        stackPanelController.close()
+        DispatchQueue.main.async { [weak self] in
+            self?.memoryWindowController.toggle()
+        }
+    }
+
     private func showSettingsWindow() {
         settingsWindowController.show(selectedTab: startupSettingsTab())
     }
@@ -374,6 +394,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
         capturePanelController.refreshForInheritedAppearanceChange()
         stackPanelController.refreshForInheritedAppearanceChange()
+        memoryWindowController.refreshForInheritedAppearanceChange()
         settingsWindowController.refreshForInheritedAppearanceChange()
         designSystemWindowController.refreshForInheritedAppearanceChange()
     }

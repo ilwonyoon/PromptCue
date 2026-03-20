@@ -490,4 +490,45 @@ struct PromptCueCoreTests {
         #expect(decoded.copiedBy == .mcp)
     }
 
+    @Test
+    func projectDocumentExposesStableKeyAndSupersededState() {
+        let id = UUID()
+        let successorID = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let updatedAt = createdAt.addingTimeInterval(60)
+        let document = ProjectDocument(
+            id: id,
+            project: "backtick",
+            topic: "pricing",
+            documentType: .decision,
+            content: "## Decision\n- Freemium + $9/mo premium",
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            supersededByID: successorID
+        )
+
+        #expect(document.key == ProjectDocumentKey(
+            project: "backtick",
+            topic: "pricing",
+            documentType: .decision
+        ))
+        #expect(document.isSuperseded)
+    }
+
+    @Test
+    func projectDocumentJSONCodecRoundTrip() throws {
+        let original = ProjectDocument(
+            project: "backtick",
+            topic: "architecture",
+            documentType: .reference,
+            content: "## Context\n- App-hosted MCP helper",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_120)
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ProjectDocument.self, from: data)
+
+        #expect(decoded == original)
+    }
 }

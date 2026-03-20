@@ -516,6 +516,10 @@ struct PromptCueSettingsView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                             rowNote(mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.reason)
+
+                            if experimentalRemoteHasPendingPortChange {
+                                rowNote("Apply the local port change first. Backtick and ngrok must use the same port.")
+                            }
                         }
                     } actions: {
                         if shouldShowExperimentalRemoteStatusAction,
@@ -526,6 +530,7 @@ struct PromptCueSettingsView: View {
                                     showExperimentalRemotePublicEndpointCopiedFeedback()
                                 }
                             }
+                            .disabled(action == .launchTunnel && experimentalRemoteHasPendingPortChange)
                             .controlSize(.small)
                         }
                     }
@@ -556,10 +561,12 @@ struct PromptCueSettingsView: View {
                                 }
                             }
                         } actions: {
-                            Button("Apply") {
-                                commitExperimentalRemotePublicBaseURLDraft()
+                            if experimentalRemoteHasPendingPublicBaseURLChange {
+                                Button("Apply") {
+                                    commitExperimentalRemotePublicBaseURLDraft()
+                                }
+                                .controlSize(.small)
                             }
-                            .controlSize(.small)
                         }
                     }
 
@@ -644,26 +651,38 @@ struct PromptCueSettingsView: View {
                                                     mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelSummary
                                                 )
 
-                                                HStack(spacing: PrimitiveTokens.Space.xs) {
-                                                    if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
-                                                        Button("Launch ngrok") {
-                                                            _ = mcpConnectorSettingsModel.launchExperimentalRemoteRecommendedTunnelInTerminal()
+                                                if shouldShowExperimentalRemoteTunnelActions {
+                                                    HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                        if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
+                                                            Button("Launch ngrok") {
+                                                                _ = mcpConnectorSettingsModel.launchExperimentalRemoteRecommendedTunnelInTerminal()
+                                                            }
+                                                            .disabled(experimentalRemoteHasPendingPortChange)
+                                                            .controlSize(.small)
                                                         }
-                                                        .controlSize(.small)
-                                                    }
 
-                                                    Button(didCopyExperimentalRemoteTunnelCommand ? "Copied" : "Copy Command") {
-                                                        mcpConnectorSettingsModel.copyExperimentalRemoteRecommendedTunnelCommand()
-                                                        showExperimentalRemoteTunnelCommandCopiedFeedback()
-                                                    }
-                                                    .controlSize(.small)
-
-                                                    if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath == nil {
-                                                        Button("Install ngrok") {
-                                                            mcpConnectorSettingsModel.openExperimentalRemoteTunnelDocumentation()
+                                                        if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
+                                                            Button(didCopyExperimentalRemoteTunnelCommand ? "Copied" : "Copy Command") {
+                                                                mcpConnectorSettingsModel.copyExperimentalRemoteRecommendedTunnelCommand()
+                                                                showExperimentalRemoteTunnelCommandCopiedFeedback()
+                                                            }
+                                                            .disabled(experimentalRemoteHasPendingPortChange)
+                                                            .controlSize(.small)
                                                         }
-                                                        .controlSize(.small)
+
+                                                        if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath == nil {
+                                                            Button("Install ngrok") {
+                                                                mcpConnectorSettingsModel.openExperimentalRemoteTunnelDocumentation()
+                                                            }
+                                                            .controlSize(.small)
+                                                        }
                                                     }
+                                                }
+
+                                                if experimentalRemoteHasPendingPortChange {
+                                                    advancedMessageBlock(
+                                                        "Apply the local port change first. Then launch ngrok so it forwards to the same port."
+                                                    )
                                                 }
                                             }
                                         }
@@ -695,10 +714,12 @@ struct PromptCueSettingsView: View {
                                                         advancedMessageBlock(validationMessage)
                                                     }
 
-                                                    Button("Apply") {
-                                                        commitExperimentalRemotePublicBaseURLDraft()
+                                                    if experimentalRemoteHasPendingPublicBaseURLChange {
+                                                        Button("Apply") {
+                                                            commitExperimentalRemotePublicBaseURLDraft()
+                                                        }
+                                                        .controlSize(.small)
                                                     }
-                                                    .controlSize(.small)
                                                 }
                                             }
                                         }
@@ -738,26 +759,34 @@ struct PromptCueSettingsView: View {
                                         }
 
                                         advancedDetailPane(label: "Port") {
-                                            HStack(spacing: PrimitiveTokens.Space.xs) {
-                                                TextField(
-                                                    "8321",
-                                                    text: binding(
-                                                        get: { experimentalRemotePortDraft },
-                                                        set: { experimentalRemotePortDraft = $0 }
+                                            VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
+                                                HStack(spacing: PrimitiveTokens.Space.xs) {
+                                                    TextField(
+                                                        "8321",
+                                                        text: binding(
+                                                            get: { experimentalRemotePortDraft },
+                                                            set: { experimentalRemotePortDraft = $0 }
+                                                        )
                                                     )
-                                                )
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: 92)
-                                                .onSubmit {
-                                                    commitExperimentalRemotePortDraft()
-                                                }
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .frame(width: 92)
+                                                    .onSubmit {
+                                                        commitExperimentalRemotePortDraft()
+                                                    }
 
-                                                Button("Apply") {
-                                                    commitExperimentalRemotePortDraft()
+                                                    if experimentalRemoteHasPendingPortChange {
+                                                        Button("Apply") {
+                                                            commitExperimentalRemotePortDraft()
+                                                        }
+                                                        .controlSize(.small)
+                                                    }
                                                 }
-                                                .controlSize(.small)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                                advancedMessageBlock(
+                                                    "If you change the local port, apply it before launching ngrok. Both Backtick and ngrok must use the same port."
+                                                )
                                             }
-                                            .frame(maxWidth: .infinity, alignment: .leading)
                                         }
 
                                         if mcpConnectorSettingsModel.experimentalRemoteSettings.authMode == .apiKey {
@@ -2078,6 +2107,32 @@ struct PromptCueSettingsView: View {
         }
 
         return true
+    }
+
+    private var shouldShowExperimentalRemoteTunnelActions: Bool {
+        guard let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action else {
+            return false
+        }
+
+        switch action {
+        case .launchTunnel, .installTunnel:
+            return true
+        case .copyPublicMCPURL, .resetLocalState, .retry:
+            return false
+        }
+    }
+
+    private var experimentalRemoteSavedPortDraft: String {
+        "\(mcpConnectorSettingsModel.experimentalRemoteSettings.port)"
+    }
+
+    private var experimentalRemoteHasPendingPortChange: Bool {
+        experimentalRemotePortDraft.trimmingCharacters(in: .whitespacesAndNewlines) != experimentalRemoteSavedPortDraft
+    }
+
+    private var experimentalRemoteHasPendingPublicBaseURLChange: Bool {
+        experimentalRemotePublicBaseURLDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            != mcpConnectorSettingsModel.experimentalRemoteSettings.publicBaseURL
     }
 
     private func syncExperimentalRemoteDrafts(with settings: ExperimentalMCPHTTPSettings) {

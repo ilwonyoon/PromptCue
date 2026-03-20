@@ -46,14 +46,43 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let result = try XCTUnwrap(initializeResponse["result"] as? [String: Any])
         XCTAssertEqual(result["protocolVersion"] as? String, "2025-03-26")
+        let instructions = try XCTUnwrap(result["instructions"] as? String)
+        XCTAssertTrue(instructions.contains("Backtick"))
+        XCTAssertTrue(instructions.contains("백틱"))
+        XCTAssertTrue(instructions.contains("Do not save silently"))
 
         let toolsResponse = try await sendRequest(session: session, id: 2, method: "tools/list")
         let toolsResult = try XCTUnwrap(toolsResponse["result"] as? [String: Any])
         let tools = try XCTUnwrap(toolsResult["tools"] as? [[String: Any]])
         XCTAssertEqual(
             tools.compactMap { $0["name"] as? String },
-            ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed", "classify_notes", "group_notes", "get_started"]
+            [
+                "list_notes",
+                "get_note",
+                "create_note",
+                "update_note",
+                "delete_note",
+                "mark_notes_executed",
+                "classify_notes",
+                "group_notes",
+                "get_started",
+                "list_documents",
+                "recall_document",
+                "propose_document_saves",
+                "save_document",
+                "update_document",
+            ]
         )
+        let proposeTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == "propose_document_saves" })
+        )
+        let inputSchema = try XCTUnwrap(proposeTool["inputSchema"] as? [String: Any])
+        XCTAssertEqual(inputSchema["additionalProperties"] as? Bool, false)
+        XCTAssertEqual(inputSchema["required"] as? [String], ["project", "content"])
+        let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
+        XCTAssertNotNil(properties["userIntent"])
+        XCTAssertNotNil(properties["preferredTopic"])
+        XCTAssertNotNil(properties["maxProposals"])
 
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])
         XCTAssertNotNil(capabilities["prompts"])
@@ -182,6 +211,598 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let deletePayload = try toolPayload(from: deleteResponse)
         XCTAssertEqual(deletePayload["deleted"] as? Bool, true)
+    }
+
+    func testSaveListAndRecallDocumentsThroughJsonRPC() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let firstContent = """
+        ## Decision
+        - Freemium + $9/mo premium remains the current recommendation because the pricing discussion converged on a low-friction paid tier.
+
+        ## Reasoning
+        - Users comparing Backtick with clipboard tools still need a clear upgrade path.
+        - The discussion repeatedly rejected heavier enterprise packaging for the first launch.
+        """
+
+        let saveFirstResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "pricing",
+                    "documentType": "decision",
+                    "content": firstContent,
+                ],
+            ]
+        )
+        let firstDocument = try documentPayload(from: saveFirstResponse)
+        let firstID = try XCTUnwrap(firstDocument["id"] as? String)
+        XCTAssertEqual(firstDocument["topic"] as? String, "pricing")
+        XCTAssertEqual(firstDocument["documentType"] as? String, "decision")
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": [
+                    "project": "backtick",
+                ],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        let listedDocuments = try XCTUnwrap(listPayload["documents"] as? [[String: Any]])
+        XCTAssertEqual(listedDocuments.count, 1)
+        XCTAssertEqual(listedDocuments.first?["id"] as? String, firstID)
+
+        let secondContent = """
+        ## Decision
+        - Freemium + $9/mo premium remains the current recommendation, with direct download shipping before any managed distribution.
+
+        ## Reasoning
+        - Pricing stayed aligned with the latest ChatGPT and Claude discussion.
+        - The reviewed document should supersede the earlier decision version without creating duplicate active docs.
+        """
+
+        let saveSecondResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "pricing",
+                    "documentType": "decision",
+                    "content": secondContent,
+                ],
+            ]
+        )
+        let secondDocument = try documentPayload(from: saveSecondResponse)
+        let secondID = try XCTUnwrap(secondDocument["id"] as? String)
+        XCTAssertNotEqual(secondID, firstID)
+
+        let recallResponse = try await sendRequest(
+            session: session,
+            id: 5,
+            method: "tools/call",
+            params: [
+                "name": "recall_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "pricing",
+                    "documentType": "decision",
+                ],
+            ]
+        )
+        let recalledDocument = try documentPayload(from: recallResponse)
+        XCTAssertEqual(recalledDocument["id"] as? String, secondID)
+        XCTAssertEqual(recalledDocument["content"] as? String, secondContent)
+
+        let listAfterSecondSaveResponse = try await sendRequest(
+            session: session,
+            id: 6,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": [
+                    "project": "backtick",
+                ],
+            ]
+        )
+        let listAfterSecondSavePayload = try toolPayload(from: listAfterSecondSaveResponse)
+        let listedAfterSecondSave = try XCTUnwrap(listAfterSecondSavePayload["documents"] as? [[String: Any]])
+        XCTAssertEqual(listedAfterSecondSave.count, 1)
+        XCTAssertEqual(listedAfterSecondSave.first?["id"] as? String, secondID)
+    }
+
+    func testSaveDocumentRejectsShortUnstructuredContent() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "pricing",
+                    "documentType": "decision",
+                    "content": "Too short",
+                ],
+            ]
+        )
+
+        let payload = try toolErrorPayload(from: response)
+        XCTAssertEqual(
+            payload["error"] as? String,
+            "content must be at least 200 characters of structured markdown"
+        )
+    }
+
+    func testProposeDocumentSavesReturnsCreateProposalThroughJsonRPC() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "memory-save-flow",
+                    "userIntent": "latest_decisions",
+                    "content": """
+                    We agreed to stop doing direct whole-thread saves by default. Instead, every meaningful memory write should go through proposal, review, confirm, and then write. We also agreed to keep user-facing wording as Backtick or 백틱 rather than generic memory, and to default uncertain long discussions into one reviewed discussion doc instead of forcing a split too early.
+                    """,
+                ],
+            ]
+        )
+
+        XCTAssertEqual(response["jsonrpc"] as? String, "2.0")
+        XCTAssertEqual(response["id"] as? Int, 2)
+        let result = try XCTUnwrap(response["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, false)
+        let contentItems = try XCTUnwrap(result["content"] as? [[String: Any]])
+        XCTAssertEqual(contentItems.count, 1)
+        XCTAssertEqual(contentItems.first?["type"] as? String, "text")
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["project"] as? String, "backtick")
+        XCTAssertEqual(payload["count"] as? Int, 1)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        XCTAssertEqual(proposals.count, 1)
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "memory-save-flow")
+        XCTAssertEqual(proposal["documentType"] as? String, "decision")
+        XCTAssertEqual(proposal["operation"] as? String, "create")
+        XCTAssertFalse((proposal["rationale"] as? String ?? "").isEmpty)
+        XCTAssertTrue((proposal["preview"] as? String ?? "").hasPrefix("## "))
+        XCTAssertTrue(proposal["existingDocument"] is NSNull)
+        let review = try XCTUnwrap(proposal["review"] as? [String: Any])
+        XCTAssertEqual(review["displayTopic"] as? String, "memory save flow")
+        XCTAssertEqual(review["confirmPrompt"] as? String, "Save this to Backtick?")
+        XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
+        let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
+        XCTAssertEqual(recommendation["tool"] as? String, "save_document")
+        XCTAssertEqual(recommendation["needsRecall"] as? Bool, false)
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": ["project": "backtick"],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        XCTAssertEqual(listPayload["count"] as? Int, 0)
+    }
+
+    func testProposeDocumentSavesReturnsUpdateProposalThroughJsonRPC() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let existingContent = """
+        ## Decision
+        - Save proposal and review should happen before final Backtick writes.
+        - Backtick should ask before writing whenever the user has not yet confirmed the exact subject and document shape.
+
+        ## Naming
+        - Use Backtick or 백틱 in user-facing save prompts.
+        - Avoid generic memory wording so users do not confuse Backtick with built-in assistant memory.
+
+        ## Follow-on
+        - The first implementation should keep review in chat before adding a native approval surface.
+        - Long mixed discussions should prefer one reviewed discussion document before any broader split.
+        """
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "memory-save-flow",
+                    "documentType": "decision",
+                    "content": existingContent,
+                ],
+            ]
+        )
+
+        let response = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "memory-save-flow",
+                    "userIntent": "latest_decisions",
+                    "content": """
+                    We should keep the save flow review-first and extend the same document rather than creating a duplicate. The new part is that propose_document_saves should be the read-only first step when the topic or document type is unclear, and silent writes should stay disallowed.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["project"] as? String, "backtick")
+        XCTAssertEqual(payload["count"] as? Int, 1)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "memory-save-flow")
+        XCTAssertEqual(proposal["documentType"] as? String, "decision")
+        XCTAssertEqual(proposal["operation"] as? String, "update")
+        XCTAssertTrue((proposal["preview"] as? String ?? "").hasPrefix("## "))
+        let existingDocument = try XCTUnwrap(proposal["existingDocument"] as? [String: Any])
+        XCTAssertEqual(existingDocument["topic"] as? String, "memory-save-flow")
+        XCTAssertEqual(existingDocument["documentType"] as? String, "decision")
+        let review = try XCTUnwrap(proposal["review"] as? [String: Any])
+        XCTAssertEqual(review["displayTopic"] as? String, "memory save flow")
+        XCTAssertEqual(
+            review["confirmPrompt"] as? String,
+            "Should I add this to the existing Backtick memo?"
+        )
+        XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
+        let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
+        XCTAssertEqual(recommendation["tool"] as? String, "update_document")
+        XCTAssertEqual(recommendation["needsRecall"] as? Bool, true)
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": ["project": "backtick"],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        XCTAssertEqual(listPayload["count"] as? Int, 1)
+    }
+
+    func testProposeDocumentSavesReturnsNoProposalForExplicitNoSaveContent() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "content": """
+                    Do not save this yet.
+                    xcodebuild -project PromptCue.xcodeproj
+                    swift test
+                    git status
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["count"] as? Int, 0)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        XCTAssertTrue(proposals.isEmpty)
+        XCTAssertEqual(payload["recommendedNextStep"] as? String, "do_not_write")
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": ["project": "backtick"],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        XCTAssertEqual(listPayload["count"] as? Int, 0)
+    }
+
+    func testProposeDocumentSavesFlagsWarningsAndFallsBackToDiscussionForMixedNoisyContent() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let repeatedNoise = Array(repeating: "xcodebuild -project PromptCue.xcodeproj\nswift test\nSources/PromptCueCore/ProjectDocument.swift", count: 30)
+            .joined(separator: "\n")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "preferredTopic": "memory",
+                    "content": """
+                    We reached a decision about save review, but the same discussion also covered architecture constraints and next steps for implementation.
+
+                    ## Working Notes
+                    The decision is that users should review before a write. The architecture still needs a read-only proposal tool. The next steps include tightening prompts, warnings, and save review behavior.
+
+                    ## Mixed Content
+                    This conversation mixes decision, next steps, timeline, and architecture background in one place, so classification is unclear and should default to one reviewed discussion doc first.
+
+                    \(repeatedNoise)
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        XCTAssertEqual(payload["count"] as? Int, 1)
+        let globalWarnings = try XCTUnwrap(payload["globalWarnings"] as? [String])
+        XCTAssertTrue(globalWarnings.contains("topic_too_broad"))
+        XCTAssertTrue(globalWarnings.contains("too_much_technical_noise"))
+        XCTAssertTrue(globalWarnings.contains("mixed_content"))
+        XCTAssertTrue(globalWarnings.contains("classification_uncertain"))
+        XCTAssertTrue(globalWarnings.contains("preview_needs_trimming"))
+
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["documentType"] as? String, "discussion")
+        XCTAssertEqual(proposal["confidence"] as? String, "medium")
+        let warnings = try XCTUnwrap(proposal["warnings"] as? [String])
+        XCTAssertTrue(warnings.contains("topic_too_broad"))
+        XCTAssertTrue(warnings.contains("too_much_technical_noise"))
+        XCTAssertTrue(warnings.contains("mixed_content"))
+        XCTAssertTrue(warnings.contains("classification_uncertain"))
+        XCTAssertTrue(warnings.contains("preview_needs_trimming"))
+    }
+
+    func testProposeDocumentSavesInfersTopicFromFirstMarkdownHeadingWhenHintsAreMissing() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "content": """
+                    ## Pricing Direction
+
+                    We should keep pricing flexible for the first release and avoid locking a final tier structure too early. This is still mostly exploratory context, but the heading should be a good topic candidate for future memory review.
+
+                    ## Current Thinking
+
+                    The main tension is simplicity versus room for expansion later.
+                    """,
+                ],
+            ]
+        )
+
+        let payload = try toolPayload(from: response)
+        let proposals = try XCTUnwrap(payload["proposals"] as? [[String: Any]])
+        let proposal = try XCTUnwrap(proposals.first)
+        XCTAssertEqual(proposal["topic"] as? String, "pricing-direction")
+    }
+
+    func testProposeDocumentSavesRejectsInvalidMaxProposals() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let response = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "propose_document_saves",
+                "arguments": [
+                    "project": "backtick",
+                    "content": "A reviewed summary that is long enough to be considered content for proposal generation.",
+                    "maxProposals": 4,
+                ],
+            ]
+        )
+
+        let payload = try toolErrorPayload(from: response)
+        XCTAssertEqual(payload["error"] as? String, "maxProposals must be between 1 and 3")
+    }
+
+    func testUpdateDocumentAppendsReplacesAndDeletesSectionsThroughJsonRPC() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let initialContent = """
+        ## Decision
+        - Use a self-hosted OAuth MCP bridge for ChatGPT.
+
+        ## Open Questions
+        - Decide whether ngrok remains the only supported tunnel for the experimental release.
+
+        ## Notes
+        - Keep the first pass focused on a single-user workflow.
+        """
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "mcp",
+                    "documentType": "plan",
+                    "content": initialContent,
+                ],
+            ]
+        )
+
+        let appendResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "update_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "mcp",
+                    "documentType": "plan",
+                    "action": "append",
+                    "content": """
+                    ## Next Slice
+                    - Add update_document before introducing a visible Memory panel.
+                    - Keep the document workflow AI-first and review-aware.
+                    """,
+                ],
+            ]
+        )
+        let appendedDocument = try documentPayload(from: appendResponse)
+        let appendedContent = try XCTUnwrap(appendedDocument["content"] as? String)
+        XCTAssertTrue(appendedContent.contains("## Next Slice"))
+
+        let replaceResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "update_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "mcp",
+                    "documentType": "plan",
+                    "action": "replace_section",
+                    "section": "Open Questions",
+                    "content": """
+                    - Ngrok stays in the experimental path for now.
+                    - Hosted distribution remains explicitly out of scope.
+                    """,
+                ],
+            ]
+        )
+        let replacedDocument = try documentPayload(from: replaceResponse)
+        let replacedContent = try XCTUnwrap(replacedDocument["content"] as? String)
+        XCTAssertTrue(replacedContent.contains("## Open Questions\n- Ngrok stays in the experimental path for now."))
+        XCTAssertFalse(replacedContent.contains("Decide whether ngrok remains the only supported tunnel"))
+
+        let deleteResponse = try await sendRequest(
+            session: session,
+            id: 5,
+            method: "tools/call",
+            params: [
+                "name": "update_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "mcp",
+                    "documentType": "plan",
+                    "action": "delete_section",
+                    "section": "Notes",
+                ],
+            ]
+        )
+        let deletedDocument = try documentPayload(from: deleteResponse)
+        let deletedContent = try XCTUnwrap(deletedDocument["content"] as? String)
+        XCTAssertFalse(deletedContent.contains("## Notes"))
+        XCTAssertTrue(deletedContent.contains("## Decision"))
+        XCTAssertTrue(deletedContent.contains("## Next Slice"))
+
+        let listResponse = try await sendRequest(
+            session: session,
+            id: 6,
+            method: "tools/call",
+            params: [
+                "name": "list_documents",
+                "arguments": [
+                    "project": "backtick",
+                ],
+            ]
+        )
+        let listPayload = try toolPayload(from: listResponse)
+        let documents = try XCTUnwrap(listPayload["documents"] as? [[String: Any]])
+        XCTAssertEqual(documents.count, 1)
+        XCTAssertEqual(documents.first?["documentType"] as? String, "plan")
+    }
+
+    func testUpdateDocumentRejectsUnknownSection() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let content = """
+        ## Decision
+        - Use reviewed documents for durable memory instead of raw transcripts.
+
+        ## Notes
+        - The first implementation only needs storage and MCP tools.
+        - Memory UI can wait until the retrieval contract is stable.
+        """
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "memory",
+                    "documentType": "discussion",
+                    "content": content,
+                ],
+            ]
+        )
+
+        let updateResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "update_document",
+                "arguments": [
+                    "project": "backtick",
+                    "topic": "memory",
+                    "documentType": "discussion",
+                    "action": "replace_section",
+                    "section": "Missing Section",
+                    "content": "- This should fail.",
+                ],
+            ]
+        )
+        let errorPayload = try toolErrorPayload(from: updateResponse)
+        XCTAssertEqual(errorPayload["error"] as? String, "Section not found: Missing Section")
     }
 
     func testCreateNotePostsStackDidChangeNotification() async throws {
@@ -438,17 +1059,17 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(result["isError"] as? Bool, true)
     }
 
-    func testPromptsListReturnsFourTemplates() async throws {
+    func testPromptsListReturnsMemoryAndStackTemplates() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
         let promptsResponse = try await sendRequest(session: session, id: 2, method: "prompts/list")
         let result = try XCTUnwrap(promptsResponse["result"] as? [String: Any])
         let prompts = try XCTUnwrap(result["prompts"] as? [[String: Any]])
-        XCTAssertEqual(prompts.count, 4)
+        XCTAssertEqual(prompts.count, 6)
         XCTAssertEqual(
             prompts.compactMap { $0["name"] as? String },
-            ["workflow", "triage", "diagnose", "execute"]
+            ["workflow", "memory_workflow", "save_review", "triage", "diagnose", "execute"]
         )
     }
 
@@ -498,6 +1119,57 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(text.contains("mark_notes_executed"))
         XCTAssertTrue(text.contains("before returning the final result"))
         XCTAssertTrue(text.contains("leave the rest active"))
+    }
+
+    func testPromptsGetMemoryWorkflowRendersSaveReviewPlaybook() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let getResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "prompts/get",
+            params: ["name": "memory_workflow"]
+        )
+        let result = try XCTUnwrap(getResponse["result"] as? [String: Any])
+        let messages = try XCTUnwrap(result["messages"] as? [[String: Any]])
+        let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
+        let text = try XCTUnwrap(content["text"] as? String)
+
+        XCTAssertTrue(text.contains("list_documents"))
+        XCTAssertTrue(text.contains("recall_document"))
+        XCTAssertTrue(text.contains("propose_document_saves"))
+        XCTAssertTrue(text.contains("Never save silently"))
+        XCTAssertTrue(text.contains("Save this to Backtick?"))
+    }
+
+    func testPromptsGetSaveReviewRendersWithoutToolJargonInstructions() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        let getResponse = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "prompts/get",
+            params: [
+                "name": "save_review",
+                "arguments": [
+                    "project": "aido",
+                    "contentSummary": "We agreed to keep user-facing wording as Backtick and to ask before saving any meaningful decision.",
+                    "topicHint": "memory-save-flow",
+                ],
+            ]
+        )
+        let result = try XCTUnwrap(getResponse["result"] as? [String: Any])
+        let messages = try XCTUnwrap(result["messages"] as? [[String: Any]])
+        let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
+        let text = try XCTUnwrap(content["text"] as? String)
+
+        XCTAssertTrue(text.contains("aido"))
+        XCTAssertTrue(text.contains("memory-save-flow"))
+        XCTAssertTrue(text.contains("propose_document_saves"))
+        XCTAssertTrue(text.contains("Save this to Backtick?"))
+        XCTAssertTrue(text.contains("Do not mention internal tool names or schema fields"))
     }
 
     func testPromptsGetDiagnoseRendersTemplate() async throws {
@@ -1323,6 +1995,11 @@ final class BacktickMCPServerTests: XCTestCase {
     private func notePayload(from response: [String: Any]) throws -> [String: Any] {
         let payload = try toolPayload(from: response)
         return try XCTUnwrap(payload["note"] as? [String: Any])
+    }
+
+    private func documentPayload(from response: [String: Any]) throws -> [String: Any] {
+        let payload = try toolPayload(from: response)
+        return try XCTUnwrap(payload["document"] as? [String: Any])
     }
 
     private func toolErrorPayload(from response: [String: Any]) throws -> [String: Any] {

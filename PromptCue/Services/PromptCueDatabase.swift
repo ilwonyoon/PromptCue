@@ -5,6 +5,7 @@ import PromptCueCore
 enum PromptCueDatabaseSchema {
     static let cardsTableName = "cards"
     static let copyEventsTableName = "copy_events"
+    static let projectDocumentsTableName = "project_documents"
 }
 
 final class PromptCueDatabase {
@@ -159,6 +160,33 @@ final class PromptCueDatabase {
             try db.alter(table: PromptCueDatabaseSchema.cardsTableName) { table in
                 table.add(column: "isPinned", .boolean).notNull().defaults(to: false)
             }
+        }
+
+        migrator.registerMigration("createProjectDocuments") { db in
+            try db.create(table: PromptCueDatabaseSchema.projectDocumentsTableName) { table in
+                table.column("id", .text).notNull().primaryKey()
+                table.column("project", .text).notNull()
+                table.column("topic", .text).notNull()
+                table.column("documentType", .text).notNull()
+                table.column("content", .text).notNull()
+                table.column("createdAt", .datetime).notNull()
+                table.column("updatedAt", .datetime).notNull()
+                table.column("supersededByID", .text)
+            }
+
+            try db.execute(
+                sql: """
+                CREATE UNIQUE INDEX project_documents_active_key
+                ON \(PromptCueDatabaseSchema.projectDocumentsTableName)(project, topic, documentType)
+                WHERE supersededByID IS NULL
+                """
+            )
+
+            try db.create(
+                index: "project_documents_project_updated_at",
+                on: PromptCueDatabaseSchema.projectDocumentsTableName,
+                columns: ["project", "updatedAt"]
+            )
         }
 
         return migrator

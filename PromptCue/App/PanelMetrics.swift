@@ -20,6 +20,10 @@ enum PanelMetrics {
 
     static let settingsPanelWidth: CGFloat = 820
     static let settingsPanelHeight: CGFloat = 660
+    static let memoryWindowWidth: CGFloat = 1_040
+    static let memoryWindowHeight: CGFloat = 680
+    static let memoryWindowMinimumWidth: CGFloat = 860
+    static let memoryWindowMinimumHeight: CGFloat = 540
     static let settingsSidebarWidth: CGFloat = 220
     static let settingsLabelColumnWidth: CGFloat = 168
     static let settingsToolbarTabWidth: CGFloat = 84

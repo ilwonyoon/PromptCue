@@ -172,7 +172,14 @@ Any ChatGPT-facing remote path must require auth. If Backtick ships a self-hoste
 
 ### What gets saved
 
-The core use case: AI finishes a meaningful conversation → saves a structured summary to Backtick. Next time any AI client starts a new thread, it recalls the project context.
+The core use case is no longer "AI silently turns a long thread into final docs." The safer default is:
+
+1. AI notices that durable context may be worth saving
+2. AI proposes **what** should be stored
+3. User reviews or confirms that proposal
+4. Only then does AI call `save_document` or `update_document`
+
+Next time any AI client starts a new thread, it recalls the reviewed project context.
 
 **Examples of what AI saves:**
 
@@ -185,7 +192,7 @@ The core use case: AI finishes a meaningful conversation → saves a structured 
 
 ### Done
 - Added Claude Desktop config generation in Settings
-- Locked the Warm document contract and MCP tool design
+- Implemented save_document / recall_document MCP tools
 
 ### Open questions
 - Memory tab UX: inline viewer vs separate panel
@@ -196,7 +203,26 @@ The core use case: AI finishes a meaningful conversation → saves a structured 
 - Test ChatGPT remote MCP connection against a public HTTPS endpoint
 ```
 
-This is **not** a full conversation transcript. It's a distilled project document that an AI (or human) can update incrementally.
+This is **not** a full conversation transcript. It's a distilled project document that an AI (or human) can update incrementally after review.
+
+### Default save flow: proposal → review → confirm → write
+
+Muninn showed that "classify a huge thread perfectly at the end" is unreliable. Backtick should therefore treat direct whole-thread saving as a fallback, not the default.
+
+**Default behavior for meaningful conversations:**
+
+1. `list_documents` to see what already exists
+2. `recall_document` if a likely matching doc exists
+3. propose one of:
+   - update an existing doc
+   - save one new `discussion` doc
+   - save a small reviewed split across a few docs
+4. user confirms what should be kept
+5. call `save_document` / `update_document`
+
+**Key rule:** automatic multi-document splitting should not be the baseline for a long mixed thread. If the conversation mixes exploration, decisions, and next steps, the safest default is one reviewed `discussion` doc first, then later promotion into `decision`, `plan`, or `reference` as needed.
+
+**Long-thread salvage is fallback behavior.** If a thread is already huge or near context limits, AI may still need to rescue it into one or more docs. But that path should be treated as second-best because classification quality drops sharply once both the user and the model have lost track of what was actually important.
 
 ### Data model
 
@@ -247,31 +273,47 @@ Full CRUD + project management. Referencing Muninn's tool set but adapted for Ba
 | `muninn_manage` | Lifecycle: set_status, create_project, delete_project, set_github_repo |
 | `muninn_sync` | Pull GitHub data (commits, issues, PRs) into memory |
 
-#### Backtick Warm tools (proposed)
+#### Backtick Warm tools (phase 1)
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| `save_document` | Create or **replace** a document | Upsert by `(project, topic, documentType)`. Full content swap. |
-| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting entire doc. Key gap in Muninn. |
-| `recall_document` | Read one document by `(project, topic, documentType)` | Full recall path for AI context; respect budget if the content is large |
-| `list_documents` | List documents in a project, or all projects | Lean discovery only: titles + `documentType` + topic + updatedAt, no content |
-| `delete_document` | Remove a specific topic document | Clean deletion |
-| `search_documents` | Full-text search across all documents | FTS5 keyword search |
-| `manage_project` | Create project, set status, rename, delete project (and all its docs) | Project lifecycle |
+| `save_document` | Create or **supersede** one document version | Addressed by `(project, topic, documentType)`. Full content save. |
+| `update_document` | **Partial update** — append, replace section, or remove section | Avoids rewriting the whole document. Key gap in Muninn. |
+| `recall_document` | Read one document by `(project, topic, documentType)` | Returns full content for AI context |
+| `list_documents` | List active documents in a project, or all projects | Lightweight: summaries only, no full content |
+
+**Later consideration, not phase 1:** `delete_document`, `search_documents`, and project-management helpers. The immediate lane stays small: list, recall, save, and update.
+
+#### Backtick Warm tools (next planning slice)
+
+To support human-reviewed saving as the default behavior, the next toolset planning slice should add a **read-only proposal step** before write tools fire.
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| `propose_document_saves` | Propose 1..N candidate saves or updates for the current discussion | Read-only. Returns topic, `documentType`, whether to create/update, rationale, and a short preview. |
+
+`propose_document_saves` should exist to solve the hardest problem in Warm: **classification under uncertainty**. Instead of forcing the model to save immediately, it lets the model show its proposed split and lets the human choose what is actually worth storing.
+
+Design goals:
+
+- default to **one** proposed `discussion` doc when the thread is long or mixed
+- prefer existing topics when an update looks plausible
+- only propose multi-doc splits when the boundaries are actually clear
+- make the user choose before any write happens
 
 **Why `update_document` matters:** In Muninn, the only way to update was `muninn_save` which replaces the entire document. For a 2-page doc, AI has to recall the full text, modify it, and save it all back — expensive and error-prone. A partial update tool (append a section, replace a section by header, delete a section) makes incremental updates cheap.
 
 ```
 // Append to branding doc:
-update_document(project: "backtick", topic: "branding", documentType: "discussion", action: "append",
+update_document(project: "backtick", topic: "branding", action: "append",
   content: "## 2026-03-16 Color revision\nChanged primary to...")
 
 // Replace a section in pricing doc:
-update_document(project: "backtick", topic: "pricing", documentType: "decision", action: "replace_section",
+update_document(project: "backtick", topic: "pricing", action: "replace_section",
   section: "Competitor Analysis", content: "- Raycast: free tier + $8/mo...")
 
 // Remove resolved section:
-update_document(project: "backtick", topic: "architecture", documentType: "reference", action: "delete_section",
+update_document(project: "backtick", topic: "architecture", action: "delete_section",
   section: "Resolved Questions")
 ```
 
@@ -309,58 +351,135 @@ public struct ProjectDocument: Codable, Sendable, Identifiable {
     public var createdAt: Date
     public var updatedAt: Date
 }
-// DB unique constraint: (project, topic, documentType)
+// DB unique constraint for active docs: (project, topic, documentType)
 ```
 
 **Excluded from scope:** Coding session logs (git history already covers this). Warm is for **discussions and decisions** from ChatGPT/Claude conversations, not development progress from Codex/Claude Code.
 
-**Implementation filter:** use this document as the execution reference for Warm tools and data shape, and use `docs/Mem0-Takeaways-for-Backtick.md` as the filter for what to keep narrow. In practice that means:
+#### User-language patterns → document shape
 
-- keep retrieval two-tiered: `list_documents` stays lean, `recall_document` is the full-detail path
-- keep Warm promotion human-reviewed rather than black-box automatic
-- do not add embeddings, graph memory, Docker, or Backtick-owned inference in the first slice
+People usually do not say "save a reviewed `decision` document." They say things like:
+
+- "Turn this conversation into a PRD"
+- "Write down the latest decisions only"
+- "Make a project brief from what we just decided"
+- "Save an architecture summary for later"
+
+Backtick should **not** add a separate tool for each phrase. The cross-client contract stays tool-first, and those user asks map into the existing Warm document types:
+
+| User ask | Preferred `documentType` | Preferred tool flow | Why |
+|----------|---------------------------|---------------------|-----|
+| "Turn this conversation into a PRD" / "Write an implementation brief" | `plan` | `list_documents` → `recall_document` if a matching plan exists → `propose_document_saves` → `save_document` or `update_document` after user confirmation | PRD is a shape of durable execution planning, not a new type |
+| "Summarize the latest decisions only" / "Document what we decided" | `decision` | `list_documents` → `recall_document` if a matching decision doc exists → `propose_document_saves` → usually `update_document` after user confirmation | "Latest decisions" is usually a delta against an existing durable decision doc |
+| "Save a recap of this discussion" / "Capture what we explored" | `discussion` | `list_documents` → `propose_document_saves` → `save_document` or `update_document` after user confirmation | Discussion docs should preserve options, rationale, and open questions |
+| "Save a project brief / architecture summary / constraints" | `reference` or `plan` depending on execution intent | `list_documents` → `recall_document` if matching doc exists → `propose_document_saves` → save after user confirmation | Durable context/constraints are reference; actionable execution framing is plan |
+
+**PRD is not a document type.** It is usually a `plan`-shaped output. "Latest decisions" is usually a `decision` update, not a new doc type.
+
+**Cross-client rule:** keep the core contract tool-first. Claude-side MCP prompts may later expose explicit workflows like `/save-prd` or `/save-latest-decisions`, but ChatGPT Developer Mode currently relies more directly on tool descriptions and argument schemas. Prompt-style shortcuts should be an additive Claude optimization, not the baseline Warm-memory contract.
+
+For manual dogfooding and prompt-based evaluation, use `docs/Warm-MCP-Eval-Plan.md`.
 
 #### Tool description design — making AI proactive
 
-Lesson from Muninn: Claude proactively asks "이거 저장할까요?" because the tool descriptions tell it to. The tool description IS the AI's behavioral instruction. This is the single most important design decision for Warm tools.
+Lesson from Muninn: tool descriptions strongly shape when models recall and save durable context. This is one of the most important design decisions for Warm tools.
+
+After revisiting Muninn more closely, the stronger lesson is that good behavior did not come from tool descriptions alone. Muninn combined:
+
+- **server-wide MCP instructions** that every client received at initialization
+- **tool descriptions** for per-tool routing
+- optional client-specific workflows later
+
+Backtick should follow the same layering. Warm behavior should not rely on `save_document` wording alone.
 
 **Principles (learned from Muninn):**
 
 | Principle | Tool description pattern | Why |
 |-----------|------------------------|-----|
-| Proactive recall | "When user mentions a project, recall immediately — do not wait to be asked" | Prevents re-explaining context |
-| Proactive save | "At session end, offer to save key decisions and context" | User doesn't have to remember to save |
+| Context-first recall | "When the current discussion clearly depends on prior saved project context, recall it first" | Prevents re-explaining context |
+| Explicit save intent | "Use save only when the user asks to save, preserve, turn into a document, or summarize into durable project context" | Prevents over-eager writes |
+| Proposal before write for mixed sessions | "If the thread is long, mixed, or classification is uncertain, propose what to store first and let the user confirm before any write" | Prevents bad end-of-thread auto-classification |
 | Recall before save | "Always recall_document first, merge new info, then save back" | Prevents overwriting existing content |
 | Fit existing topics | "Check list_documents first. Fit into existing topic if possible. Only create new topic if clearly distinct" | Prevents topic explosion |
+| Default to `discussion` under uncertainty | "If preserving a mixed session without clear typed extraction, save one reviewed `discussion` doc first" | Prevents forced multi-doc splits that mix decision/plan/reference badly |
 | Pick the smallest durable doc type | "Save long discussion summaries as `discussion`, settled conclusions as `decision`, execution breakdowns as `plan`, and reusable background as `reference`" | Prevents one-topic documents from becoming incoherent catch-alls |
+| Translate user language into the right doc shape | "PRD / implementation brief → `plan`; latest decisions → `decision`; discussion recap → `discussion`; architecture summary / durable background → `reference` unless it is clearly an execution plan" | Lets natural user asks map into a stable storage contract |
 | Structured content | "Content MUST be markdown with ## headers. Never save a single-line summary. Minimum 200 characters" | Ensures readable documents |
 | Exclude noise | "Do NOT save: code snippets, test results, function names, raw conversation logs. Save: decisions, reasoning, status, open questions" | Keeps documents useful |
+| Name the surface explicitly | "When speaking to the user, say Backtick (or 백틱 in Korean), not generic memory" | Avoids confusion with ChatGPT/Claude built-in memory |
+| Proactive save ask without silent writes | "When a meaningful decision or wrap-up appears, ask whether it should be saved to Backtick. Never save silently." | Recreates the helpful Muninn feel without black-box auto-save |
+
+#### Behavior layers
+
+Warm behavior should be designed in three layers:
+
+1. **Server-wide instructions**
+   - set the default attitude for recall and save behavior across all clients
+   - examples:
+     - project mentioned → recall first
+     - meaningful decision reached → ask whether to save to Backtick
+     - never save silently
+     - call it Backtick / 백틱, not generic memory
+
+2. **Tool descriptions**
+   - define routing and argument discipline per tool
+   - examples:
+     - `save_document` is user-confirmed write behavior
+     - `update_document` wins over full save for narrow deltas
+     - `discussion` is the fallback when classification is uncertain
+
+3. **Client-specific prompts/workflows**
+   - optional optimization layer
+   - Claude-side prompt shortcuts may later improve the experience, but the baseline should already work from server instructions + tool descriptions
+
+This layering matters because the pleasant Muninn behavior on Claude Mac / iPhone came from the MCP instructions surface, not from Claude Code hooks.
 
 **Draft tool descriptions:**
 
 ```
+propose_document_saves:
+  "Review the current discussion and propose what, if anything,
+   should be stored in Backtick. Use this before writing when the
+   conversation is long, mixed, or classification is uncertain.
+   Prefer one reviewed `discussion` doc by default unless the
+   boundaries between `decision`, `plan`, or `reference` docs are
+   clearly separated. Return candidate topic, documentType,
+   create-vs-update recommendation, rationale, and a short preview.
+   Do not write anything."
+
 recall_document:
-  "Load a project topic document by `(project, topic, documentType)`.
-   Call proactively when user mentions a project — do not wait to be asked. Proactive
-   recall prevents context re-explanation."
+  "Load a project topic document when the current discussion
+   clearly depends on prior saved project context. Recall
+   before answering when durable context is likely to matter."
 
 save_document:
-  "Save or replace a project topic document by `(project, topic, documentType)`. At session end,
-   proactively offer to save key decisions and context. ALWAYS
-   call recall_document first to avoid overwriting existing
-   content. Content must be full markdown with ## section
-   headers — never a single-line summary."
+  "Save or replace a project topic document. Use this only
+   when the user asks to save, preserve, turn a conversation
+   into a document, or summarize it into durable project
+   context, and preferably after the user confirms a proposed
+   save. Do not directly split a long mixed thread into
+   multiple typed docs by default. If classification is
+   uncertain, propose first or save one reviewed `discussion`
+   doc. PRD / implementation brief usually maps to `plan`;
+   latest settled choices usually map to `decision`; discussion
+   recap maps to `discussion`; durable background or
+   constraints map to `reference`. ALWAYS list or recall first
+   so you do not overwrite the wrong document. Content must be
+   full markdown with ## section headers — never a single-line
+   summary."
 
 list_documents:
-  "List matching documents in a project, or all projects. Keep
-   this lightweight and use it before recall_document or
-   save_document to check if a matching topic/documentType already exists.
-   Fit new content into existing topics when possible."
+  "List all topics in a project, or all projects. Call before
+   save_document to check if a matching topic already exists.
+   Use this first when the project is known but the right
+   topic or documentType is unclear."
 
 update_document:
   "Partially update a document — append, replace, or remove
-   a section. Prefer this over save_document for small changes.
-   Always specify section header for replace/delete actions."
+   a section. Prefer this over save_document for small changes,
+   such as latest-decision deltas or one section of an existing
+   plan/reference/doc. Always specify section header for
+   replace/delete actions."
 ```
 
 #### Content quality rules
@@ -395,30 +514,37 @@ AI saves document via MCP
 
 The review loop is what makes this different from Mem0 (black box, user can't see what's stored) and Pluro (auto-collected, no curation).
 
+**Refinement after dogfooding:** review should happen **before** write when possible, not only after. The best default is:
+
+- AI proposes what to save
+- user confirms or trims the proposal
+- AI writes the confirmed subset
+- Memory panel remains the later correction surface, not the first line of defense
+
 #### AI workflow
 
 ```
 Session start:
   → list_documents(project: "backtick")
-  → [("pricing", "decision"), ("pricing", "discussion"), ("architecture", "reference")]
-  → recall_document(project: "backtick", topic: "pricing", documentType: "decision")  // relevant to today's discussion
+  → ["branding", "pricing", "architecture", "launch"]
+  → recall_document(project: "backtick", topic: "pricing")  // relevant to today's discussion
 
 During session (2h pricing discussion):
-  → update_document(project: "backtick", topic: "pricing", documentType: "decision", action: "replace_section",
+  → update_document(project: "backtick", topic: "pricing", action: "replace_section",
        section: "Decision", content: "Freemium + $9/mo premium...")
 
 New topic emerges:
-  → save_document(project: "backtick", topic: "distribution", documentType: "plan",
+  → save_document(project: "backtick", topic: "distribution",
        content: "## App Store vs Direct\n### Pros/Cons\n...")
 
 Session end:
-  → AI: "오늘 가격 모델이랑 배포 방식 정리했는데, 저장할까요?"
-  → User: "응"
-  → save_document / update_document
+  → AI: "오늘 가격 모델 쪽은 기존 `decision` 문서를 업데이트하고, 배포 쪽은 새 `discussion` 문서로 저장하는 게 맞아 보여요. 저장할까요?"
+  → User: "가격만 저장해"
+  → update_document(project: "backtick", topic: "pricing", ...)
 
 Next day, different AI client, new thread:
   → list_documents(project: "backtick")
-  → recall_document(project: "backtick", topic: "distribution", documentType: "plan")
+  → recall_document(project: "backtick", topic: "distribution")
   → Continues where yesterday left off (human-verified version)
 ```
 
@@ -656,7 +782,7 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 
 | Pattern | Why it worked | Backtick application |
 |---------|--------------|---------------------|
-| **Document-first design** | One structured doc per `(project, topic, documentType)` > scattered fragments. LLM knows what to update. | ProjectDocument model. `save_document` replaces whole doc, not fragments. |
+| **Document-first design** | One structured doc per project > scattered fragments. LLM knows what to update. | ProjectDocument model. `save_document` replaces whole doc, not fragments. |
 | **Tool docstrings as AI instructions** | Docstrings shape LLM behavior. Examples improve compliance ~40%. | Warm tool descriptions with examples, format rules, proactive behavior hints. |
 | **Per-operation DB connections** | Persistent connections caused "database is locked" when multiple clients ran. | GRDB's `db.write { }` / `db.read { }` blocks already do this. Don't hold connections. |
 | **Explicit transactions** | Multi-statement writes without BEGIN/COMMIT → partial commits. | `db.inTransaction { }` for all multi-step mutations. |
@@ -685,13 +811,13 @@ The app no longer has a user-facing Light/Dark/Auto toggle. It inherits macOS sy
 
 Before: LLMs called `create_memory(content, depth, tags)` → 10 fragments per session. Incoherent.
 
-After: LLMs call `save_document(project, topic, documentType, content)` → One structured markdown doc. Must have `##` headers. Replaces previous version.
+After: LLMs call `save_document(project, content)` → One structured markdown doc. Must have `##` headers. Replaces previous version.
 
 **This is the single most important architectural decision for Warm.** Backtick's `save_document` / `update_document` tools must enforce:
 1. Full markdown with `##` headers (reject plain text)
 2. Minimum content length (reject single-line saves)
 3. recall before save (prevent overwriting existing content)
-4. One document per `(project, topic, documentType)` — not fragments
+4. One document per (project, topic) — not fragments
 
 ---
 
@@ -864,13 +990,6 @@ Create entity folder only if: mentioned 3+ times, has direct relationship to use
 #### Temporal decay
 
 Exponential multiplier on search scores based on age. Default half-life: 30 days. Recent memories rank higher, old ones fade but are never deleted. Tiers: Hot (last 7 days, auto-loaded) → Warm (consolidated from daily notes) → Cold (searchable but not auto-loaded).
-
-**Later consideration: memory vividness.** Once Warm docs exist in meaningful volume, ranking can evolve beyond pure age. Candidate signals include `lastRecalledAt`, `recallCount`, `updateCount`, `lastReviewedAt`, and `updatedAt`. The likely use is:
-
-- raise frequently revisited / frequently updated docs higher in search and recall candidates
-- let rarely recalled, long-stale docs remain searchable but not auto-loaded by default
-
-This should sit on top of the existing two-tier model, not replace it. `list_documents` remains the lean discovery layer; vividness only affects which documents surface first after enough real usage data exists.
 
 #### Consolidation cadence
 

@@ -10,4 +10,9 @@ extension KeyboardShortcuts.Name {
         "toggleStackPanel",
         default: .init(.two, modifiers: [.command])
     )
+
+    static let toggleMemoryViewer = Self(
+        "toggleMemoryViewer",
+        default: .init(.three, modifiers: [.command])
+    )
 }

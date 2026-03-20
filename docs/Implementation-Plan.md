@@ -253,7 +253,8 @@ Why:
 - the actual product need is cross-client `Stack` read/write through MCP from `Claude Desktop`, `Claude Code`, `Codex`, and the experimental self-hosted ChatGPT path
 - the intended AI workflow is: read the current Stack, summarize or classify what matters, then write condensed notes back into Backtick through MCP
 - repo `docs/` authoring is not the Backtick MCP surface itself; that remains a separate code-agent or manual follow-up after the AI has written the important memory back into `Stack`
-- the next memory layer after this Stack-first rollout is reviewed project documents: hours-long Claude Desktop / ChatGPT discussions should be distilled into typed docs with flat topic classification, not stored as raw transcripts
+- the next memory layer after this Stack-first rollout is reviewed project documents: hours-long Claude Desktop / ChatGPT discussions should not be auto-saved blindly; the default flow should be propose what to keep, let the user confirm, then save reviewed typed docs with flat topic classification instead of raw transcripts
+- the concrete next-slice contract for this review-first lane now lives in `docs/MCP-Polish-Plan.md`, including `Prompt / Memory` terminology, `propose_document_saves`, and chat-first save review
 - an AI execution step should update copied state on the source Stack notes directly
 - intermediate board and work-item layers add complexity without helping the MCP bridge
 
@@ -279,6 +280,9 @@ Post-Stack Warm memory follow-on:
 - initial `documentType` buckets should distinguish durable discussion summaries from decision docs, plans, and reference/context docs
 - topic classification stays flat and reusable across sessions; fit into existing topics first, create new topics only when clearly distinct
 - when Warm implementation starts, use `docs/MCP-Platform-Expansion-Research.md` as the execution reference and `docs/Mem0-Takeaways-for-Backtick.md` as the filter for what to adopt vs reject
+- under classification uncertainty, the safest default is one reviewed `discussion` doc first; extracting separate `decision`, `plan`, or `reference` docs should happen after user confirmation rather than as a silent end-of-thread split
+- Warm should also adopt a Muninn-style **server-wide instructions** layer so all clients receive the same default behavior at initialization: project mention → recall first, meaningful wrap-up → ask whether to save to Backtick, never save silently
+- user-facing wording should refer to this surface as `Backtick` or `백틱`, not generic "memory", to avoid collision with built-in assistant memory
 
 Implementation rules for the next MCP lane:
 

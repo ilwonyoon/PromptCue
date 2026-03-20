@@ -934,6 +934,31 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemotePublicProbeFailureOverridesConnectedState() async {
+        let userDefaults = makeUserDefaults()
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            userDefaults: userDefaults,
+            experimentalRemoteProbe: TestExperimentalRemoteProbe(issue: .publicEndpointUnreachable)
+        )
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+        model.setExperimentalRemoteRuntimeState(.running)
+        model.recordExperimentalRemoteHelperLog(
+            "Backtick MCP HTTP served protected remote request method=tools/call"
+        )
+        model.refreshExperimentalRemoteProbe()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertFalse(model.experimentalRemoteIsConnected)
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("same local port"))
+    }
+
+    @MainActor
     func testExperimentalRemoteStatusPresentationShowsNeedsAttentionWhenLocalProbeFails() async {
         let userDefaults = makeUserDefaults()
         let model = MCPConnectorSettingsModel(

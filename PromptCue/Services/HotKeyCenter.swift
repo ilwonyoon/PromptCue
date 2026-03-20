@@ -4,7 +4,8 @@ import KeyboardShortcuts
 final class HotKeyCenter {
     func registerDefaultShortcuts(
         onCapture: @escaping () -> Void,
-        onToggleStack: @escaping () -> Void
+        onToggleStack: @escaping () -> Void,
+        onToggleMemory: @escaping () -> Void
     ) {
         KeyboardShortcuts.removeAllHandlers()
 
@@ -14,6 +15,10 @@ final class HotKeyCenter {
 
         KeyboardShortcuts.onKeyUp(for: .toggleStackPanel) {
             onToggleStack()
+        }
+
+        KeyboardShortcuts.onKeyUp(for: .toggleMemoryViewer) {
+            onToggleMemory()
         }
     }
 

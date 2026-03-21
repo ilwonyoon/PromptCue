@@ -22,6 +22,7 @@
 - Current overall status: `Phase 0 complete`, `Phase 1 in progress`, `Phase 2 and Phase 3 started`.
 - A quality audit has now been completed and a remediation lane is active in `docs/Quality-Remediation-Plan.md`.
 - A dedicated public launch hardening lane is now active at `H0` in `docs/Public-Launch-Hardening-Plan.md`.
+- A dedicated pre-DMG launch-readiness review lane now exists in `docs/Launch-Readiness-Review-Plan.md`.
 - A current-main-aligned design-system boundary proposal now exists in `docs/Design-System-Architecture-Proposal.md`.
 - A design-system execution document now exists in `docs/Design-System-Execution-Plan.md`.
 - A bounded capture/stack design-polish plan now exists in `docs/Design-Polish-Execution-Plan.md`.

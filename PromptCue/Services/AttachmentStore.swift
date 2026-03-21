@@ -125,9 +125,10 @@ struct AttachmentStore: AttachmentStoring {
     }
 
     func isManagedFile(_ fileURL: URL) -> Bool {
-        let standardizedFileURL = fileURL.standardizedFileURL
-        let basePath = baseDirectoryURL.path
-        let filePath = standardizedFileURL.path
+        let resolvedBaseURL = baseDirectoryURL.resolvingSymlinksInPath().standardizedFileURL
+        let resolvedFileURL = fileURL.resolvingSymlinksInPath().standardizedFileURL
+        let basePath = resolvedBaseURL.path
+        let filePath = resolvedFileURL.path
 
         return filePath == basePath || filePath.hasPrefix(basePath + "/")
     }

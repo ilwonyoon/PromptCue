@@ -40,7 +40,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
     init(
         observer: RecentScreenshotObserving? = nil,
-        locator: RecentScreenshotLocating = RecentScreenshotLocator(includeTemporaryItemsScanning: true),
+        locator: RecentScreenshotLocating = RecentScreenshotLocator(),
         cache: TransientScreenshotCaching = TransientScreenshotCache(),
         clipboardProvider: RecentClipboardImageProviding? = nil,
         maxAge: TimeInterval = AppTiming.recentScreenshotMaxAge,

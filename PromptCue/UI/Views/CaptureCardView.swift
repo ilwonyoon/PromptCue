@@ -152,7 +152,8 @@ struct CaptureCardView: View {
                     if !compactMode, let screenshotURL = card.screenshotURL {
                         LocalImageThumbnail(
                             url: screenshotURL,
-                            height: PrimitiveTokens.Size.notificationThumbnailHeight
+                            height: PrimitiveTokens.Size.notificationThumbnailHeight,
+                            accessPolicy: .managedAttachmentOnly
                         )
                         .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }

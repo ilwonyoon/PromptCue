@@ -3,6 +3,11 @@ import ImageIO
 import SwiftUI
 
 struct LocalImageThumbnail: View {
+    enum AccessPolicy {
+        case directExistingFile
+        case managedAttachmentOnly
+    }
+
     private static let fileManager = FileManager.default
     private static let imageCache = NSCache<NSURL, NSImage>()
     private static let loadDelaysNanos: [UInt64] = [80_000_000, 160_000_000, 280_000_000, 460_000_000, 760_000_000, 1_120_000_000]
@@ -14,6 +19,7 @@ struct LocalImageThumbnail: View {
     let url: URL
     let width: CGFloat?
     let height: CGFloat
+    let accessPolicy: AccessPolicy
     @State private var image: NSImage?
     @State private var loadedURL: URL?
     @State private var loadState: LoadState = .idle
@@ -21,11 +27,13 @@ struct LocalImageThumbnail: View {
     init(
         url: URL,
         width: CGFloat? = nil,
-        height: CGFloat = PrimitiveTokens.Size.thumbnailHeight
+        height: CGFloat = PrimitiveTokens.Size.thumbnailHeight,
+        accessPolicy: AccessPolicy = .directExistingFile
     ) {
         self.url = url
         self.width = width
         self.height = height
+        self.accessPolicy = accessPolicy
         let resolvedURL = url.standardizedFileURL
         _image = State(initialValue: Self.imageCache.object(forKey: resolvedURL as NSURL))
         _loadedURL = State(initialValue: resolvedURL)
@@ -111,7 +119,7 @@ struct LocalImageThumbnail: View {
                 return
             }
 
-            guard let readableURL = readableURL(for: resolvedURL) else {
+            guard let readableURL = Self.readableURL(for: resolvedURL, accessPolicy: accessPolicy) else {
                 let delayNanos = Self.loadDelaysNanos[min(attempt, Self.loadDelaysNanos.count - 1)]
                 try? await Task.sleep(nanoseconds: delayNanos)
                 continue
@@ -139,16 +147,21 @@ struct LocalImageThumbnail: View {
         }
     }
 
-    private func readableURL(for resolvedURL: URL) -> URL? {
-        if let managedURL = ManagedScreenshotAccess.readableURL(for: resolvedURL.path) {
-            return managedURL
+    static func readableURL(
+        for resolvedURL: URL,
+        accessPolicy: AccessPolicy,
+        managedURLProvider: (String?) -> URL? = ManagedScreenshotAccess.readableURL(for:),
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> URL? {
+        switch accessPolicy {
+        case .directExistingFile:
+            guard fileExists(resolvedURL.path) else {
+                return nil
+            }
+            return resolvedURL
+        case .managedAttachmentOnly:
+            return managedURLProvider(resolvedURL.path)
         }
-
-        guard Self.fileManager.fileExists(atPath: resolvedURL.path) else {
-            return nil
-        }
-
-        return resolvedURL
     }
 
     nonisolated private static func decodeThumbnail(from url: URL, maxPixelSize: CGFloat) -> NSImage? {

@@ -666,7 +666,7 @@ private struct MemoryMarkdownTableCell: View {
 
 enum ParsedMemoryMarkdown {
     struct Section: Identifiable {
-        let id = UUID()
+        let id: String
         let title: String?
         let blocks: [Block]
     }
@@ -725,8 +725,27 @@ enum ParsedMemoryMarkdown {
         case nestedBullets([(indent: Int, text: String)])
     }
 
+    private final class ParsedSectionsBox: NSObject {
+        let sections: [Section]
+
+        init(sections: [Section]) {
+            self.sections = sections
+        }
+    }
+
+    private static let parseCache: NSCache<NSString, ParsedSectionsBox> = {
+        let cache = NSCache<NSString, ParsedSectionsBox>()
+        cache.countLimit = 64
+        return cache
+    }()
+
     static func parse(_ markdown: String) -> [Section] {
         let normalized = markdown.replacingOccurrences(of: "\r\n", with: "\n")
+        let cacheKey = normalized as NSString
+        if let cached = parseCache.object(forKey: cacheKey) {
+            return cached.sections
+        }
+
         let lines = normalized.components(separatedBy: .newlines)
 
         var sections: [(title: String?, lines: [String])] = []
@@ -752,9 +771,29 @@ enum ParsedMemoryMarkdown {
         }
 
         flushCurrentSection()
-        return sections.map { section in
-            Section(title: section.title, blocks: parseBlocks(section.lines))
+        let parsedSections = sections.enumerated().map { index, section in
+            Section(
+                id: stableSectionID(index: index, title: section.title, lines: section.lines),
+                title: section.title,
+                blocks: parseBlocks(section.lines)
+            )
         }
+        parseCache.setObject(ParsedSectionsBox(sections: parsedSections), forKey: cacheKey)
+        return parsedSections
+    }
+
+    private static func stableSectionID(index: Int, title: String?, lines: [String]) -> String {
+        let rawIdentity = "\(title ?? "")\u{1F}\(lines.joined(separator: "\n"))"
+        return "\(index)-\(stableHash(rawIdentity))"
+    }
+
+    private static func stableHash(_ text: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
     }
 
     private static func parseBlocks(_ lines: [String]) -> [Block] {

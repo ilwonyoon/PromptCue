@@ -31,6 +31,7 @@ It inherits:
 - product contract from `docs/Execution-PRD.md`
 - release/distribution baseline from `docs/Engineering-Preflight.md`
 - phase roll-up and queue positioning from `docs/Implementation-Plan.md`
+- pre-DMG risk review execution from `docs/Launch-Readiness-Review-Plan.md`
 - top-level status roll-up from `docs/Master-Board.md`
 
 Repo terminology for the active pre-release signed local lane is now:
@@ -50,6 +51,10 @@ Historical `Beta` wording in older docs is superseded by `DevSigned` for current
 | `H4` | Completed | suggested-target tracking is contained to safe window signals and no longer depends on surprise automation |
 | `H5` | Completed | sync default-off runtime gating now covers remote notifications and CloudKit engine startup/teardown |
 | `H6` | In progress | consolidated verification runner exists; final notarized ship-candidate closure is blocked on local Developer ID + notary credentials |
+
+The focused pre-DMG code-review lane now runs from
+`docs/Launch-Readiness-Review-Plan.md`. Use that child plan for launch-risk
+review execution, not this document.
 
 ## Execution Position Relative To Current Main Slice
 

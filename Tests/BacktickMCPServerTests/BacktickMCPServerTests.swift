@@ -1583,7 +1583,7 @@ final class BacktickMCPServerTests: XCTestCase {
         let session = await makeSession()
         let handler = BacktickMCPHTTPHandler(
             session: session,
-            configuration: BacktickMCPHTTPConfiguration()
+            configuration: BacktickMCPHTTPConfiguration(apiKey: "secret-token")
         )
         let body = try requestBody(
             id: 1,
@@ -1601,6 +1601,7 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "POST",
             path: "/mcp",
             headers: [
+                "x-api-key": "secret-token",
                 "content-length": "\(body.count)",
                 "content-type": "application/json",
             ],
@@ -1624,6 +1625,48 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "POST",
             path: "/mcp",
             headers: [
+                "content-length": "2",
+                "content-type": "application/json",
+            ],
+            body: Data("{}".utf8)
+        )
+
+        let response = await handler.response(for: request)
+        XCTAssertEqual(response.statusCode, 401)
+    }
+
+    func testHTTPHandlerRejectsAPIKeyModeWhenKeyIsMissing() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(apiKey: nil)
+        )
+        let request = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "x-api-key": "secret-token",
+                "content-length": "2",
+                "content-type": "application/json",
+            ],
+            body: Data("{}".utf8)
+        )
+
+        let response = await handler.response(for: request)
+        XCTAssertEqual(response.statusCode, 401)
+    }
+
+    func testHTTPHandlerRejectsAPIKeyModeWhenKeyIsEmpty() async throws {
+        let session = await makeSession()
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(apiKey: "   ")
+        )
+        let request = BacktickMCPHTTPRequest(
+            method: "POST",
+            path: "/mcp",
+            headers: [
+                "authorization": "Bearer secret-token",
                 "content-length": "2",
                 "content-type": "application/json",
             ],
@@ -1664,7 +1707,7 @@ final class BacktickMCPServerTests: XCTestCase {
         let session = await makeSession()
         let handler = BacktickMCPHTTPHandler(
             session: session,
-            configuration: BacktickMCPHTTPConfiguration()
+            configuration: BacktickMCPHTTPConfiguration(apiKey: "secret-token")
         )
         let initializeBody = try requestBody(
             id: 1,
@@ -1682,6 +1725,7 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "POST",
             path: "/mcp",
             headers: [
+                "x-api-key": "secret-token",
                 "content-length": "\(initializeBody.count)",
                 "content-type": "application/json",
             ],
@@ -1700,6 +1744,7 @@ final class BacktickMCPServerTests: XCTestCase {
             method: "POST",
             path: "/mcp",
             headers: [
+                "x-api-key": "secret-token",
                 "content-length": "\(notificationBody.count)",
                 "content-type": "application/json",
             ],

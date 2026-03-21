@@ -37,7 +37,9 @@ extension AppModel {
         isSeedingCaptureFromCopiedCard = card.isCopied
         draftText = card.text
         draftEditorMetrics = .empty
-        if let screenshotURL = card.screenshotURL {
+        if let screenshotURL = card.screenshotURL?.standardizedFileURL,
+           attachmentStore.isManagedFile(screenshotURL),
+           FileManager.default.fileExists(atPath: screenshotURL.path) {
             draftRecentScreenshotStateOverride = .previewReady(
                 sessionID: UUID(),
                 cacheURL: screenshotURL,

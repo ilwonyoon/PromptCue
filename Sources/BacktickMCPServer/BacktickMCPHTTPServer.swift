@@ -444,7 +444,7 @@ final class BacktickMCPHTTPHandler {
         switch configuration.authMode {
         case .apiKey:
             guard let expectedKey = apiKey, !expectedKey.isEmpty else {
-                return true
+                return false
             }
 
             let providedKey = headers["x-api-key"]

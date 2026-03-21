@@ -29,6 +29,23 @@ final class ParsedMemoryMarkdownTests: XCTestCase {
         XCTAssertNil(sections[0].title)
     }
 
+    func testSectionIDsAreStableAcrossRepeatedParses() {
+        let markdown = "## Alpha\n\nHello\n\n## Beta\n\nWorld"
+
+        let first = parse(markdown).map(\.id)
+        let second = parse(markdown).map(\.id)
+
+        XCTAssertEqual(first, second)
+    }
+
+    func testSectionIDsStayUniqueWhenTitlesRepeat() {
+        let markdown = "## Same\n\nAlpha\n\n## Same\n\nBeta"
+        let sections = parse(markdown)
+
+        XCTAssertEqual(sections.count, 2)
+        XCTAssertNotEqual(sections[0].id, sections[1].id)
+    }
+
     // MARK: - Plain paragraphs (regression)
 
     func testPlainParagraph() {

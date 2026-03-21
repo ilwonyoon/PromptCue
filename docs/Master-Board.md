@@ -38,6 +38,7 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 | Core UI | In progress | Capture and stack views now render real MVP UI |
 | Quality audit | Completed | Findings captured and prioritized for remediation |
 | Public launch hardening lane | In progress | `H0` contract lock is active in `docs/Public-Launch-Hardening-Plan.md`; master-owned `H1` release work may proceed in parallel while runtime `H2-H5` merges stay behind the current `safe-main` gate |
+| Launch readiness review lane | In progress | pre-DMG launch-risk review is tracked in `docs/Launch-Readiness-Review-Plan.md` and should drive the final blocker report before a signed DMG candidate is cut |
 | Remediation lane | In progress | Contract lock and phased closure tracked in `docs/Quality-Remediation-Plan.md` |
 | Performance remediation lane | Completed | `P1-P4`, the approved capture/stack visuals, the long-note overflow path, and the live stack-open trace harness are active in the merge-safe landing candidate; the historical `P5` compositor benchmark remains documented in `docs/Performance-Remediation-Plan.md` |
 | Design polish lane | In progress | `DP0` review lock is complete; `DP1` capture elevation and `DP2` stack brightness are now in implementation and awaiting visual review packets |

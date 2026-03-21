@@ -86,40 +86,36 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
         XCTAssertNil(result.recentTemporaryContainerDate)
     }
 
-    func testLocatorScansSystemScreenshotDirectoryWhenAuthorizedFolderDiffers() throws {
+    func testLocatorIgnoresFilesOutsideAuthorizedFolder() throws {
         let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Downloads", isDirectory: true)
-        let systemDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
+        let untrackedDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
         try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: systemDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: untrackedDirectoryURL, withIntermediateDirectories: true)
 
-        let screenshotURL = systemDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.10.00 PM.png")
+        let screenshotURL = untrackedDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.10.00 PM.png")
         let screenshotData = Data("png".utf8)
         try screenshotData.write(to: screenshotURL)
 
         let locator = RecentScreenshotLocator(
             fileManager: .default,
-            authorizedDirectoryProvider: { authorizedDirectoryURL },
-            systemDirectoryProvider: { systemDirectoryURL }
+            authorizedDirectoryProvider: { authorizedDirectoryURL }
         )
 
         let result = locator.locateRecentScreenshot(now: Date(), maxAge: 30)
 
-        XCTAssertEqual(result.signalCandidate?.fileURL, screenshotURL.standardizedFileURL)
-        XCTAssertEqual(result.readableCandidate?.fileURL, screenshotURL.standardizedFileURL)
+        XCTAssertNil(result.signalCandidate)
+        XCTAssertNil(result.readableCandidate)
     }
 
-    func testObserverEmitsContentChangeWhenSystemScreenshotFolderChanges() throws {
+    func testObserverEmitsContentChangeWhenAuthorizedFolderChanges() throws {
         let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Downloads", isDirectory: true)
-        let systemDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
         try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: systemDirectoryURL, withIntermediateDirectories: true)
 
         let observer = RecentScreenshotDirectoryObserver(
-            authorizedDirectoryProvider: { authorizedDirectoryURL },
-            systemDirectoryProvider: { systemDirectoryURL }
+            authorizedDirectoryProvider: { authorizedDirectoryURL }
         )
 
-        let contentsChanged = expectation(description: "system screenshot directory contents change")
+        let contentsChanged = expectation(description: "authorized screenshot directory contents change")
         observer.onChange = { event in
             if event == .authorizedDirectoryContentsChanged {
                 contentsChanged.fulfill()
@@ -127,7 +123,7 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
         }
 
         observer.start()
-        let screenshotURL = systemDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.15.00 PM.png")
+        let screenshotURL = authorizedDirectoryURL.appendingPathComponent("Screenshot 2026-03-18 at 3.15.00 PM.png")
         try Data("png".utf8).write(to: screenshotURL)
 
         wait(for: [contentsChanged], timeout: 1)

@@ -187,6 +187,26 @@ final class AppModelEditingTests: XCTestCase {
         ])
     }
 
+    func testBeginEditingHidesExternalScreenshotPreviewUntilAttachmentIsManaged() throws {
+        let externalScreenshotURL = tempDirectoryURL.appendingPathComponent("external.png")
+        try Data("png".utf8).write(to: externalScreenshotURL)
+
+        let card = CaptureCard(
+            id: UUID(),
+            text: "External screenshot",
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            screenshotPath: externalScreenshotURL.path,
+            sortOrder: 10
+        )
+
+        let model = makeModel()
+        model.start()
+
+        model.beginEditingCaptureCard(card)
+
+        XCTAssertNil(model.recentScreenshotPreviewURL)
+    }
+
     private func makeModel() -> AppModel {
         AppModel(
             cardStore: CardStore(databaseURL: databaseURL),

@@ -2132,8 +2132,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return .needsSetup
         }
 
-        if case .failed = verificationState(for: client) {
-            return .needsAttention
+        if hasStaleLocalToolSurface(for: client) {
+            return .needsRefresh
         }
 
         if recentConnectionActivity(for: client) != nil {
@@ -2144,8 +2144,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             return .checking
         }
 
-        if hasStaleLocalToolSurface(for: client) {
-            return .needsRefresh
+        if case .failed = verificationState(for: client) {
+            return .needsAttention
         }
 
         return .configured
@@ -2948,17 +2948,34 @@ final class MCPConnectorSettingsModel: ObservableObject {
     }
 
     private func hasConfiguredHelperDrift(for client: MCPConnectorClientStatus) -> Bool {
-        guard let launchSpec = inspection.launchSpec else {
+        guard inspection.bundledHelperPath != nil,
+              let launchSpec = inspection.launchSpec else {
             return false
         }
 
-        let expectedLaunchSpec = configuredLaunchSpec(for: client.client, launchSpec: launchSpec)
+        let expectedLaunchSpec = normalizedLaunchSpecForDriftComparison(
+            configuredLaunchSpec(for: client.client, launchSpec: launchSpec)
+        )
         let configuredLaunchSpecs = client.configuredLaunchSpecs
         guard !configuredLaunchSpecs.isEmpty else {
             return false
         }
 
-        return !configuredLaunchSpecs.contains(expectedLaunchSpec)
+        return !configuredLaunchSpecs.contains { configuredLaunchSpec in
+            normalizedLaunchSpecForDriftComparison(configuredLaunchSpec) == expectedLaunchSpec
+        }
+    }
+
+    private func normalizedLaunchSpecForDriftComparison(
+        _ launchSpec: MCPServerLaunchSpec
+    ) -> MCPServerLaunchSpec {
+        var environment = launchSpec.environment
+        environment.removeValue(forKey: MCPConnectorInspector.connectorClientEnvironmentKey)
+        return MCPServerLaunchSpec(
+            command: launchSpec.command,
+            arguments: launchSpec.arguments,
+            environment: environment
+        )
     }
 
     private func resolvedVerificationClient(explicitClient: MCPConnectorClient?) -> MCPConnectorClient? {

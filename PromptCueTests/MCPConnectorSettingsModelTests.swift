@@ -42,6 +42,26 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         try super.tearDownWithError()
     }
 
+    @MainActor
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 1_000_000_000,
+        pollNanoseconds: UInt64 = 10_000_000,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: @escaping @MainActor () -> Bool
+    ) async {
+        let attempts = max(Int(timeoutNanoseconds / pollNanoseconds), 1)
+        for _ in 0..<attempts {
+            if condition() {
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+
+        XCTAssertTrue(condition(), "Timed out waiting for condition", file: file, line: line)
+    }
+
     func testInspectorPrefersBuiltExecutableAndDetectsProjectConfigs() throws {
         let executableURL = repositoryRootURL
             .appendingPathComponent(".build/debug", isDirectory: true)
@@ -1636,7 +1656,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         model.updateExperimentalRemoteEnabled(true)
         model.updateExperimentalRemoteAuthMode(.oauth)
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await waitUntil {
+            model.experimentalRemotePublicEndpoint == "https://example-tunnel.ngrok-free.dev/mcp"
+        }
 
         XCTAssertEqual(
             model.experimentalRemotePublicEndpoint,
@@ -1814,7 +1836,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.refreshExperimentalRemoteProbe()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await waitUntil {
+            model.experimentalRemoteStatusPresentation.title == "Needs attention"
+        }
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
@@ -1844,7 +1868,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=188 rpcMethod=tools/call targetKind=tool targetName=backtick_list_docs"
         )
         model.refreshExperimentalRemoteProbe()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await waitUntil {
+            model.experimentalRemoteStatusPresentation.title == "Needs attention"
+        }
 
         XCTAssertFalse(model.experimentalRemoteIsConnected)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
@@ -1866,7 +1892,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
         model.setExperimentalRemoteRuntimeState(.running)
         model.refreshExperimentalRemoteProbe()
-        try? await Task.sleep(nanoseconds: 50_000_000)
+        await waitUntil {
+            model.experimentalRemoteStatusPresentation.title == "Needs attention"
+        }
 
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Needs attention")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)

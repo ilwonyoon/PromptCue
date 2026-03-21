@@ -86,12 +86,40 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             .configured
         )
         XCTAssertEqual(
+            inspection.status(for: .claudeCode).projectConfig?.configuredLaunchSpec,
+            MCPServerLaunchSpec(command: executableURL.path, arguments: [])
+        )
+        XCTAssertEqual(
             inspection.status(for: .codex).projectConfig?.presence,
             .configured
         )
+        XCTAssertEqual(
+            inspection.status(for: .codex).projectConfig?.configuredLaunchSpec,
+            MCPServerLaunchSpec(command: executableURL.path, arguments: [])
+        )
         XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains("claude mcp add") == true)
         XCTAssertTrue(inspection.status(for: .claudeCode).addCommand?.contains("--scope user") == true)
+        XCTAssertTrue(
+            inspection.status(for: .claudeCode).addCommand?.contains(
+                "BACKTICK_CONNECTOR_CLIENT=claudeCode"
+            ) == true
+        )
         XCTAssertTrue(inspection.status(for: .codex).addCommand?.contains("codex mcp add") == true)
+        XCTAssertTrue(
+            inspection.status(for: .codex).addCommand?.contains(
+                "BACKTICK_CONNECTOR_CLIENT=codex"
+            ) == true
+        )
+        XCTAssertTrue(
+            inspection.status(for: .claudeCode).configSnippet?.contains(
+                "\"BACKTICK_CONNECTOR_CLIENT\" : \"claudeCode\""
+            ) == true
+        )
+        XCTAssertTrue(
+            inspection.status(for: .codex).configSnippet?.contains(
+                "[mcp_servers.backtick.env]"
+            ) == true
+        )
     }
 
     func testInspectorPrefersBundledHelperOverRepositoryCheckout() throws {
@@ -142,7 +170,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
               "mcpServers": {
                 "backtick": {
                   "command": "/usr/bin/env",
-                  "args": ["swift", "run", "--package-path", "\(repositoryRootURL.path)", "BacktickMCP"]
+                  "args": ["swift", "run", "--package-path", "\(repositoryRootURL.path)", "BacktickMCP"],
+                  "env": {
+                    "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+                  }
                 }
               }
             }
@@ -159,6 +190,9 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         [mcp_servers.backtick]
         command = "/usr/bin/env"
         args = ["swift", "run", "--package-path", "\(repositoryRootURL.path)", "BacktickMCP"]
+
+        [mcp_servers.backtick.env]
+        BACKTICK_CONNECTOR_CLIENT = "codex"
         """.write(to: codexHomeConfigURL, atomically: true, encoding: .utf8)
 
         let inspection = makeInspector().inspect()
@@ -170,6 +204,55 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
         XCTAssertEqual(inspection.status(for: .claudeCode).homeConfig.presence, .configured)
         XCTAssertEqual(inspection.status(for: .codex).homeConfig.presence, .configured)
+        XCTAssertEqual(
+            inspection.status(for: .claudeCode).homeConfig.configuredLaunchSpec,
+            MCPServerLaunchSpec(
+                command: "/usr/bin/env",
+                arguments: ["swift", "run", "--package-path", repositoryRootURL.path, "BacktickMCP"],
+                environment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"]
+            )
+        )
+        XCTAssertEqual(
+            inspection.status(for: .codex).homeConfig.configuredLaunchSpec,
+            MCPServerLaunchSpec(
+                command: "/usr/bin/env",
+                arguments: ["swift", "run", "--package-path", repositoryRootURL.path, "BacktickMCP"],
+                environment: ["BACKTICK_CONNECTOR_CLIENT": "codex"]
+            )
+        )
+    }
+
+    func testInspectorParsesCodexMultilineArgsAndEnvironmentTable() throws {
+        let codexHomeConfigURL = homeDirectoryURL.appendingPathComponent(".codex/config.toml")
+        try FileManager.default.createDirectory(
+            at: codexHomeConfigURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        [mcp_servers.backtick]
+        command = "/usr/bin/env"
+        args = [
+          "swift",
+          "run",
+          "--package-path",
+          "\(repositoryRootURL.path)",
+          "BacktickMCP",
+        ]
+
+        [mcp_servers.backtick.env]
+        BACKTICK_CONNECTOR_CLIENT = "codex"
+        """.write(to: codexHomeConfigURL, atomically: true, encoding: .utf8)
+
+        let inspection = makeInspector().inspect()
+
+        XCTAssertEqual(
+            inspection.status(for: .codex).homeConfig.configuredLaunchSpec,
+            MCPServerLaunchSpec(
+                command: "/usr/bin/env",
+                arguments: ["swift", "run", "--package-path", repositoryRootURL.path, "BacktickMCP"],
+                environment: ["BACKTICK_CONNECTOR_CLIENT": "codex"]
+            )
+        )
     }
 
     func testInspectorMarksPresentButMissingBacktickConfiguration() throws {
@@ -204,6 +287,32 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         )
     }
 
+    func testInspectorIgnoresClaudeHomeProjectEntriesForDifferentRepository() throws {
+        let otherRepositoryURL = tempDirectoryURL.appendingPathComponent("OtherRepo", isDirectory: true)
+        try FileManager.default.createDirectory(at: otherRepositoryURL, withIntermediateDirectories: true)
+
+        let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
+        try """
+        {
+          "projects": {
+            "\(otherRepositoryURL.path)": {
+              "mcpServers": {
+                "backtick": {
+                  "command": "/tmp/other/BacktickMCP",
+                  "args": []
+                }
+              }
+            }
+          }
+        }
+        """.write(to: claudeHomeConfigURL, atomically: true, encoding: .utf8)
+
+        let inspection = makeInspector().inspect()
+
+        XCTAssertEqual(inspection.status(for: .claudeCode).homeConfig.presence, .presentWithoutBacktick)
+        XCTAssertNil(inspection.status(for: .claudeCode).homeConfig.configuredLaunchSpec)
+    }
+
     @MainActor
     func testModelShowsSetupAndLocalServerVerificationAfterServerTestPasses() async throws {
         let executableURL = repositoryRootURL
@@ -235,7 +344,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let expectedReport = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed"]
+            toolNames: ["list_notes", "get_note", "create_note", "update_note", "delete_note", "mark_notes_executed"],
+            verifiedToolName: "get_started"
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -244,19 +354,20 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
 
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
-        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Not verified")
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
         XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
-        XCTAssertEqual(model.primaryActionTitle(for: claude), "Verify Setup")
-        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Verify the setup")
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Check Setup")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Check the setup")
 
         await model.performServerTest()
 
         XCTAssertEqual(model.connectionState, .passed(expectedReport))
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
-        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Local server OK")
-        XCTAssertTrue(model.clientSummary(for: claude).contains("allowed tool list"))
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
+        XCTAssertTrue(model.clientSummary(for: claude).contains("local check passed"))
+        XCTAssertTrue(model.serverTestDetail.contains("get_started"))
         XCTAssertEqual(model.connectedToolNames(for: claude), expectedReport.toolNames)
-        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Backtick is ready")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Use Backtick in Claude Code")
         XCTAssertNil(model.primaryAction(for: claude))
     }
 
@@ -303,8 +414,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientFailureDetail(for: claude), "boom")
         XCTAssertTrue(model.connectedToolNames(for: claude).isEmpty)
         XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
-        XCTAssertEqual(model.primaryActionTitle(for: claude), "Verify Again")
-        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Fix the setup and verify again")
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Check Again")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Fix the setup and check again")
     }
 
     @MainActor
@@ -348,7 +459,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         let expectedReport = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
-            toolNames: ["list_notes", "get_note", "create_note"]
+            toolNames: ["list_notes", "get_note", "create_note"],
+            verifiedToolName: "get_started"
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -359,14 +471,521 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         await model.performServerTest(for: .codex)
 
-        XCTAssertEqual(model.clientVerificationTitle(for: codex), "Local server OK")
+        XCTAssertEqual(model.clientVerificationTitle(for: codex), "Configured")
         XCTAssertEqual(model.connectedToolNames(for: codex), expectedReport.toolNames)
         XCTAssertNil(model.primaryAction(for: codex))
 
-        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Not verified")
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
         XCTAssertTrue(model.connectedToolNames(for: claude).isEmpty)
         XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
-        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Verify the setup")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Check the setup")
+    }
+
+    @MainActor
+    func testPerformServerTestUsesConfiguredLaunchSpecFromSelectedClient() async throws {
+        let repositoryExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: repositoryExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: repositoryExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: repositoryExecutableURL.path
+        )
+
+        let configuredExecutableURL = tempDirectoryURL
+            .appendingPathComponent("Configured", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: configuredExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: configuredExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: configuredExecutableURL.path
+        )
+
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(configuredExecutableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let tester = RecordingConnectionTester(state: .passed(
+            MCPServerConnectionReport(
+                protocolVersion: "2025-03-26",
+                toolNames: ["list_notes"],
+                verifiedToolName: "get_started"
+            )
+        ))
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: tester
+        )
+
+        await model.performServerTest(for: .claudeCode)
+
+        XCTAssertEqual(
+            tester.launchSpecs,
+            [MCPServerLaunchSpec(
+                command: configuredExecutableURL.path,
+                arguments: ["--stdio"],
+                environment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"]
+            )]
+        )
+        XCTAssertNotEqual(tester.launchSpecs.first?.command, repositoryExecutableURL.path)
+    }
+
+    @MainActor
+    func testMatchingActualConnectionActivityMarksClientConnected() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-code",
+            clientVersion: "1.0.0",
+            sessionID: "session-1",
+            toolName: "list_documents",
+            recordedAt: Date(timeIntervalSinceNow: -3 * 24 * 60 * 60),
+            configuredClientID: "claudeCode",
+            launchCommand: executableURL.path,
+            launchArguments: ["--stdio"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Connected")
+        XCTAssertEqual(model.clientNextStepTitle(for: claude), "Backtick is connected")
+        XCTAssertNil(model.primaryAction(for: claude))
+        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, "list_documents")
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Last used"))
+        XCTAssertTrue(model.clientProgressSummary(for: claude).contains("Last used"))
+        XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("Last used"))
+        XCTAssertTrue(model.clientLastUsedDetail(for: claude)?.contains("Last used") == true)
+    }
+
+    @MainActor
+    func testStaleConnectionActivityWithDifferentLaunchSpecDoesNotMarkClientConnected() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-code",
+            clientVersion: "1.0.0",
+            sessionID: "session-2",
+            toolName: "list_documents",
+            recordedAt: Date(),
+            configuredClientID: "claudeCode",
+            launchCommand: "/tmp/other/BacktickMCP",
+            launchArguments: ["--stdio"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertNil(model.actualConnectionActivity(for: claude))
+    }
+
+    @MainActor
+    func testOldConnectionActivityFallsBackToConfiguredState() async throws {
+        let executableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        try FileManager.default.createDirectory(
+            at: executableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: executableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: executableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(executableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-code",
+            clientVersion: "1.0.0",
+            sessionID: "session-old",
+            toolName: "list_documents",
+            recordedAt: Date(timeIntervalSinceNow: -45 * 24 * 60 * 60),
+            configuredClientID: "claudeCode",
+            launchCommand: executableURL.path,
+            launchArguments: ["--stdio"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Last used"))
+        XCTAssertTrue(model.clientProgressSummary(for: claude).contains("Last used"))
+        XCTAssertTrue(model.clientNextStepDetail(for: claude).contains("Last used"))
+        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.toolName, "list_documents")
+    }
+
+    @MainActor
+    func testRefreshDropsPassedLocalCheckWhenConfiguredLaunchSpecChanges() async throws {
+        let firstExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP")
+        let secondExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP-alt")
+        try FileManager.default.createDirectory(
+            at: firstExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: firstExecutableURL, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nexit 0\n".write(to: secondExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: firstExecutableURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: secondExecutableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(firstExecutableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let report = MCPServerConnectionReport(
+            protocolVersion: "2025-03-26",
+            toolNames: ["list_notes"],
+            verifiedToolName: "get_started"
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .passed(report))
+        )
+
+        await model.performServerTest(for: .claudeCode)
+
+        var claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+        XCTAssertNil(model.primaryAction(for: claude))
+        XCTAssertTrue(model.clientSummary(for: claude).contains("local check passed"))
+
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(secondExecutableURL.path)",
+              "args": ["--stdio"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        model.refresh()
+
+        claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
+        XCTAssertEqual(model.primaryAction(for: claude), .runServerTest)
+        XCTAssertEqual(model.primaryActionTitle(for: claude), "Check Setup")
+        XCTAssertFalse(model.clientSummary(for: claude).contains("local check passed"))
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Run Check Setup"))
+    }
+
+    @MainActor
+    func testMatchingActualConnectionActivityUsesHomeLaunchSpecWhenProjectAndHomeAreBothConfigured() async throws {
+        let projectExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP-project")
+        let homeExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP-home")
+        try FileManager.default.createDirectory(
+            at: projectExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: projectExecutableURL, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nexit 0\n".write(to: homeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: projectExecutableURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: homeExecutableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(projectExecutableURL.path)",
+              "args": ["--project"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
+        try """
+        {
+          "projects": {
+            "\(repositoryRootURL.path)": {
+              "mcpServers": {
+                "backtick": {
+                  "command": "\(homeExecutableURL.path)",
+                  "args": ["--home"],
+                  "env": {
+                    "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+        """.write(to: claudeHomeConfigURL, atomically: true, encoding: .utf8)
+
+        let activity = MCPConnectorConnectionActivity(
+            transport: .stdio,
+            surface: nil,
+            clientName: "claude-code",
+            clientVersion: "1.0.0",
+            sessionID: "session-both",
+            toolName: "list_documents",
+            recordedAt: Date(timeIntervalSinceNow: -2 * 24 * 60 * 60),
+            configuredClientID: "claudeCode",
+            launchCommand: homeExecutableURL.path,
+            launchArguments: ["--home"]
+        )
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            connectionActivityReader: TestConnectionActivityReader(activities: [activity])
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        XCTAssertEqual(claude.configuredScope, .both)
+        XCTAssertEqual(model.clientVerificationTitle(for: claude), "Connected")
+        XCTAssertEqual(model.actualConnectionActivity(for: claude)?.launchCommand, homeExecutableURL.path)
+        XCTAssertTrue(model.clientSummary(for: claude).contains("Last used"))
+    }
+
+    @MainActor
+    func testPerformServerTestChecksAllConfiguredLaunchSpecsWhenProjectAndHomeExist() async throws {
+        let projectExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP-project")
+        let homeExecutableURL = repositoryRootURL
+            .appendingPathComponent(".build/debug", isDirectory: true)
+            .appendingPathComponent("BacktickMCP-home")
+        try FileManager.default.createDirectory(
+            at: projectExecutableURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try "#!/bin/sh\nexit 0\n".write(to: projectExecutableURL, atomically: true, encoding: .utf8)
+        try "#!/bin/sh\nexit 0\n".write(to: homeExecutableURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: projectExecutableURL.path
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755],
+            ofItemAtPath: homeExecutableURL.path
+        )
+        try """
+        {
+          "mcpServers": {
+            "backtick": {
+              "command": "\(projectExecutableURL.path)",
+              "args": ["--project"],
+              "env": {
+                "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+              }
+            }
+          }
+        }
+        """.write(
+            to: repositoryRootURL.appendingPathComponent(".mcp.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let claudeHomeConfigURL = homeDirectoryURL.appendingPathComponent(".claude.json")
+        try """
+        {
+          "projects": {
+            "\(repositoryRootURL.path)": {
+              "mcpServers": {
+                "backtick": {
+                  "command": "\(homeExecutableURL.path)",
+                  "args": ["--home"],
+                  "env": {
+                    "BACKTICK_CONNECTOR_CLIENT": "claudeCode"
+                  }
+                }
+              }
+            }
+          }
+        }
+        """.write(to: claudeHomeConfigURL, atomically: true, encoding: .utf8)
+
+        let report = MCPServerConnectionReport(
+            protocolVersion: "2025-03-26",
+            toolNames: ["list_notes"],
+            verifiedToolName: "get_started"
+        )
+        let tester = RecordingConnectionTester(state: .passed(report))
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: tester
+        )
+        let claude = try XCTUnwrap(model.clients.first(where: { $0.client == .claudeCode }))
+
+        await model.performServerTest(for: .claudeCode)
+
+        XCTAssertEqual(claude.configuredScope, .both)
+        XCTAssertEqual(
+            tester.launchSpecs,
+            [
+                MCPServerLaunchSpec(
+                    command: projectExecutableURL.path,
+                    arguments: ["--project"],
+                    environment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"]
+                ),
+                MCPServerLaunchSpec(
+                    command: homeExecutableURL.path,
+                    arguments: ["--home"],
+                    environment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"]
+                ),
+            ]
+        )
+        XCTAssertTrue(model.serverTestDetail.contains("across 2 configured entries"))
     }
 
     @MainActor
@@ -852,7 +1471,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT MCP URL"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT web"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("macOS uses the same app"))
     }
 
     @MainActor
@@ -872,10 +1492,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=312 rpcMethod=tools/call targetKind=tool targetName=list_documents"
         )
 
-        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected on Web")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("current app setup"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT web"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · list_documents") == true)
 
         _ = model.updateExperimentalRemotePublicBaseURL("https://new-backtick.test")
@@ -936,7 +1556,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=244 rpcMethod=tools/call targetKind=tool targetName=list_documents"
         )
 
-        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected on Web")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
     }
 
@@ -1193,6 +1813,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         XCTAssertEqual(backtick["command"] as? String, executableURL.path)
         XCTAssertEqual(backtick["args"] as? [String], [])
+        XCTAssertEqual(
+            backtick["env"] as? [String: String],
+            ["BACKTICK_CONNECTOR_CLIENT": "claudeDesktop"]
+        )
     }
 
     @MainActor
@@ -1237,6 +1861,10 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
 
         XCTAssertNotNil(servers["other-server"], "Existing server entries should be preserved")
         XCTAssertNotNil(servers["backtick"], "Backtick server entry should be added")
+        XCTAssertEqual(
+            (servers["backtick"] as? [String: Any])?["env"] as? [String: String],
+            ["BACKTICK_CONNECTOR_CLIENT": "claudeDesktop"]
+        )
     }
 
     @MainActor
@@ -1310,6 +1938,28 @@ private struct TestConnectionTester: MCPServerConnectionTesting {
 
     func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
         state
+    }
+}
+
+private final class RecordingConnectionTester: MCPServerConnectionTesting {
+    private(set) var launchSpecs: [MCPServerLaunchSpec] = []
+    let state: MCPServerConnectionState
+
+    init(state: MCPServerConnectionState) {
+        self.state = state
+    }
+
+    func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
+        launchSpecs.append(launchSpec)
+        return state
+    }
+}
+
+private struct TestConnectionActivityReader: MCPConnectorConnectionActivityReading {
+    let activities: [MCPConnectorConnectionActivity]
+
+    func loadActivities() -> [MCPConnectorConnectionActivity] {
+        activities
     }
 }
 

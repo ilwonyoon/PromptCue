@@ -445,7 +445,7 @@ Current MCP scope split:
 Current MCP platform queue:
 
 1. keep the shipped stdio connector surface stable for `Claude Desktop`, `Claude Code`, and `Codex`
-2. tighten shipped stdio verification semantics so `Verified locally` requires a protocol-correct local probe, not just config detection or `tools/list`
+2. tighten shipped stdio verification semantics so `Connected` requires actual client proof, not just config detection or `tools/list`; keep the local protocol-correct probe as a health check and detail signal
 3. the stdio verification probe should run:
    - exact configured launch command
    - `initialize`
@@ -453,10 +453,10 @@ Current MCP platform queue:
    - `tools/list`
    - one safe read-only `tools/call`
 4. the first safe stdio verification probe should use a read-only Backtick tool with no user-data mutation in temp storage; `get_started` is the current preferred candidate
-5. keep Settings wording split between `Configured` and `Verified locally`; do not imply Claude/Codex approval or automation success unless that exact client path ran
+5. keep Settings wording split between `Configured`, `Connected`, and `Needs attention`; do not imply Claude/Codex approval or automation success unless that exact client path ran
 6. keep ChatGPT remote MCP clearly labeled as `experimental self-hosted`
 7. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state, but keep the user-visible surface limited to current state, one-line reason, and one next action; then freeze a named failure matrix with repeatable stress coverage
-8. treat `Connected` as a stronger state than `Running`: only show it after Backtick has observed at least one successful remote `/mcp` call from the current ChatGPT app setup
+8. treat `Connected` as a stronger state than `Running`: only show it after Backtick has observed at least one successful protected remote `tools/call` from the current ChatGPT app setup, and keep the state surface-specific (`Connected on Web`, `Connected on macOS`)
 9. add a short access-token TTL lane so expiry + refresh recovery can be verified deterministically instead of waiting an hour to discover the connector fell over
 10. keep the minimal sleep/wake and tunnel-drift lane in place now: recheck local helper health on foreground / wake, and surface a single recovery state if the local or public endpoint stops responding; leave deeper automation and long-duration dogfooding for follow-up
 11. do not let MCP work silently replace the remaining main product roadmap now that `R7C`, `R8`, and `R9` are already landed on `main`
@@ -476,14 +476,14 @@ ChatGPT remote MCP reliability matrix:
 | missing or invalid bearer token | client calls `/mcp` without a valid access token | helper returns `401` consistently | package regression + local stress harness |
 | bad OAuth discovery base URL | OAuth mode is enabled with no valid public HTTPS base URL | app refuses to start remote helper and Settings explains why localhost is insufficient for ChatGPT OAuth discovery | runtime guard + Settings copy |
 | public URL changed after app creation | ngrok domain / tunnel target changes while ChatGPT still holds the older connector URL | treat as a stale-app configuration problem and tell the user to recreate the ChatGPT app against the new URL | manual recovery flow, explicitly documented |
-| no proven remote success yet | local helper is healthy, but ChatGPT has not actually completed a protected `/mcp` call with the current app setup | keep the state at `Running`, not `Connected`, until Backtick sees a successful remote request | local runtime signal + targeted app/model regression |
+| no proven remote success yet | local helper is healthy, but ChatGPT has not actually completed a protected `tools/call` with the current app setup | keep the state at `Running`, not `Connected`, until Backtick sees a successful protected remote call from that surface | local runtime signal + targeted app/model regression |
 | access token expires during a healthy session | time passes after the first successful setup and the current access token is no longer valid | old bearer token should fail with `401`, refresh should issue a new access token, and `/mcp` should recover without recreating the ChatGPT app | short-TTL regression + stress harness lane |
 | Mac sleep / wake or tunnel suspension | app stays configured but the machine sleeps, wakes, or the tunnel briefly disappears | Backtick should re-evaluate helper/tunnel state and return to a single recovery path instead of silently pretending the connector is still healthy | wake/foreground local recheck + public probe landed; long-duration dogfood and deeper automation remain follow-up |
 
 Reliability rule for this slice:
 
 - do not treat ChatGPT remote MCP as "working" based only on one happy-path authorization
-- do not treat ChatGPT remote MCP as `Connected` until the current ChatGPT app has actually completed a protected remote `/mcp` request
+- do not treat ChatGPT remote MCP as `Connected` until the current ChatGPT app has actually completed a protected remote `tools/call` request
 - every change in the experimental ChatGPT lane must be judged against the matrix above
 - deterministic local stress coverage should exist for every failure class that does not require a third-party UI or an actual tunnel swap
 - the local reliability lane for this matrix lives in `scripts/run_chatgpt_mcp_stress.sh`

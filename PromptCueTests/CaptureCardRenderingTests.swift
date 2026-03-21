@@ -164,39 +164,19 @@ final class CaptureCardRenderingTests: XCTestCase {
         XCTAssertLessThan(secretView.fittingSize.height, plainView.fittingSize.height)
     }
 
-    func testCardRenderInheritsWindowAppearanceWithoutExplicitColorSchemeOverride() throws {
-        let card = CaptureCard(
-            text: "System appearance inheritance should drive resting card rendering without a manual light or dark override.",
-            createdAt: Date(),
-            screenshotPath: nil,
-            lastCopiedAt: nil,
-            sortOrder: 103
-        )
-
+    func testCardSurfaceInheritsWindowAppearanceWithoutExplicitColorSchemeOverride() throws {
         let darkLuminance = try renderAverageLuminance(
-            of: CaptureCardView(
-                card: card,
-                isSelected: false,
-                selectionMode: false,
-                isExpanded: false,
-                onCopy: {},
-                onToggleSelection: {},
-                onToggleExpansion: {},
-                onDelete: {}
-            ),
+            of: StackNotificationCardSurface {
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 140)
+            },
             appearanceName: .darkAqua
         )
         let lightLuminance = try renderAverageLuminance(
-            of: CaptureCardView(
-                card: card,
-                isSelected: false,
-                selectionMode: false,
-                isExpanded: false,
-                onCopy: {},
-                onToggleSelection: {},
-                onToggleExpansion: {},
-                onDelete: {}
-            ),
+            of: StackNotificationCardSurface {
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 140)
+            },
             appearanceName: .aqua
         )
 
@@ -218,11 +198,26 @@ final class CaptureCardRenderingTests: XCTestCase {
         try data.write(to: url)
     }
 
-    private func renderAverageLuminance(
-        of rootView: CaptureCardView,
+    private func renderAverageLuminance<Content: View>(
+        of rootView: Content,
         appearanceName: NSAppearance.Name
     ) throws -> Double {
-        let hostingView = NSHostingView(rootView: rootView)
+        let colorScheme: ColorScheme
+        switch appearanceName {
+        case .darkAqua, .vibrantDark:
+            colorScheme = .dark
+        default:
+            colorScheme = .light
+        }
+
+        let appearance = try XCTUnwrap(NSAppearance(named: appearanceName))
+        let backgroundColor = resolvedWindowBackgroundColor(for: appearance)
+        let hostingView = NSHostingView(
+            rootView: ZStack(alignment: .topLeading) {
+                Color(nsColor: backgroundColor)
+                rootView.environment(\.colorScheme, colorScheme)
+            }
+        )
         hostingView.frame = NSRect(x: 0, y: 0, width: 360, height: 220)
 
         let window = NSWindow(
@@ -231,7 +226,8 @@ final class CaptureCardRenderingTests: XCTestCase {
             backing: .buffered,
             defer: false
         )
-        window.appearance = NSAppearance(named: appearanceName)
+        window.appearance = appearance
+        hostingView.appearance = appearance
         window.backgroundColor = .clear
         window.contentView = hostingView
         window.layoutIfNeeded()
@@ -249,32 +245,45 @@ final class CaptureCardRenderingTests: XCTestCase {
     }
 
     private func averageLuminance(for bitmap: NSBitmapImageRep) -> Double {
-        guard let data = bitmap.bitmapData else {
-            return 0
-        }
-
-        let bytesPerPixel = max(bitmap.bitsPerPixel / 8, 1)
-        let bytesPerRow = bitmap.bytesPerRow
         var total = 0.0
-        var sampleCount = 0
+        var weightedSampleCount = 0.0
 
         for y in 0..<bitmap.pixelsHigh {
-            let row = data + (y * bytesPerRow)
             for x in 0..<bitmap.pixelsWide {
-                let pixel = row + (x * bytesPerPixel)
-                let red = Double(pixel[0]) / 255.0
-                let green = Double(pixel[1]) / 255.0
-                let blue = Double(pixel[2]) / 255.0
-                total += (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
-                sampleCount += 1
+                guard
+                    let color = bitmap.colorAt(x: x, y: y)?
+                        .usingColorSpace(.deviceRGB)
+                else {
+                    continue
+                }
+
+                let alpha = Double(color.alphaComponent)
+                guard alpha > 0.001 else {
+                    continue
+                }
+
+                let luminance =
+                    (0.2126 * Double(color.redComponent))
+                    + (0.7152 * Double(color.greenComponent))
+                    + (0.0722 * Double(color.blueComponent))
+                total += luminance * alpha
+                weightedSampleCount += alpha
             }
         }
 
-        guard sampleCount > 0 else {
+        guard weightedSampleCount > 0 else {
             return 0
         }
 
-        return total / Double(sampleCount)
+        return total / weightedSampleCount
+    }
+
+    private func resolvedWindowBackgroundColor(for appearance: NSAppearance) -> NSColor {
+        let previousAppearance = NSAppearance.current
+        NSAppearance.current = appearance
+        defer { NSAppearance.current = previousAppearance }
+
+        return NSColor.windowBackgroundColor.usingColorSpace(.deviceRGB) ?? .windowBackgroundColor
     }
 
     private func makeFixtureImage(at url: URL, size: NSSize) throws {

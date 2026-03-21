@@ -321,16 +321,15 @@ The App Sandbox introduces extra complexity around screenshot folder access and 
 
 ## Connector Verification Contract
 
-For Settings-based MCP connectors, product status must separate `Configured` from `Verified locally`.
+For Settings-based MCP connectors, product status must separate `Configured`, `Connected`, and `Needs attention` where useful.
 
 - `Configured` means Backtick found a client config entry that points that client at a Backtick MCP launch command.
-- `Verified locally` means Backtick launched that exact configured command in isolated temp storage and the server completed:
-  - `initialize`
-  - `notifications/initialized`
-  - `tools/list`
-  - one safe read-only `tools/call`
-- Settings must not imply a connector is verified based only on config presence, process launch, or `tools/list`.
-- Settings must not imply client-specific approval or automation flows are proven unless those flows were actually exercised from that client.
+- `Connected` means Backtick has proof that the relevant client path is actually working now.
+  - For stdio clients, that requires actual client proof, not only a local helper launch or `tools/list`.
+  - For ChatGPT remote, that remains surface-specific and requires a real protected `tools/call` from that surface.
+- `Needs attention` means a configured or previously connected path is stale, unreachable, or otherwise needs user action.
+- Settings must not imply a connector is connected based only on config presence, process launch, or `tools/list`.
+- Settings must not imply client-specific approval or automation flows are proven unless those flows were actually exercised from that client or surface.
 
 ## Technical Risks
 

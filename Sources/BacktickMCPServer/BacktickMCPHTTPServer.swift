@@ -302,7 +302,11 @@ final class BacktickMCPHTTPHandler {
             return unauthorizedResponse()
         }
 
-        guard let responseData = await session.handleRequestData(request.body) else {
+        let remoteSurface = remoteClientSurface(from: request.headers)
+        guard let responseData = await session.handleRequestData(
+            request.body,
+            activityContext: .remoteHTTP(surface: remoteSurface.rawValue)
+        ) else {
             var notificationHeaders = corsHeaders()
             if let sessionID = await session.sessionID {
                 notificationHeaders["Mcp-Session-Id"] = sessionID
@@ -316,7 +320,11 @@ final class BacktickMCPHTTPHandler {
         }
 
         if configuration.authMode == .oauth {
-            logProtectedRemoteRequest(request)
+            logProtectedRemoteToolCallSuccess(
+                request,
+                surface: remoteSurface,
+                responseData: responseData
+            )
         }
 
         var extraHeaders = [
@@ -523,10 +531,19 @@ final class BacktickMCPHTTPHandler {
         }
     }
 
-    private func logProtectedRemoteRequest(_ request: BacktickMCPHTTPRequest) {
+    private func logProtectedRemoteToolCallSuccess(
+        _ request: BacktickMCPHTTPRequest,
+        surface: RemoteClientSurface,
+        responseData: Data
+    ) {
         let summary = protectedRequestSummary(from: request.body)
+        guard summary.rpcMethod == "tools/call",
+              isSuccessfulToolCallResponse(responseData) else {
+            return
+        }
+
         var fields = [
-            "surface=\(remoteClientSurface(from: request.headers).rawValue)",
+            "surface=\(surface.rawValue)",
             "path=\(requestURLComponents(for: request).path)",
             "bodyBytes=\(request.body.count)"
         ]
@@ -542,6 +559,16 @@ final class BacktickMCPHTTPHandler {
         }
 
         logger("Backtick MCP HTTP served protected remote request \(fields.joined(separator: " "))")
+    }
+
+    private func isSuccessfulToolCallResponse(_ responseData: Data) -> Bool {
+        guard let payload = try? JSONSerialization.jsonObject(with: responseData),
+              let responseObject = payload as? [String: Any],
+              let result = responseObject["result"] as? [String: Any] else {
+            return false
+        }
+
+        return (result["isError"] as? Bool) == false
     }
 
     private func logOAuthTokenRejection(

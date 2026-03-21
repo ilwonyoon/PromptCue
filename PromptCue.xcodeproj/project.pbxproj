@@ -85,6 +85,7 @@
 		820836A9AF96F1C02339F619 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D57C8B2EF3007C094E964AE /* AppDelegate.swift */; };
 		821635AD08C0277EE465565E /* PromptCueShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */; };
 		83AC7EC81CD09E2844383B34 /* CloudSyncApplyPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16CD05EC799CA93CBD0B5E5 /* CloudSyncApplyPerformanceTests.swift */; };
+		861D3253E318238D3B24CC38 /* MCPConnectorConnectionActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9A9699F3BC65143AD168B4 /* MCPConnectorConnectionActivity.swift */; };
 		86BF45F5A0EB920960FE1732 /* MemoryViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF5F4A66F919D40B8FC899E0 /* MemoryViewerView.swift */; };
 		87DACC5473D8E35DE0C94591 /* RecentScreenshotCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A679683687A04D7C37581DDD /* RecentScreenshotCoordinatorTests.swift */; };
 		8C75B4FB98B0D8107DDE9F9C /* PromptCueCore in Frameworks */ = {isa = PBXBuildFile; productRef = 72E63F66D51437F9424F0BB5 /* PromptCueCore */; };
@@ -303,6 +304,7 @@
 		C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsModel.swift; sourceTree = "<group>"; };
 		CA2879AA171EC8A6059D6871 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
 		CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPConnectorSettingsModel.swift; sourceTree = "<group>"; };
+		CB9A9699F3BC65143AD168B4 /* MCPConnectorConnectionActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPConnectorConnectionActivity.swift; sourceTree = "<group>"; };
 		CE897AF41F6DDD7C3DB86295 /* SettingsNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigationModel.swift; sourceTree = "<group>"; };
 		CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InteractiveDetectedTextView.swift; sourceTree = "<group>"; };
 		D07BDFDB0FA680DEF4D5BA12 /* ParsedMemoryMarkdownTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParsedMemoryMarkdownTests.swift; sourceTree = "<group>"; };
@@ -477,6 +479,7 @@
 				979ACA5A43213CAAE3000BE3 /* AppearanceSettingsModel.swift */,
 				FEBCB8BBEBAA5498AFF55F28 /* CardRetentionSettingsModel.swift */,
 				C9CDF9657A7AB8E4514FEAF0 /* CloudSyncSettingsModel.swift */,
+				CB9A9699F3BC65143AD168B4 /* MCPConnectorConnectionActivity.swift */,
 				CA87B2F4D974C62F4A4CD28F /* MCPConnectorSettingsModel.swift */,
 				7DF85020152C8E2A90F7B51D /* PromptCueSettingsView.swift */,
 				699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */,
@@ -926,6 +929,7 @@
 				A9A325745A3FCD8776614A21 /* HotKeyCenter.swift in Sources */,
 				DD789D6A554599FD7839FD00 /* InteractiveDetectedTextView.swift in Sources */,
 				BD3347E542F5DB6843EBB2EB /* LocalImageThumbnail.swift in Sources */,
+				861D3253E318238D3B24CC38 /* MCPConnectorConnectionActivity.swift in Sources */,
 				689FEF48023B46A799478B39 /* MCPConnectorSettingsModel.swift in Sources */,
 				E7AA21CDDCD18DB98406C867 /* ManagedScreenshotAccess.swift in Sources */,
 				0055B3DBEC86547065DBAC38 /* MemoryViewerModel.swift in Sources */,

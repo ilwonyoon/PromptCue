@@ -245,11 +245,16 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
     private func makeSession() async -> BacktickMCPServerSession {
         let databaseURL = self.databaseURL
         let attachmentsURL = self.attachmentsURL
+        let connectionActivityFileURL = tempDirectoryURL.appendingPathComponent(
+            "BacktickMCPConnectionActivity.json",
+            isDirectory: false
+        )
 
         return await MainActor.run {
             BacktickMCPServerSession(
                 databaseURL: databaseURL,
-                attachmentBaseDirectoryURL: attachmentsURL
+                attachmentBaseDirectoryURL: attachmentsURL,
+                connectionActivityFileURL: connectionActivityFileURL
             )
         }
     }

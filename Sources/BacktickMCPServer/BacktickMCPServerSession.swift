@@ -3,13 +3,22 @@ import PromptCueCore
 
 @MainActor
 final class BacktickMCPServerSession {
+    private static let connectorClientEnvironmentKey = "BACKTICK_CONNECTOR_CLIENT"
+    private static let disableConnectionActivityEnvironmentKey = "BACKTICK_MCP_CONNECTION_ACTIVITY_DISABLED"
+
     private let readService: StackReadService
     private let writeService: StackWriteService
     private let executionService: StackExecutionService
     private let groupService: StackGroupService
     private let documentStore: ProjectDocumentStore
+    private let connectionActivityStore: BacktickMCPConnectionActivityStore
+    private let configuredClientID: String?
+    private let launchCommand: String?
+    private let launchArguments: [String]
 
     private(set) var sessionID: String?
+    private var clientName: String?
+    private var clientVersion: String?
 
     private static let supportedProtocolVersions = [
         "2025-03-26",
@@ -24,7 +33,10 @@ final class BacktickMCPServerSession {
     init(
         fileManager: FileManager = .default,
         databaseURL: URL? = nil,
-        attachmentBaseDirectoryURL: URL? = nil
+        attachmentBaseDirectoryURL: URL? = nil,
+        connectionActivityFileURL: URL? = nil,
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment,
+        commandLine: [String] = CommandLine.arguments
     ) {
         readService = StackReadService(
             fileManager: fileManager,
@@ -48,6 +60,14 @@ final class BacktickMCPServerSession {
             fileManager: fileManager,
             databaseURL: databaseURL
         )
+        configuredClientID = processEnvironment[Self.connectorClientEnvironmentKey]
+        launchCommand = commandLine.first
+        launchArguments = Array(commandLine.dropFirst())
+        connectionActivityStore = BacktickMCPConnectionActivityStore(
+            fileManager: fileManager,
+            fileURL: connectionActivityFileURL,
+            isEnabled: processEnvironment[Self.disableConnectionActivityEnvironmentKey] != "1"
+        )
     }
 
     func handleLine(_ line: String) -> String? {
@@ -61,14 +81,17 @@ final class BacktickMCPServerSession {
             )
         }
 
-        guard let responseData = handleRequestData(data) else {
+        guard let responseData = handleRequestData(data, activityContext: .stdio) else {
             return nil
         }
 
         return String(data: responseData, encoding: .utf8)
     }
 
-    func handleRequestData(_ data: Data) -> Data? {
+    func handleRequestData(
+        _ data: Data,
+        activityContext: BacktickMCPConnectionContext
+    ) -> Data? {
         let payload: Any
         do {
             payload = try JSONSerialization.jsonObject(with: data)
@@ -84,14 +107,14 @@ final class BacktickMCPServerSession {
 
         switch payload {
         case let batch as [Any]:
-            let responses = batch.compactMap { handlePayloadObject($0) }
+            let responses = batch.compactMap { handlePayloadObject($0, activityContext: activityContext) }
             guard !responses.isEmpty else {
                 return nil
             }
             return serializedResponseData(responses)
 
         case let object as [String: Any]:
-            guard let response = handleObject(object) else {
+            guard let response = handleObject(object, activityContext: activityContext) else {
                 return nil
             }
             return serializedResponseData(response)
@@ -107,7 +130,10 @@ final class BacktickMCPServerSession {
         }
     }
 
-    private func handlePayloadObject(_ payload: Any) -> [String: Any]? {
+    private func handlePayloadObject(
+        _ payload: Any,
+        activityContext: BacktickMCPConnectionContext
+    ) -> [String: Any]? {
         guard let object = payload as? [String: Any] else {
             return errorResponse(
                 id: nil,
@@ -116,10 +142,13 @@ final class BacktickMCPServerSession {
             )
         }
 
-        return handleObject(object)
+        return handleObject(object, activityContext: activityContext)
     }
 
-    private func handleObject(_ request: [String: Any]) -> [String: Any]? {
+    private func handleObject(
+        _ request: [String: Any],
+        activityContext: BacktickMCPConnectionContext
+    ) -> [String: Any]? {
         let id = request["id"]
 
         guard request["jsonrpc"] as? String == Self.jsonrpcVersion else {
@@ -173,6 +202,12 @@ final class BacktickMCPServerSession {
 
             let arguments = params["arguments"] as? [String: Any] ?? [:]
             let toolResult = callTool(name: toolName, arguments: arguments)
+            if (toolResult["isError"] as? Bool) == false {
+                recordSuccessfulToolCall(
+                    toolName: toolName,
+                    activityContext: activityContext
+                )
+            }
             return successResponse(id: id, result: toolResult)
 
         default:
@@ -191,6 +226,9 @@ final class BacktickMCPServerSession {
                 Self.supportedProtocolVersions.first(where: { $0 == version })
             } ?? Self.supportedProtocolVersions[0]
 
+        let clientInfo = params["clientInfo"] as? [String: Any]
+        clientName = clientInfo?["name"] as? String
+        clientVersion = clientInfo?["version"] as? String
         sessionID = UUID().uuidString.lowercased()
 
         return [
@@ -213,6 +251,22 @@ final class BacktickMCPServerSession {
                 "version": Self.serverVersion,
             ],
         ]
+    }
+
+    private func recordSuccessfulToolCall(
+        toolName: String,
+        activityContext: BacktickMCPConnectionContext
+    ) {
+        connectionActivityStore.recordSuccessfulToolCall(
+            context: activityContext,
+            clientName: clientName,
+            clientVersion: clientVersion,
+            sessionID: sessionID,
+            toolName: toolName,
+            configuredClientID: configuredClientID,
+            launchCommand: launchCommand,
+            launchArguments: launchArguments
+        )
     }
 
     private func serverInstructions() -> String {
@@ -417,6 +471,9 @@ final class BacktickMCPServerSession {
             [
                 "name": "get_started",
                 "description": "Introduction to Backtick. Call this when the user first connects or asks what Backtick can do. Returns a guide explaining all available tools and example usage.",
+                "annotations": [
+                    "readOnlyHint": true,
+                ],
                 "inputSchema": [
                     "type": "object",
                     "properties": [:] as [String: Any],

@@ -102,7 +102,7 @@ struct PromptCueSettingsView: View {
             expandedToolsClient = nil
         }
         .alert(
-            "Connected",
+            "Configured",
             isPresented: Binding(
                 get: { mcpConnectorSettingsModel.directConfigSuccessClient != nil },
                 set: { if !$0 { mcpConnectorSettingsModel.directConfigSuccessClient = nil } }
@@ -113,7 +113,7 @@ struct PromptCueSettingsView: View {
             }
         } message: {
             if let client = mcpConnectorSettingsModel.directConfigSuccessClient {
-                Text("Backtick has been added to \(client.title). Restart \(client.title) to activate, then try asking: \"List my Backtick notes\"")
+                Text("Backtick has been added to \(client.title). Restart \(client.title), then return here to check it, or use Backtick once there.")
             }
         }
     }
@@ -487,8 +487,8 @@ struct PromptCueSettingsView: View {
             }
 
             SettingsSection(
-                title: "ChatGPT (Experimental)",
-                footer: "Experimental self-hosted ChatGPT connection. Turn this on to let Backtick host a local MCP endpoint on this Mac while your public HTTPS tunnel exposes it.",
+                title: "ChatGPT Web (Experimental)",
+                footer: "Set up in ChatGPT web first. Once connected there, ChatGPT macOS uses the same app. iPhone/iPad are not yet verified.",
                 headerAccessory: {
                     Toggle(
                         "Enable ChatGPT connection",
@@ -587,7 +587,7 @@ struct PromptCueSettingsView: View {
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                rowNote("Paste this into ChatGPT when you create or recreate the Backtick app.")
+                                rowNote("Paste this into ChatGPT web first. ChatGPT macOS uses the same app.")
                             }
                         } actions: {
                             Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
@@ -734,7 +734,7 @@ struct PromptCueSettingsView: View {
                                                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                                                     advancedValueBlock(publicEndpoint, emphasized: true)
                                                     advancedMessageBlock(
-                                                        "Paste this into ChatGPT when you create or recreate the Backtick app."
+                                                        "Paste this into ChatGPT web first. ChatGPT macOS uses the same app."
                                                     )
                                                     Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
                                                         mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
@@ -950,7 +950,7 @@ struct PromptCueSettingsView: View {
                                 }
 
                                 HStack(spacing: PrimitiveTokens.Space.xs) {
-                                    Button("Verify Again") {
+                                    Button("Check Again") {
                                         mcpConnectorSettingsModel.runServerTest(for: client.client)
                                     }
                                     .controlSize(.small)
@@ -984,7 +984,7 @@ struct PromptCueSettingsView: View {
 
     private func focusedConnectorDetail(for client: MCPConnectorClientStatus) -> String {
         if !mcpConnectorSettingsModel.isServerAvailable {
-            return "Restart Backtick, then verify again."
+            return "Restart Backtick, then check again."
         }
 
         if !client.isClientAvailable {
@@ -999,19 +999,45 @@ struct PromptCueSettingsView: View {
             return "Add Backtick to \(client.client.title) to connect it."
         }
 
-        switch mcpConnectorSettingsModel.verificationState(for: client) {
-        case .idle:
+        switch mcpConnectorSettingsModel.readinessState(for: client) {
+        case .unavailable:
+            return "Restart Backtick, then check again."
+        case .installRequired:
+            return "Install \(client.client.title) on this Mac."
+        case .needsSetup:
             if client.client.usesDirectConfig {
-                return "Config saved. Restart \(client.client.title), then ask: \"List my Backtick notes\""
+                return "Click Connect to set up \(client.client.title)."
             }
 
-            return "Backtick is configured and ready to verify."
-        case .running:
-            return "Checking the connection now."
-        case .passed(let report):
-            return "\(report.toolNames.count) tools are ready in \(client.client.title)."
-        case .failed:
-            return "Connected, but the last verification failed."
+            return "Add Backtick to \(client.client.title) to connect it."
+        case .checking:
+            return "Checking the setup now."
+        case .configured:
+            if case .passed = mcpConnectorSettingsModel.verificationState(for: client) {
+                if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
+                    return "Configured. Local check passed. Use Backtick once in \(client.client.title) to mark it connected again. \(lastUsedDetail)"
+                }
+                return "Configured. Local check passed. Use Backtick once in \(client.client.title) to mark it connected."
+            }
+
+            if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
+                return "Configured. Run Check Setup, then use Backtick once in \(client.client.title). \(lastUsedDetail)"
+            }
+            return "Configured. Run Check Setup, then use Backtick once in \(client.client.title)."
+        case .connected:
+            if case .passed(let report) = mcpConnectorSettingsModel.verificationState(for: client) {
+                if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
+                    return "Connected. \(report.toolNames.count) tools passed the local check. \(lastUsedDetail)"
+                }
+                return "Connected. \(report.toolNames.count) tools passed the local check."
+            }
+
+            if let lastUsedDetail = mcpConnectorSettingsModel.clientLastUsedDetail(for: client) {
+                return "Connected in \(client.client.title). \(lastUsedDetail)"
+            }
+            return "Connected in \(client.client.title)."
+        case .needsAttention:
+            return "Configured, but the last local check failed."
         }
     }
 
@@ -1080,10 +1106,10 @@ struct PromptCueSettingsView: View {
 
     private func repairActionTitle(for client: MCPConnectorClientStatus) -> String {
         if case .failed = mcpConnectorSettingsModel.verificationState(for: client) {
-            return "Fix"
+            return "Check Again"
         }
 
-        return "Verify"
+        return "Check"
     }
 
     private func connectorStatusTone(for client: MCPConnectorClientStatus) -> ConnectorChipTone {
@@ -1099,13 +1125,15 @@ struct PromptCueSettingsView: View {
             return .accent
         }
 
-        switch mcpConnectorSettingsModel.verificationState(for: client) {
-        case .passed:
+        switch mcpConnectorSettingsModel.readinessState(for: client) {
+        case .connected:
             return .success
-        case .failed:
+        case .needsAttention:
             return .danger
-        case .idle, .running:
+        case .configured, .checking, .needsSetup:
             return .accent
+        case .unavailable, .installRequired:
+            return .warning
         }
     }
 
@@ -1131,15 +1159,21 @@ struct PromptCueSettingsView: View {
             return "Setup Needed"
         }
 
-        switch mcpConnectorSettingsModel.verificationState(for: client) {
-        case .idle:
-            return "Ready to Verify"
-        case .running:
+        switch mcpConnectorSettingsModel.readinessState(for: client) {
+        case .unavailable:
+            return "Restart"
+        case .installRequired:
+            return "Install"
+        case .needsSetup:
+            return "Setup Needed"
+        case .configured:
+            return "Configured"
+        case .checking:
             return "Checking"
-        case .passed:
+        case .connected:
             return "Connected"
-        case .failed:
-            return "Needs Repair"
+        case .needsAttention:
+            return "Needs Attention"
         }
     }
 
@@ -1160,13 +1194,15 @@ struct PromptCueSettingsView: View {
             return .accent
         }
 
-        switch mcpConnectorSettingsModel.verificationState(for: client) {
-        case .idle, .running:
-            return .accent
-        case .passed:
+        switch mcpConnectorSettingsModel.readinessState(for: client) {
+        case .connected:
             return .success
-        case .failed:
+        case .needsAttention:
             return .danger
+        case .configured, .checking, .needsSetup:
+            return .accent
+        case .unavailable, .installRequired:
+            return .warning
         }
     }
 
@@ -1390,7 +1426,7 @@ struct PromptCueSettingsView: View {
                     } else if client.hasOtherConfigFiles, !client.hasConfiguredScope {
                         connectorNotice(
                             title: "Backtick is missing from this config.",
-                            message: "Open the config file or run the setup command to add Backtick before you verify anything.",
+                            message: "Open the config file or run the setup command to add Backtick before you try to connect it.",
                             tone: .warning
                         )
                     }
@@ -1645,7 +1681,7 @@ struct PromptCueSettingsView: View {
                                     .font(PrimitiveTokens.Typography.panelTitle)
                                     .foregroundStyle(SemanticTokens.Text.primary)
 
-                                Text("Copy this command, run it in Terminal, then return here and click Verify.")
+                                Text("Copy this command, run it in Terminal, then return here to check it, or use Backtick once in the client.")
                                     .font(PrimitiveTokens.Typography.body)
                                     .foregroundStyle(SemanticTokens.Text.secondary)
                             }
@@ -1660,7 +1696,7 @@ struct PromptCueSettingsView: View {
                                     showSetupCommandCopiedFeedback()
                                 }
 
-                                Text("After you run it in Terminal, click Verify Connection below.")
+                                Text("After you run it in Terminal, click Check Connection below, or use Backtick once in the client.")
                                     .font(PrimitiveTokens.Typography.meta)
                                     .foregroundStyle(SemanticTokens.Text.secondary)
                             }
@@ -1695,7 +1731,7 @@ struct PromptCueSettingsView: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(SemanticTokens.Text.secondary)
 
-                    Button("Verify Connection") {
+                    Button("Check Connection") {
                         setupGuideClient = nil
                         mcpConnectorSettingsModel.runServerTest(for: client)
                     }

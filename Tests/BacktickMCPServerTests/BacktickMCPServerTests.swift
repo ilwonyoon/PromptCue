@@ -7,6 +7,7 @@ final class BacktickMCPServerTests: XCTestCase {
     private var tempDirectoryURL: URL!
     private var databaseURL: URL!
     private var attachmentsURL: URL!
+    private var connectionActivityFileURL: URL!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -15,6 +16,7 @@ final class BacktickMCPServerTests: XCTestCase {
         try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
         attachmentsURL = tempDirectoryURL.appendingPathComponent("Attachments", isDirectory: true)
+        connectionActivityFileURL = tempDirectoryURL.appendingPathComponent("BacktickMCPConnectionActivity.json")
     }
 
     override func tearDownWithError() throws {
@@ -25,6 +27,7 @@ final class BacktickMCPServerTests: XCTestCase {
         tempDirectoryURL = nil
         databaseURL = nil
         attachmentsURL = nil
+        connectionActivityFileURL = nil
         try super.tearDownWithError()
     }
 
@@ -90,16 +93,32 @@ final class BacktickMCPServerTests: XCTestCase {
         let updateTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "update_document" }))
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Good:"))
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Bad:"))
+        let getStartedTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "get_started" }))
+        let getStartedAnnotations = try XCTUnwrap(getStartedTool["annotations"] as? [String: Any])
+        XCTAssertEqual(getStartedAnnotations["readOnlyHint"] as? Bool, true)
         let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
         XCTAssertNotNil(properties["userIntent"])
         XCTAssertNotNil(properties["preferredTopic"])
         XCTAssertNotNil(properties["maxProposals"])
 
+        let getStartedResponse = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "get_started",
+                "arguments": [:],
+            ]
+        )
+        let getStartedPayload = try toolPayload(from: getStartedResponse)
+        XCTAssertNotNil(getStartedPayload["welcome"] as? String)
+        XCTAssertNotNil(getStartedPayload["tools"] as? [[String: Any]])
+
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])
         XCTAssertNotNil(capabilities["prompts"])
         XCTAssertNotNil(capabilities["resources"])
 
-        let resourcesResponse = try await sendRequest(session: session, id: 3, method: "resources/list")
+        let resourcesResponse = try await sendRequest(session: session, id: 4, method: "resources/list")
         let resourcesResult = try XCTUnwrap(resourcesResponse["result"] as? [String: Any])
         let resources = try XCTUnwrap(resourcesResult["resources"] as? [Any])
         XCTAssertTrue(resources.isEmpty)
@@ -1483,6 +1502,83 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(error["code"] as? Int, -32601)
     }
 
+    func testInitializeAndToolsListDoNotRecordConnectionActivity() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(
+            session: session,
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "claude-code",
+                    "version": "1.0.0",
+                ],
+            ]
+        )
+        _ = try await sendRequest(session: session, id: 2, method: "tools/list")
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: connectionActivityFileURL.path))
+    }
+
+    func testSuccessfulToolCallRecordsStdioConnectionActivity() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(
+            session: session,
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "claude-code",
+                    "version": "1.0.0",
+                ],
+            ]
+        )
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "get_started",
+                "arguments": [:],
+            ]
+        )
+
+        let state = try loadConnectionActivityState()
+        XCTAssertEqual(state.schemaVersion, 1)
+        XCTAssertEqual(state.activities.count, 1)
+        let activity = try XCTUnwrap(state.activities.first)
+        XCTAssertEqual(activity.transport, .stdio)
+        XCTAssertNil(activity.surface)
+        XCTAssertEqual(activity.clientName, "claude-code")
+        XCTAssertEqual(activity.clientVersion, "1.0.0")
+        XCTAssertEqual(activity.toolName, "get_started")
+        XCTAssertNotNil(activity.sessionID)
+        XCTAssertEqual(activity.configuredClientID, "claudeCode")
+        XCTAssertEqual(activity.launchCommand, "/tmp/BacktickMCP")
+        XCTAssertEqual(activity.launchArguments ?? [], ["--stdio"])
+    }
+
+    func testFailedToolCallDoesNotRecordConnectionActivity() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "does_not_exist",
+                "arguments": [:],
+            ]
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: connectionActivityFileURL.path))
+    }
+
     func testHTTPHandlerServesInitializeOverPost() async throws {
         let session = await makeSession()
         let handler = BacktickMCPHTTPHandler(
@@ -1855,6 +1951,146 @@ final class BacktickMCPServerTests: XCTestCase {
         let refreshPayload = try jsonObject(from: refreshResponse.body)
         XCTAssertNotNil(refreshPayload["access_token"] as? String)
         XCTAssertEqual(refreshPayload["refresh_token"] as? String, refreshToken)
+    }
+
+    func testOAuthProtectedToolCallRecordsRemoteConnectionActivityAndLogsOnlySuccessfulToolCalls() async throws {
+        let session = await makeSession()
+        let oauthStateFileURL = tempDirectoryURL.appendingPathComponent("oauth-activity-state.json", isDirectory: false)
+        var logMessages: [String] = []
+        let handler = BacktickMCPHTTPHandler(
+            session: session,
+            configuration: BacktickMCPHTTPConfiguration(
+                authMode: .oauth,
+                apiKey: nil,
+                publicBaseURL: URL(string: "https://backtick.test")!,
+                oauthStateFileURL: oauthStateFileURL
+            ),
+            logger: { logMessages.append($0) }
+        )
+
+        let registrationBody = try JSONSerialization.data(withJSONObject: [
+            "client_name": "ChatGPT",
+            "redirect_uris": ["https://chat.openai.com/aip/callback"],
+            "token_endpoint_auth_method": "none",
+        ], options: [.sortedKeys])
+        let registrationResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/register",
+                headers: [
+                    "content-length": "\(registrationBody.count)",
+                    "content-type": "application/json",
+                ],
+                body: registrationBody
+            )
+        )
+        XCTAssertEqual(registrationResponse.statusCode, 201)
+        let registrationPayload = try jsonObject(from: registrationResponse.body)
+        let clientID = try XCTUnwrap(registrationPayload["client_id"] as? String)
+
+        let authorizeForm = Data(
+            "client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&response_type=code&scope=backtick.mcp&state=activity123&code_challenge=C4o_XQvR65ONsuHQv0djlsMDYgPVB63jJiXd_a4GETw&code_challenge_method=S256&decision=approve".utf8
+        )
+        let authorizeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/authorize",
+                headers: [
+                    "content-length": "\(authorizeForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: authorizeForm
+            )
+        )
+        XCTAssertEqual(authorizeResponse.statusCode, 302)
+        let redirectLocation = try XCTUnwrap(authorizeResponse.headers["Location"])
+        let redirectComponents = try XCTUnwrap(URLComponents(string: redirectLocation))
+        let authorizationCode = try XCTUnwrap(
+            redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value
+        )
+
+        let tokenForm = Data(
+            "grant_type=authorization_code&code=\(authorizationCode)&client_id=\(clientID)&redirect_uri=https%3A%2F%2Fchat.openai.com%2Faip%2Fcallback&code_verifier=backtick-verifier".utf8
+        )
+        let tokenResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/oauth/token",
+                headers: [
+                    "content-length": "\(tokenForm.count)",
+                    "content-type": "application/x-www-form-urlencoded",
+                ],
+                body: tokenForm
+            )
+        )
+        XCTAssertEqual(tokenResponse.statusCode, 200)
+        let tokenPayload = try jsonObject(from: tokenResponse.body)
+        let accessToken = try XCTUnwrap(tokenPayload["access_token"] as? String)
+
+        let initializeBody = try requestBody(
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "ChatGPT",
+                    "version": "web",
+                ],
+            ]
+        )
+        let initializeResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(accessToken)",
+                    "content-length": "\(initializeBody.count)",
+                    "content-type": "application/json",
+                    "user-agent": "Mozilla/5.0",
+                ],
+                body: initializeBody
+            )
+        )
+        XCTAssertEqual(initializeResponse.statusCode, 200)
+        XCTAssertTrue(logMessages.isEmpty)
+
+        let toolCallBody = try requestBody(
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "get_started",
+                "arguments": [:],
+            ]
+        )
+        let toolCallResponse = await handler.response(
+            for: BacktickMCPHTTPRequest(
+                method: "POST",
+                path: "/mcp",
+                headers: [
+                    "authorization": "Bearer \(accessToken)",
+                    "content-length": "\(toolCallBody.count)",
+                    "content-type": "application/json",
+                    "user-agent": "Mozilla/5.0",
+                ],
+                body: toolCallBody
+            )
+        )
+        XCTAssertEqual(toolCallResponse.statusCode, 200)
+
+        let state = try loadConnectionActivityState()
+        XCTAssertEqual(state.activities.count, 1)
+        let activity = try XCTUnwrap(state.activities.first)
+        XCTAssertEqual(activity.transport, .remoteHTTP)
+        XCTAssertEqual(activity.surface, "web")
+        XCTAssertEqual(activity.clientName, "ChatGPT")
+        XCTAssertEqual(activity.clientVersion, "web")
+        XCTAssertEqual(activity.toolName, "get_started")
+
+        XCTAssertEqual(logMessages.count, 1)
+        XCTAssertTrue(logMessages[0].contains("served protected remote request"))
+        XCTAssertTrue(logMessages[0].contains("rpcMethod=tools/call"))
+        XCTAssertTrue(logMessages[0].contains("targetName=get_started"))
     }
 
     func testOAuthTokenEndpointRejectsCodeReuseAndInvalidRefreshToken() async throws {
@@ -2338,11 +2574,15 @@ final class BacktickMCPServerTests: XCTestCase {
     private func makeSession() async -> BacktickMCPServerSession {
         let databaseURL = self.databaseURL
         let attachmentsURL = self.attachmentsURL
+        let connectionActivityFileURL = self.connectionActivityFileURL
 
         return await MainActor.run {
             BacktickMCPServerSession(
                 databaseURL: databaseURL,
-                attachmentBaseDirectoryURL: attachmentsURL
+                attachmentBaseDirectoryURL: attachmentsURL,
+                connectionActivityFileURL: connectionActivityFileURL,
+                processEnvironment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"],
+                commandLine: ["/tmp/BacktickMCP", "--stdio"]
             )
         }
     }
@@ -2380,6 +2620,13 @@ final class BacktickMCPServerTests: XCTestCase {
     private func jsonObject(from data: Data) throws -> [String: Any] {
         let object = try JSONSerialization.jsonObject(with: data)
         return try XCTUnwrap(object as? [String: Any])
+    }
+
+    private func loadConnectionActivityState() throws -> BacktickMCPConnectionActivityState {
+        let data = try Data(contentsOf: connectionActivityFileURL)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(BacktickMCPConnectionActivityState.self, from: data)
     }
 
     private func expirePersistedAccessToken(_ token: String, in stateFileURL: URL) throws {

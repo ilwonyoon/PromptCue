@@ -3208,15 +3208,36 @@ struct MCPConnectorTerminalLauncher: MCPConnectorTerminalLaunching {
 }
 
 struct MCPServerSelfTester: MCPServerConnectionTesting {
+    private static func brandedToolName(_ canonicalName: String) -> String {
+        switch canonicalName {
+        case "mark_notes_executed":
+            return "backtick_complete_notes"
+        case "list_documents":
+            return "backtick_list_docs"
+        case "recall_document":
+            return "backtick_recall_doc"
+        case "propose_document_saves":
+            return "backtick_propose_save"
+        case "save_document":
+            return "backtick_save_doc"
+        case "update_document":
+            return "backtick_update_doc"
+        case "delete_document":
+            return "backtick_delete_doc"
+        default:
+            return "backtick_\(canonicalName)"
+        }
+    }
+
     private static let expectedToolNames = [
-        "list_notes",
-        "get_note",
-        "create_note",
-        "update_note",
-        "delete_note",
-        "mark_notes_executed",
+        brandedToolName("list_notes"),
+        brandedToolName("get_note"),
+        brandedToolName("create_note"),
+        brandedToolName("update_note"),
+        brandedToolName("delete_note"),
+        brandedToolName("mark_notes_executed"),
     ]
-    private static let verificationToolName = "get_started"
+    private static let verificationToolName = brandedToolName("get_started")
 
     func run(launchSpec: MCPServerLaunchSpec) async -> MCPServerConnectionState {
         await Task.detached(priority: .utility) {

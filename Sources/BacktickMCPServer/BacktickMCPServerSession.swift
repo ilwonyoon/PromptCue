@@ -1,6 +1,101 @@
 import Foundation
 import PromptCueCore
 
+enum BacktickMCPToolNaming {
+    static let canonicalNames = [
+        "list_notes",
+        "get_note",
+        "create_note",
+        "update_note",
+        "delete_note",
+        "mark_notes_executed",
+        "classify_notes",
+        "group_notes",
+        "get_started",
+        "list_documents",
+        "recall_document",
+        "propose_document_saves",
+        "save_document",
+        "update_document",
+        "delete_document",
+    ]
+
+    private static let brandedPrefix = "backtick_"
+    private static let exposedNamesByCanonical = [
+        "list_notes": "backtick_list_notes",
+        "get_note": "backtick_get_note",
+        "create_note": "backtick_create_note",
+        "update_note": "backtick_update_note",
+        "delete_note": "backtick_delete_note",
+        "mark_notes_executed": "backtick_complete_notes",
+        "classify_notes": "backtick_classify_notes",
+        "group_notes": "backtick_group_notes",
+        "get_started": "backtick_get_started",
+        "list_documents": "backtick_list_docs",
+        "recall_document": "backtick_recall_doc",
+        "propose_document_saves": "backtick_propose_save",
+        "save_document": "backtick_save_doc",
+        "update_document": "backtick_update_doc",
+        "delete_document": "backtick_delete_doc",
+    ]
+    private static let canonicalNamesByExposed = Dictionary(
+        uniqueKeysWithValues: exposedNamesByCanonical.map { ($1, $0) }
+    )
+
+    static func exposedName(_ canonicalName: String) -> String {
+        exposedNamesByCanonical[canonicalName] ?? "\(brandedPrefix)\(canonicalName)"
+    }
+
+    static func canonicalName(for requestedName: String) -> String {
+        if canonicalNames.contains(requestedName) {
+            return requestedName
+        }
+
+        if let canonicalName = canonicalNamesByExposed[requestedName] {
+            return canonicalName
+        }
+
+        guard requestedName.hasPrefix(brandedPrefix) else {
+            return requestedName
+        }
+
+        let strippedName = String(requestedName.dropFirst(brandedPrefix.count))
+        guard canonicalNames.contains(strippedName) else {
+            return requestedName
+        }
+
+        return strippedName
+    }
+
+    static func title(for canonicalName: String) -> String {
+        let brandedName = exposedName(canonicalName)
+        let suffix = brandedName.hasPrefix(brandedPrefix)
+            ? String(brandedName.dropFirst(brandedPrefix.count))
+            : brandedName
+        let words = suffix
+            .split(separator: "_")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+        return "Backtick \(words)"
+    }
+
+    static func brandToolReferences(in text: String) -> String {
+        canonicalNames.reduce(text) { partialResult, canonicalName in
+            let pattern = "(?<!\(brandedPrefix))\\b\(NSRegularExpression.escapedPattern(for: canonicalName))\\b"
+            guard let expression = try? NSRegularExpression(pattern: pattern) else {
+                return partialResult
+            }
+
+            let range = NSRange(partialResult.startIndex..., in: partialResult)
+            return expression.stringByReplacingMatches(
+                in: partialResult,
+                range: range,
+                withTemplate: exposedName(canonicalName)
+            )
+        }
+    }
+}
+
 @MainActor
 final class BacktickMCPServerSession {
     private static let connectorClientEnvironmentKey = "BACKTICK_CONNECTOR_CLIENT"
@@ -27,7 +122,7 @@ final class BacktickMCPServerSession {
     private static let jsonrpcVersion = "2.0"
     private static let serverName = "backtick-stack-mcp"
     private static let serverTitle = "Backtick Stack MCP"
-    private static let serverVersion = "0.1.0"
+    private static let serverVersion = "0.2.0"
     private static let iso8601Formatter = makeDateFormatter()
 
     init(
@@ -201,10 +296,11 @@ final class BacktickMCPServerSession {
             }
 
             let arguments = params["arguments"] as? [String: Any] ?? [:]
-            let toolResult = callTool(name: toolName, arguments: arguments)
+            let canonicalToolName = BacktickMCPToolNaming.canonicalName(for: toolName)
+            let toolResult = callTool(name: canonicalToolName, arguments: arguments)
             if (toolResult["isError"] as? Bool) == false {
                 recordSuccessfulToolCall(
-                    toolName: toolName,
+                    toolName: BacktickMCPToolNaming.exposedName(canonicalToolName),
                     activityContext: activityContext
                 )
             }
@@ -270,7 +366,7 @@ final class BacktickMCPServerSession {
     }
 
     private func serverInstructions() -> String {
-        """
+        BacktickMCPToolNaming.brandToolReferences(in: """
         Backtick is project memory shared across AI tools. It is separate from any built-in assistant memory.
 
         When speaking to the user, refer to this memory as Backtick, or 백틱 in Korean conversations. Do not call it generic memory when asking whether to save or recall something.
@@ -298,11 +394,11 @@ final class BacktickMCPServerSession {
         Content rules:
         - Save durable context, decisions, plans, constraints, and structured summaries that will help a future AI session resume work.
         - Do not save coding-session logs, file-by-file change logs, shell or test-command transcripts, or git-like execution history.
-        """
+        """)
     }
 
     private func toolDefinitions() -> [[String: Any]] {
-        [
+        let definitions: [[String: Any]] = [
             [
                 "name": "list_notes",
                 "description": "List Stack notes grouped by category: pinned (permanent prompts), active (today's work), and copied (used prompts). Each group is returned separately.",
@@ -591,6 +687,22 @@ final class BacktickMCPServerSession {
                 ],
             ],
         ]
+
+        return definitions.map(brandedToolDefinition)
+    }
+
+    private func brandedToolDefinition(_ definition: [String: Any]) -> [String: Any] {
+        guard let canonicalName = definition["name"] as? String else {
+            return definition
+        }
+
+        var branded = definition
+        branded["name"] = BacktickMCPToolNaming.exposedName(canonicalName)
+        branded["title"] = BacktickMCPToolNaming.title(for: canonicalName)
+        if let description = branded["description"] as? String {
+            branded["description"] = BacktickMCPToolNaming.brandToolReferences(in: description)
+        }
+        return branded
     }
 
     private func projectDocumentTypeSchema() -> [String: Any] {
@@ -665,7 +777,7 @@ final class BacktickMCPServerSession {
             }
 
             if mutatesStack {
-                notifyStackDidChange(toolName: name)
+                notifyStackDidChange(toolName: BacktickMCPToolNaming.exposedName(name))
             }
 
             return toolSuccessResult(value)
@@ -831,17 +943,17 @@ final class BacktickMCPServerSession {
                 "Copied": "Notes you've already used. They move to the Copied section so your active stack stays clean.",
             ],
             "tools": [
-                ["name": "list_notes", "use": "See all your notes grouped by pinned, active, and copied."],
-                ["name": "create_note", "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],
-                ["name": "update_note", "use": "Edit a note's text, tags, or pin status."],
-                ["name": "mark_notes_executed", "use": "Mark notes as used after you've acted on them."],
-                ["name": "get_note", "use": "Fetch a single note with its full copy history."],
-                ["name": "classify_notes", "use": "Group notes by repository, session, or app for organized context."],
-                ["name": "list_documents", "use": "Discover reviewed Memory documents without loading their full content."],
-                ["name": "recall_document", "use": "Load one durable project document when a discussion needs prior context."],
-                ["name": "propose_document_saves", "use": "Draft reviewed save proposals before anything is written to Backtick Memory."],
-                ["name": "save_document", "use": "Save a reviewed markdown document for durable context across AI sessions after the user confirms what to keep."],
-                ["name": "update_document", "use": "Append, replace, or delete one ## section without rewriting the whole document."],
+                ["name": BacktickMCPToolNaming.exposedName("list_notes"), "use": "See all your notes grouped by pinned, active, and copied."],
+                ["name": BacktickMCPToolNaming.exposedName("create_note"), "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],
+                ["name": BacktickMCPToolNaming.exposedName("update_note"), "use": "Edit a note's text, tags, or pin status."],
+                ["name": BacktickMCPToolNaming.exposedName("mark_notes_executed"), "use": "Mark notes as used after you've acted on them."],
+                ["name": BacktickMCPToolNaming.exposedName("get_note"), "use": "Fetch a single note with its full copy history."],
+                ["name": BacktickMCPToolNaming.exposedName("classify_notes"), "use": "Group notes by repository, session, or app for organized context."],
+                ["name": BacktickMCPToolNaming.exposedName("list_documents"), "use": "Discover reviewed Memory documents without loading their full content."],
+                ["name": BacktickMCPToolNaming.exposedName("recall_document"), "use": "Load one durable project document when a discussion needs prior context."],
+                ["name": BacktickMCPToolNaming.exposedName("propose_document_saves"), "use": "Draft reviewed save proposals before anything is written to Backtick Memory."],
+                ["name": BacktickMCPToolNaming.exposedName("save_document"), "use": "Save a reviewed markdown document for durable context across AI sessions after the user confirms what to keep."],
+                ["name": BacktickMCPToolNaming.exposedName("update_document"), "use": "Append, replace, or delete one ## section without rewriting the whole document."],
             ],
             "warmExamples": [
                 "We just settled an important decision. Propose how to save it to Backtick first.",
@@ -974,7 +1086,9 @@ final class BacktickMCPServerSession {
             let existingDocumentSummary = exactExistingDocument.map(documentSummaryDictionary)
                 ?? fallbackExistingDocument.map(documentSummaryDictionary)
 
-            let recommendationTool = existingDocumentSummary == nil ? "save_document" : "update_document"
+            let recommendationTool = existingDocumentSummary == nil
+                ? BacktickMCPToolNaming.exposedName("save_document")
+                : BacktickMCPToolNaming.exposedName("update_document")
             let operation = existingDocumentSummary == nil ? "create" : "update"
             let needsRecall = existingDocumentSummary != nil
             let proposalID = UUID().uuidString.lowercased()

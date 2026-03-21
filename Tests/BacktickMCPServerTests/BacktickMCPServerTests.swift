@@ -9,6 +9,10 @@ final class BacktickMCPServerTests: XCTestCase {
     private var attachmentsURL: URL!
     private var connectionActivityFileURL: URL!
 
+    private func exposedToolName(_ canonicalName: String) -> String {
+        BacktickMCPToolNaming.exposedName(canonicalName)
+    }
+
     override func setUpWithError() throws {
         try super.setUpWithError()
         tempDirectoryURL = FileManager.default.temporaryDirectory
@@ -62,38 +66,44 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(
             tools.compactMap { $0["name"] as? String },
             [
-                "list_notes",
-                "get_note",
-                "create_note",
-                "update_note",
-                "delete_note",
-                "mark_notes_executed",
-                "classify_notes",
-                "group_notes",
-                "get_started",
-                "list_documents",
-                "recall_document",
-                "propose_document_saves",
-                "save_document",
-                "update_document",
-                "delete_document",
+                exposedToolName("list_notes"),
+                exposedToolName("get_note"),
+                exposedToolName("create_note"),
+                exposedToolName("update_note"),
+                exposedToolName("delete_note"),
+                exposedToolName("mark_notes_executed"),
+                exposedToolName("classify_notes"),
+                exposedToolName("group_notes"),
+                exposedToolName("get_started"),
+                exposedToolName("list_documents"),
+                exposedToolName("recall_document"),
+                exposedToolName("propose_document_saves"),
+                exposedToolName("save_document"),
+                exposedToolName("update_document"),
+                exposedToolName("delete_document"),
             ]
         )
         let proposeTool = try XCTUnwrap(
-            tools.first(where: { ($0["name"] as? String) == "propose_document_saves" })
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("propose_document_saves") })
         )
         let inputSchema = try XCTUnwrap(proposeTool["inputSchema"] as? [String: Any])
         XCTAssertEqual(inputSchema["additionalProperties"] as? Bool, false)
         XCTAssertEqual(inputSchema["required"] as? [String], ["project", "content"])
         XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Good:"))
         XCTAssertTrue((proposeTool["description"] as? String ?? "").contains("Bad:"))
-        let saveTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "save_document" }))
+        let saveTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("save_document") })
+        )
         XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Good:"))
         XCTAssertTrue((saveTool["description"] as? String ?? "").contains("Bad:"))
-        let updateTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "update_document" }))
+        let updateTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("update_document") })
+        )
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Good:"))
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Bad:"))
-        let getStartedTool = try XCTUnwrap(tools.first(where: { ($0["name"] as? String) == "get_started" }))
+        let getStartedTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("get_started") })
+        )
         let getStartedAnnotations = try XCTUnwrap(getStartedTool["annotations"] as? [String: Any])
         XCTAssertEqual(getStartedAnnotations["readOnlyHint"] as? Bool, true)
         let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
@@ -426,7 +436,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertFalse(confirmPrompt.isEmpty)
         XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
         let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
-        XCTAssertEqual(recommendation["tool"] as? String, "save_document")
+        XCTAssertEqual(recommendation["tool"] as? String, exposedToolName("save_document"))
         XCTAssertEqual(recommendation["needsRecall"] as? Bool, false)
 
         let listResponse = try await sendRequest(
@@ -511,7 +521,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(confirmPrompt.localizedCaseInsensitiveContains("existing"))
         XCTAssertEqual(review["hideInternalFieldsByDefault"] as? Bool, true)
         let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
-        XCTAssertEqual(recommendation["tool"] as? String, "update_document")
+        XCTAssertEqual(recommendation["tool"] as? String, exposedToolName("update_document"))
         XCTAssertEqual(recommendation["needsRecall"] as? Bool, true)
 
         let listResponse = try await sendRequest(
@@ -594,7 +604,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(existingDocument["topic"] as? String, "markdown-rendering-extension")
         XCTAssertEqual(existingDocument["documentType"] as? String, "decision")
         let recommendation = try XCTUnwrap(proposal["recommendation"] as? [String: Any])
-        XCTAssertEqual(recommendation["tool"] as? String, "update_document")
+        XCTAssertEqual(recommendation["tool"] as? String, exposedToolName("update_document"))
         XCTAssertEqual(recommendation["needsRecall"] as? Bool, true)
     }
 
@@ -1106,13 +1116,14 @@ final class BacktickMCPServerTests: XCTestCase {
 
         let expectation = expectation(description: "stack change notification")
         let center = DistributedNotificationCenter.default()
+        let expectedToolName = exposedToolName("create_note")
         let observer = center.addObserver(
             forName: .backtickStackDidChange,
             object: nil,
             queue: .main
         ) { notification in
             let tool = notification.userInfo?["tool"] as? String
-            if tool == "create_note" {
+            if tool == expectedToolName {
                 expectation.fulfill()
             }
         }
@@ -1383,10 +1394,10 @@ final class BacktickMCPServerTests: XCTestCase {
         let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
         let text = try XCTUnwrap(content["text"] as? String)
 
-        XCTAssertTrue(text.contains("classify_notes"))
-        XCTAssertTrue(text.contains("mark_notes_executed"))
+        XCTAssertTrue(text.contains(exposedToolName("classify_notes")))
+        XCTAssertTrue(text.contains(exposedToolName("mark_notes_executed")))
         XCTAssertTrue(text.contains("before the final response"))
-        XCTAssertTrue(text.contains("Do not call `mark_notes_executed` during planning"))
+        XCTAssertTrue(text.contains("Do not call `\(exposedToolName("mark_notes_executed"))` during planning"))
     }
 
     func testPromptsGetExecuteRequiresMarkingCompletedNotesExecuted() async throws {
@@ -1411,7 +1422,7 @@ final class BacktickMCPServerTests: XCTestCase {
         let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
         let text = try XCTUnwrap(content["text"] as? String)
 
-        XCTAssertTrue(text.contains("mark_notes_executed"))
+        XCTAssertTrue(text.contains(exposedToolName("mark_notes_executed")))
         XCTAssertTrue(text.contains("before returning the final result"))
         XCTAssertTrue(text.contains("leave the rest active"))
     }
@@ -1431,9 +1442,9 @@ final class BacktickMCPServerTests: XCTestCase {
         let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
         let text = try XCTUnwrap(content["text"] as? String)
 
-        XCTAssertTrue(text.contains("list_documents"))
-        XCTAssertTrue(text.contains("recall_document"))
-        XCTAssertTrue(text.contains("propose_document_saves"))
+        XCTAssertTrue(text.contains(exposedToolName("list_documents")))
+        XCTAssertTrue(text.contains(exposedToolName("recall_document")))
+        XCTAssertTrue(text.contains(exposedToolName("propose_document_saves")))
         XCTAssertTrue(text.contains("Never save silently"))
         XCTAssertTrue(text.contains("Save this to Backtick?"))
     }
@@ -1462,7 +1473,7 @@ final class BacktickMCPServerTests: XCTestCase {
 
         XCTAssertTrue(text.contains("aido"))
         XCTAssertTrue(text.contains("memory-save-flow"))
-        XCTAssertTrue(text.contains("propose_document_saves"))
+        XCTAssertTrue(text.contains(exposedToolName("propose_document_saves")))
         XCTAssertTrue(text.contains("Save this to Backtick?"))
         XCTAssertTrue(text.contains("Do not mention internal tool names or schema fields"))
     }
@@ -1556,7 +1567,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertNil(activity.surface)
         XCTAssertEqual(activity.clientName, "claude-code")
         XCTAssertEqual(activity.clientVersion, "1.0.0")
-        XCTAssertEqual(activity.toolName, "get_started")
+        XCTAssertEqual(activity.toolName, exposedToolName("get_started"))
         XCTAssertNotNil(activity.sessionID)
         XCTAssertEqual(activity.configuredClientID, "claudeCode")
         XCTAssertEqual(activity.launchCommand, "/tmp/BacktickMCP")
@@ -2085,7 +2096,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(activity.surface, "web")
         XCTAssertEqual(activity.clientName, "ChatGPT")
         XCTAssertEqual(activity.clientVersion, "web")
-        XCTAssertEqual(activity.toolName, "get_started")
+        XCTAssertEqual(activity.toolName, exposedToolName("get_started"))
 
         XCTAssertEqual(logMessages.count, 1)
         XCTAssertTrue(logMessages[0].contains("served protected remote request"))

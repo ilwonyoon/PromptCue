@@ -67,7 +67,7 @@ enum MCPPromptCatalog {
         name: "workflow",
         description: "Playbook for routing natural-language requests to Backtick Stack MCP tools.",
         arguments: [],
-        bodyTemplate: """
+        bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
         You are an assistant connected to Backtick Stack, a note capture system for developers.
 
         ## Available Workflows
@@ -103,14 +103,14 @@ enum MCPPromptCatalog {
         - For an explicit execute request, call `mark_notes_executed` after verification for the notes that were actually completed, unless the user asks to keep them active.
         - When unsure whether to diagnose or execute, default to diagnose.
         - Show results before taking further action. Do not chain silently.
-        """
+        """)
     )
 
     static let memoryWorkflow = MCPPromptTemplate(
         name: "memory_workflow",
         description: "Playbook for recalling and reviewing Backtick Memory saves without exposing tool jargon.",
         arguments: [],
-        bodyTemplate: """
+        bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
         You are an assistant connected to Backtick Memory, a reviewed project-document system shared across AI tools.
 
         ## Default Memory Behavior
@@ -138,14 +138,14 @@ enum MCPPromptCatalog {
         - If the discussion is mixed and classification is uncertain, prefer one reviewed discussion doc instead of forcing a split.
         - Save durable context, decisions, plans, constraints, and structured summaries.
         - Do not save coding-session logs, shell transcripts, test outputs, or git-like execution history.
-        """
+        """)
     )
 
     static let saveReview = MCPPromptTemplate(
         name: "save_review",
         description: "Prompt for turning a candidate summary into a chat-first Backtick save review before writing.",
         arguments: saveReviewArguments,
-        bodyTemplate: """
+        bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
         You are preparing a reviewed save proposal for Backtick project "{project}".
 
         ## Candidate Summary
@@ -164,7 +164,7 @@ enum MCPPromptCatalog {
            - Do not mention internal tool names or schema fields unless the user asks
         4. Wait for confirmation before calling `save_document` or `update_document`.
         5. If the content is too noisy, overmixed, or not durable, say that plainly and do not write anything yet.
-        """
+        """)
     )
 
     static let triage = MCPPromptTemplate(
@@ -224,7 +224,7 @@ enum MCPPromptCatalog {
         name: "execute",
         description: "Implement changes described in grouped notes step by step.",
         arguments: sharedArguments,
-        bodyTemplate: """
+        bodyTemplate: BacktickMCPToolNaming.brandToolReferences(in: """
         You are an implementer working in an existing codebase.
 
         ## Task
@@ -245,6 +245,6 @@ enum MCPPromptCatalog {
         - Do not refactor unrelated code
         - When the requested work is actually completed and verified, call `mark_notes_executed` for the completed source notes before returning the final result
         - If only part of the work was completed, only mark the completed notes executed and leave the rest active
-        """
+        """)
     )
 }

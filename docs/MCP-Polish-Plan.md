@@ -633,7 +633,7 @@ Memory tools should be easier to summon from the product name alone.
 
 Direction:
 
-- expose branded Memory tool names such as `backtick_recall_document`, `backtick_propose_document_saves`, `backtick_save_document`, and `backtick_update_document`
+- expose branded Memory tool names such as `backtick_recall_doc`, `backtick_propose_save`, `backtick_save_doc`, and `backtick_update_doc`
 - keep the current generic names as compatibility aliases during migration
 - make the branded names the primary surface shown to clients so `Backtick` maps directly to the tool system, not only to the connector
 

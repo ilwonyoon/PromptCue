@@ -2877,6 +2877,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .claudeCode:
             let executable = inspection.status(for: client).cliPath ?? (client.executableName ?? "claude")
             let allowedTools = [
+                "mcp__backtick__list_saved_items",
                 "mcp__backtick__list_notes",
                 "mcp__backtick__get_note",
                 "mcp__backtick__create_note",
@@ -2886,7 +2887,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             ].joined(separator: ",")
 
             return """
-            \(executable) -p --permission-mode dontAsk --allowedTools "\(allowedTools)" "List active Backtick notes."
+            \(executable) -p --permission-mode dontAsk --allowedTools "\(allowedTools)" "Give me a quick Backtick overview across current Stack notes and saved Memory items."
             """
 
         case .claudeDesktop, .codex:

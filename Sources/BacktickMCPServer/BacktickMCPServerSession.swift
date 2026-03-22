@@ -12,6 +12,7 @@ enum BacktickMCPToolNaming {
         "classify_notes",
         "group_notes",
         "get_started",
+        "list_saved_items",
         "list_documents",
         "recall_document",
         "propose_document_saves",
@@ -31,6 +32,7 @@ enum BacktickMCPToolNaming {
         "classify_notes": "backtick_classify_notes",
         "group_notes": "backtick_group_notes",
         "get_started": "backtick_get_started",
+        "list_saved_items": "backtick_list_saved_items",
         "list_documents": "backtick_list_docs",
         "recall_document": "backtick_recall_doc",
         "propose_document_saves": "backtick_propose_save",
@@ -114,6 +116,7 @@ final class BacktickMCPServerSession {
     private(set) var sessionID: String?
     private var clientName: String?
     private var clientVersion: String?
+    private var currentActivityContext: BacktickMCPConnectionContext = .stdio
 
     private static let supportedProtocolVersions = [
         "2025-03-26",
@@ -244,6 +247,9 @@ final class BacktickMCPServerSession {
         _ request: [String: Any],
         activityContext: BacktickMCPConnectionContext
     ) -> [String: Any]? {
+        currentActivityContext = activityContext
+        defer { currentActivityContext = .stdio }
+
         let id = request["id"]
 
         guard request["jsonrpc"] as? String == Self.jsonrpcVersion else {
@@ -375,8 +381,12 @@ final class BacktickMCPServerSession {
         When speaking to the user, refer to this memory as Backtick, or 백틱 in Korean conversations. Do not call it generic memory when asking whether to save or recall something.
 
         Recall behavior:
-        1. When the user mentions a known project, topic, or ongoing work that likely depends on prior Backtick context, call list_documents or recall_document first.
-        2. Do not wait to be asked when prior Backtick context is likely relevant to the current answer.
+        1. For generic requests like "Backtick notes", "load my notes", or "what do I have in Backtick", call list_saved_items first.
+        2. For ChatGPT and Claude app clients, present Memory first, then Stack, unless the user explicitly asked for stack, prompts, pinned, copied, or the current queue.
+        3. For CLI clients like Claude Code or Codex, present Stack first, then Memory, unless the user explicitly asked for Memory, documents, project context, prior decisions, architecture, or plans.
+        4. If the user is still ambiguous after list_saved_items, ask whether they want Memory, Stack, or both before drilling deeper.
+        5. When the user mentions a known project, topic, or ongoing work that likely depends on prior Backtick context, call list_documents or recall_document first.
+        6. Do not wait to be asked when prior Backtick context is likely relevant to the current answer.
 
         Save behavior:
         1. ALWAYS call propose_document_saves before saving. Never call save_document or update_document directly without a prior proposal step.
@@ -580,6 +590,18 @@ final class BacktickMCPServerSession {
                 ],
             ],
             [
+                "name": "list_saved_items",
+                "description": "Read-only overview across Backtick Memory documents and Stack notes. Use this first for generic requests like 'Backtick notes' or 'what do I have in Backtick', then follow the current client priority and clarify Memory, Stack, or both.",
+                "annotations": [
+                    "readOnlyHint": true,
+                ],
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [:] as [String: Any],
+                    "additionalProperties": false,
+                ],
+            ],
+            [
                 "name": "list_documents",
                 "description": "List durable project documents for lightweight discovery. Use this before recall_document, save_document, or update_document when the project is known but the right topic or documentType is unclear. Prefer this over guessing when multiple durable docs may exist for the same project, especially before proposing how to save a long or mixed discussion.",
                 "inputSchema": [
@@ -757,6 +779,9 @@ final class BacktickMCPServerSession {
             case "get_started":
                 mutatesStack = false
                 value = getStartedGuide()
+            case "list_saved_items":
+                mutatesStack = false
+                value = try listSavedItems(arguments: arguments)
             case "list_documents":
                 mutatesStack = false
                 value = try listDocuments(arguments: arguments)
@@ -937,15 +962,18 @@ final class BacktickMCPServerSession {
 
     private func getStartedGuide() -> [String: Any] {
         let noteCount = (try? readService.listNotes(scope: .all).count) ?? 0
+        let documentCount = (try? documentStore.list(project: nil).count) ?? 0
 
         return [
-            "welcome": "Backtick is your AI-connected prompt stack — capture thoughts with Cmd+`, organize them in Stack, and access them from any AI tool.",
+            "welcome": "Backtick keeps your reviewed Memory documents and Stack capture cards available across AI tools.",
             "concepts": [
+                "Memory": "Your durable reviewed documents. App clients usually lead with Memory, while CLI clients usually lead with Stack unless the user clearly asked for saved context.",
                 "Stack": "Your prompt queue. Capture ideas, tasks, and context. Notes auto-expire after 8 hours unless pinned.",
                 "Pinned": "Permanent prompts that never expire. Pin your most-used prompts, project context, or reusable instructions.",
                 "Copied": "Notes you've already used. They move to the Copied section so your active stack stays clean.",
             ],
             "tools": [
+                ["name": BacktickMCPToolNaming.exposedName("list_saved_items"), "use": "Start here for generic Backtick inventory requests. For ChatGPT and Claude app clients, show Memory first. For CLI clients like Claude Code or Codex, show Stack first. Then clarify whether the user wants Memory, Stack, or both if it is still ambiguous."],
                 ["name": BacktickMCPToolNaming.exposedName("list_notes"), "use": "See all your notes grouped by pinned, active, and copied."],
                 ["name": BacktickMCPToolNaming.exposedName("create_note"), "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],
                 ["name": BacktickMCPToolNaming.exposedName("update_note"), "use": "Edit a note's text, tags, or pin status."],
@@ -959,16 +987,49 @@ final class BacktickMCPServerSession {
                 ["name": BacktickMCPToolNaming.exposedName("update_document"), "use": "Append, replace, or delete one ## section without rewriting the whole document."],
             ],
             "warmExamples": [
+                "Load my Backtick notes.",
+                "What do I have in Backtick right now?",
                 "We just settled an important decision. Propose how to save it to Backtick first.",
                 "Turn this conversation into a PRD and save it for later.",
                 "Document only the latest decisions we made about pricing.",
                 "Update our architecture summary with what we just decided.",
                 "Before answering, load the current pricing decisions.",
             ],
-            "tryIt": noteCount > 0
-                ? "You have \(noteCount) notes. Try: \"List my Backtick notes\" or \"Show my pinned prompts\""
-                : "Your stack is empty. Try: \"Create a Backtick note: remember to review PR before merge\"",
+            "tryIt": noteCount + documentCount > 0
+                ? "You have \(documentCount) Memory documents and \(noteCount) Stack notes. Try: \"What do I have in Backtick?\""
+                : "Backtick is empty right now. Try: \"What do I have in Backtick?\" or \"Create a Backtick note: remember to review PR before merge\"",
             "tip": "Capture with Cmd+` from anywhere on your Mac. Your notes appear here instantly.",
+        ]
+    }
+
+    private func listSavedItems(arguments: [String: Any]) throws -> [String: Any] {
+        _ = arguments
+
+        let notes = try readService.listNotes(scope: .all)
+        let pinned = notes.filter { $0.isPinned }
+        let active = notes.filter { !$0.isPinned && !$0.isCopied }
+        let copied = notes.filter { !$0.isPinned && $0.isCopied }
+        let documents = try documentStore.list(project: nil)
+            .sorted(by: { $0.updatedAt > $1.updatedAt })
+        let preferredPresentation = preferredSavedItemsPresentation()
+
+        return [
+            "preferredFirst": preferredPresentation.primaryLane,
+            "presentationOrder": preferredPresentation.order,
+            "memory": [
+                "count": documents.count,
+                "recentDocuments": Array(documents.prefix(5)).map(documentSummaryDictionary),
+            ],
+            "stack": [
+                "count": notes.count,
+                "pinnedCount": pinned.count,
+                "activeCount": active.count,
+                "copiedCount": copied.count,
+                "pinned": Array(pinned.prefix(3)).map(savedItemNotePreview),
+                "active": Array(active.prefix(3)).map(savedItemNotePreview),
+                "copied": Array(copied.prefix(3)).map(savedItemNotePreview),
+            ],
+            "recommendedNextStep": preferredPresentation.recommendedNextStep,
         ]
     }
 
@@ -1398,6 +1459,119 @@ final class BacktickMCPServerSession {
             "isPinned": note.isPinned,
             "sortOrder": note.sortOrder,
         ]
+    }
+
+    private func savedItemNotePreview(_ note: CaptureCard) -> [String: Any] {
+        [
+            "id": note.id.uuidString.lowercased(),
+            "previewText": compactPreview(note.text),
+            "tags": note.tags.map(\.name),
+            "createdAt": Self.iso8601Formatter.string(from: note.createdAt),
+        ]
+    }
+
+    private func compactPreview(_ text: String, maxLength: Int = 120) -> String {
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\n", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalized.count > maxLength else {
+            return normalized
+        }
+        return String(normalized.prefix(maxLength - 1)) + "…"
+    }
+
+    private func preferredSavedItemsPresentation() -> (
+        primaryLane: String,
+        order: [String],
+        recommendedNextStep: String
+    ) {
+        switch defaultSavedItemsPreference() {
+        case .memoryFirst:
+            return (
+                primaryLane: "memory",
+                order: ["memory", "stack"],
+                recommendedNextStep: "For this client, present Memory first, then Stack. If the user explicitly asked for stack, prompts, pinned, copied, or the current queue, switch to Stack first instead. If the request is still ambiguous, ask whether they want Memory, Stack, or both."
+            )
+        case .stackFirst:
+            return (
+                primaryLane: "stack",
+                order: ["stack", "memory"],
+                recommendedNextStep: "For this client, present Stack first, then Memory. If the user explicitly asked for Memory, documents, project context, prior decisions, architecture, or plans, switch to Memory first instead. If the request is still ambiguous, ask whether they want Memory, Stack, or both."
+            )
+        }
+    }
+
+    private func defaultSavedItemsPreference() -> SavedItemsPreference {
+        switch inferredSessionClientKind() {
+        case .chatGPT, .claudeApp:
+            return .memoryFirst
+        case .claudeCode, .codex, .otherCLI:
+            return .stackFirst
+        case .unknown:
+            return currentActivityContext.transport == .remoteHTTP ? .memoryFirst : .stackFirst
+        }
+    }
+
+    private func inferredSessionClientKind() -> SessionClientKind {
+        if currentActivityContext.transport == .remoteHTTP {
+            return .chatGPT
+        }
+
+        if let configuredClientID {
+            let normalizedConfiguredClientID = normalizedRoutingToken(configuredClientID)
+            switch normalizedConfiguredClientID {
+            case "claudecode":
+                return .claudeCode
+            case "codex":
+                return .codex
+            case "claudedesktop":
+                return .claudeApp
+            default:
+                break
+            }
+        }
+
+        guard let clientName else {
+            return currentActivityContext.transport == .stdio ? .otherCLI : .unknown
+        }
+
+        let normalizedClientName = normalizedRoutingToken(clientName)
+        if normalizedClientName.contains("codex") {
+            return .codex
+        }
+        if normalizedClientName.contains("claudecode") {
+            return .claudeCode
+        }
+        if normalizedClientName.contains("chatgpt") {
+            return .chatGPT
+        }
+        if normalizedClientName.contains("claude") {
+            return .claudeApp
+        }
+
+        return currentActivityContext.transport == .stdio ? .otherCLI : .unknown
+    }
+
+    private func normalizedRoutingToken(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+
+    private enum SavedItemsPreference {
+        case memoryFirst
+        case stackFirst
+    }
+
+    private enum SessionClientKind {
+        case chatGPT
+        case claudeApp
+        case claudeCode
+        case codex
+        case otherCLI
+        case unknown
     }
 
     private func documentSummaryDictionary(_ summary: ProjectDocumentSummary) -> [String: Any] {

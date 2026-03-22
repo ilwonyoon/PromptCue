@@ -74,6 +74,13 @@ enum MCPPromptCatalog {
 
         Map the user's natural language request to one of these workflows:
 
+        ### "Backtick notes" / "load my notes" / "what do I have in Backtick"
+        1. `list_saved_items` first so you do not default to Stack only
+        2. For app clients like ChatGPT or Claude app, present Memory first, then Stack
+        3. For CLI clients like Claude Code or Codex, present Stack first, then Memory
+        4. If the user is still ambiguous, ask whether they want Memory, Stack, or both
+        5. Override the default when the user explicitly says stack, prompts, pinned, copied, current queue, memory, documents, project context, prior decisions, architecture, or plans
+
         ### "정리해줘" / "triage" / "organize my notes"
         1. `classify_notes` (scope: active, groupBy: repository) to see what is currently active
         2. Use the **triage** prompt with the note texts to get grouping suggestions
@@ -92,8 +99,10 @@ enum MCPPromptCatalog {
         3. After verified implementation, call `mark_notes_executed` on the source notes before the final response
 
         ### "현황" / "status" / "what do I have"
-        1. `classify_notes` with `scope: active`
-        2. Present a brief grouped overview
+        1. If the user means Backtick broadly, `list_saved_items` first
+        2. For app clients like ChatGPT or Claude app, present Memory first, then Stack
+        3. For CLI clients like Claude Code or Codex, present Stack first, then Memory
+        4. Only use `classify_notes` first when the user clearly asked for Stack status
 
         ## Rules
         - Only process active notes by default. Copied notes are already executed.
@@ -115,11 +124,17 @@ enum MCPPromptCatalog {
 
         ## Default Memory Behavior
 
-        1. When the user mentions an ongoing project, prior decisions, architecture, or plans that likely depend on saved context:
+        1. For generic requests like "Backtick notes", "load my notes", or "what do I have in Backtick":
+           - call `list_saved_items` first
+           - for app clients like ChatGPT or Claude app, present Memory first, then Stack
+           - for CLI clients like Claude Code or Codex, present Stack first, then Memory unless the user explicitly asked for Memory or project context
+           - if the user is still ambiguous, ask whether they want Memory, Stack, or both
+
+        2. When the user mentions an ongoing project, prior decisions, architecture, or plans that likely depend on saved context:
            - call `list_documents` for lightweight discovery when the right topic is unclear
            - call `recall_document` before answering when one specific document is likely relevant
 
-        2. When the user wants to keep something for later, or a meaningful decision / plan / recap has just been reached:
+        3. When the user wants to keep something for later, or a meaningful decision / plan / recap has just been reached:
            - call `propose_document_saves` first
            - review the proposal before any write
            - ask the user in short natural language, for example:
@@ -127,7 +142,7 @@ enum MCPPromptCatalog {
              - "Should I add this to the existing Backtick memo?"
            - do not expose tool jargon like `documentType`, `create`, or `update` unless the user asks
 
-        3. After the user confirms:
+        4. After the user confirms:
            - use `save_document` for a new reviewed document
            - use `update_document` for narrow amendments to an existing document
            - recall the existing document first when the proposal recommends an update

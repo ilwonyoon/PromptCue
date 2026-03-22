@@ -59,6 +59,11 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertTrue(instructions.contains("Do not save silently"))
         XCTAssertTrue(instructions.contains("Good examples"))
         XCTAssertTrue(instructions.contains("Bad examples"))
+        XCTAssertTrue(instructions.contains("list_saved_items"))
+        XCTAssertTrue(instructions.contains("ChatGPT and Claude app clients"))
+        XCTAssertTrue(instructions.contains("Claude Code or Codex"))
+        XCTAssertTrue(instructions.contains("Stack first, then Memory"))
+        XCTAssertTrue(instructions.contains("Memory, Stack, or both"))
 
         let toolsResponse = try await sendRequest(session: session, id: 2, method: "tools/list")
         let toolsResult = try XCTUnwrap(toolsResponse["result"] as? [String: Any])
@@ -75,6 +80,7 @@ final class BacktickMCPServerTests: XCTestCase {
                 exposedToolName("classify_notes"),
                 exposedToolName("group_notes"),
                 exposedToolName("get_started"),
+                exposedToolName("list_saved_items"),
                 exposedToolName("list_documents"),
                 exposedToolName("recall_document"),
                 exposedToolName("propose_document_saves"),
@@ -101,6 +107,11 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Good:"))
         XCTAssertTrue((updateTool["description"] as? String ?? "").contains("Bad:"))
+        let savedItemsTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("list_saved_items") })
+        )
+        let savedItemsAnnotations = try XCTUnwrap(savedItemsTool["annotations"] as? [String: Any])
+        XCTAssertEqual(savedItemsAnnotations["readOnlyHint"] as? Bool, true)
         let getStartedTool = try XCTUnwrap(
             tools.first(where: { ($0["name"] as? String) == exposedToolName("get_started") })
         )
@@ -122,7 +133,11 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let getStartedPayload = try toolPayload(from: getStartedResponse)
         XCTAssertNotNil(getStartedPayload["welcome"] as? String)
-        XCTAssertNotNil(getStartedPayload["tools"] as? [[String: Any]])
+        let getStartedTools = try XCTUnwrap(getStartedPayload["tools"] as? [[String: Any]])
+        XCTAssertTrue(
+            getStartedTools.contains(where: { ($0["name"] as? String) == exposedToolName("list_saved_items") })
+        )
+        XCTAssertTrue((getStartedPayload["tryIt"] as? String ?? "").contains("What do I have in Backtick?"))
 
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])
         XCTAssertNotNil(capabilities["prompts"])
@@ -386,6 +401,181 @@ final class BacktickMCPServerTests: XCTestCase {
             payload["error"] as? String,
             "content must be at least 200 characters of structured markdown"
         )
+    }
+
+    func testListSavedItemsReturnsStackFirstCompactOverviewForCLIClients() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(session: session, id: 1, method: "initialize")
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Pinned prompt for release review",
+                    "isPinned": true,
+                    "createdAt": "2026-03-20T09:00:00.000Z",
+                ],
+            ]
+        )
+        _ = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Active item for pricing sync",
+                    "createdAt": "2026-03-20T10:00:00.000Z",
+                ],
+            ]
+        )
+        let copiedNoteResponse = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Copied item for launch checklist",
+                    "createdAt": "2026-03-20T11:00:00.000Z",
+                ],
+            ]
+        )
+        let copiedNote = try notePayload(from: copiedNoteResponse)
+        let copiedNoteID = try XCTUnwrap(copiedNote["id"] as? String)
+        _ = try await sendRequest(
+            session: session,
+            id: 5,
+            method: "tools/call",
+            params: [
+                "name": "mark_notes_executed",
+                "arguments": [
+                    "noteIDs": [copiedNoteID],
+                    "copiedAt": "2026-03-20T11:30:00.000Z",
+                ],
+            ]
+        )
+
+        let content = """
+        ## Decision
+        We agreed that generic Backtick inventory requests in ChatGPT and Claude should show Memory first and only go Stack-first when the user explicitly asks for stack, prompts, pinned, copied, or the current queue. The overview should stay compact and should encourage a Memory vs Stack vs both clarification when the request is still ambiguous.
+
+        ## Impact
+        This avoids hiding durable project context behind Stack-only assumptions and keeps the assistant's first follow-up grounded in the full Backtick surface instead of whichever lane happened to be easier to query.
+        """
+        _ = try await sendRequest(
+            session: session,
+            id: 6,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "promptcue",
+                    "topic": "inventory-routing",
+                    "documentType": "decision",
+                    "content": content,
+                ],
+            ]
+        )
+
+        let response = try await sendRequest(
+            session: session,
+            id: 7,
+            method: "tools/call",
+            params: [
+                "name": "list_saved_items",
+                "arguments": [:],
+            ]
+        )
+        let payload = try toolPayload(from: response)
+
+        XCTAssertEqual(payload["preferredFirst"] as? String, "stack")
+        XCTAssertEqual(payload["presentationOrder"] as? [String], ["stack", "memory"])
+
+        let memory = try XCTUnwrap(payload["memory"] as? [String: Any])
+        XCTAssertEqual(memory["count"] as? Int, 1)
+        let recentDocuments = try XCTUnwrap(memory["recentDocuments"] as? [[String: Any]])
+        XCTAssertEqual(recentDocuments.first?["topic"] as? String, "inventory-routing")
+
+        let stack = try XCTUnwrap(payload["stack"] as? [String: Any])
+        XCTAssertEqual(stack["count"] as? Int, 3)
+        XCTAssertEqual(stack["pinnedCount"] as? Int, 1)
+        XCTAssertEqual(stack["activeCount"] as? Int, 1)
+        XCTAssertEqual(stack["copiedCount"] as? Int, 1)
+        let pinned = try XCTUnwrap(stack["pinned"] as? [[String: Any]])
+        XCTAssertEqual(pinned.first?["previewText"] as? String, "Pinned prompt for release review")
+
+        let nextStep = try XCTUnwrap(payload["recommendedNextStep"] as? String)
+        XCTAssertTrue(nextStep.contains("Stack first"))
+        XCTAssertTrue(nextStep.contains("Memory, Stack, or both"))
+    }
+
+    func testListSavedItemsReturnsMemoryFirstCompactOverviewForChatGPTRemote() async throws {
+        let session = await makeSession(processEnvironment: [:], commandLine: ["/tmp/BacktickMCP", "--http"])
+        _ = try await sendRequest(
+            session: session,
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "ChatGPT",
+                    "version": "1.0",
+                ],
+            ],
+            activityContext: .remoteHTTP(surface: "web")
+        )
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "tools/call",
+            params: [
+                "name": "create_note",
+                "arguments": [
+                    "text": "Active stack item for remote chat",
+                    "createdAt": "2026-03-20T10:00:00.000Z",
+                ],
+            ],
+            activityContext: .remoteHTTP(surface: "web")
+        )
+        _ = try await sendRequest(
+            session: session,
+            id: 3,
+            method: "tools/call",
+            params: [
+                "name": "save_document",
+                "arguments": [
+                    "project": "promptcue",
+                    "topic": "remote-context",
+                    "documentType": "decision",
+                    "content": "## Decision\nUse Memory first in ChatGPT surfaces.",
+                ],
+            ],
+            activityContext: .remoteHTTP(surface: "web")
+        )
+
+        let response = try await sendRequest(
+            session: session,
+            id: 4,
+            method: "tools/call",
+            params: [
+                "name": "list_saved_items",
+                "arguments": [:],
+            ],
+            activityContext: .remoteHTTP(surface: "web")
+        )
+        let payload = try toolPayload(from: response)
+
+        XCTAssertEqual(payload["preferredFirst"] as? String, "memory")
+        XCTAssertEqual(payload["presentationOrder"] as? [String], ["memory", "stack"])
+        let nextStep = try XCTUnwrap(payload["recommendedNextStep"] as? String)
+        XCTAssertTrue(nextStep.contains("Memory first"))
+        XCTAssertTrue(nextStep.contains("Memory, Stack, or both"))
     }
 
     func testProposeDocumentSavesReturnsCreateProposalThroughJsonRPC() async throws {
@@ -1394,6 +1584,11 @@ final class BacktickMCPServerTests: XCTestCase {
         let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
         let text = try XCTUnwrap(content["text"] as? String)
 
+        XCTAssertTrue(text.contains(exposedToolName("list_saved_items")))
+        XCTAssertTrue(text.contains("ChatGPT or Claude app"))
+        XCTAssertTrue(text.contains("Claude Code or Codex"))
+        XCTAssertTrue(text.contains("Stack first, then Memory"))
+        XCTAssertTrue(text.contains("Memory, Stack, or both"))
         XCTAssertTrue(text.contains(exposedToolName("classify_notes")))
         XCTAssertTrue(text.contains(exposedToolName("mark_notes_executed")))
         XCTAssertTrue(text.contains("before the final response"))
@@ -1442,6 +1637,10 @@ final class BacktickMCPServerTests: XCTestCase {
         let content = try XCTUnwrap(messages.first?["content"] as? [String: Any])
         let text = try XCTUnwrap(content["text"] as? String)
 
+        XCTAssertTrue(text.contains(exposedToolName("list_saved_items")))
+        XCTAssertTrue(text.contains("ChatGPT or Claude app"))
+        XCTAssertTrue(text.contains("Claude Code or Codex"))
+        XCTAssertTrue(text.contains("Memory, Stack, or both"))
         XCTAssertTrue(text.contains(exposedToolName("list_documents")))
         XCTAssertTrue(text.contains(exposedToolName("recall_document")))
         XCTAssertTrue(text.contains(exposedToolName("propose_document_saves")))
@@ -2627,7 +2826,10 @@ final class BacktickMCPServerTests: XCTestCase {
         }
     }
 
-    private func makeSession() async -> BacktickMCPServerSession {
+    private func makeSession(
+        processEnvironment: [String: String] = ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"],
+        commandLine: [String] = ["/tmp/BacktickMCP", "--stdio"]
+    ) async -> BacktickMCPServerSession {
         let databaseURL = self.databaseURL
         let attachmentsURL = self.attachmentsURL
         let connectionActivityFileURL = self.connectionActivityFileURL
@@ -2637,8 +2839,8 @@ final class BacktickMCPServerTests: XCTestCase {
                 databaseURL: databaseURL,
                 attachmentBaseDirectoryURL: attachmentsURL,
                 connectionActivityFileURL: connectionActivityFileURL,
-                processEnvironment: ["BACKTICK_CONNECTOR_CLIENT": "claudeCode"],
-                commandLine: ["/tmp/BacktickMCP", "--stdio"]
+                processEnvironment: processEnvironment,
+                commandLine: commandLine
             )
         }
     }
@@ -2647,14 +2849,13 @@ final class BacktickMCPServerTests: XCTestCase {
         session: BacktickMCPServerSession,
         id: Any,
         method: String,
-        params: [String: Any] = [:]
+        params: [String: Any] = [:],
+        activityContext: BacktickMCPConnectionContext = .stdio
     ) async throws -> [String: Any] {
         let data = try requestBody(id: id, method: method, params: params)
-        let line = try XCTUnwrap(String(data: data, encoding: .utf8))
-        let responseLine = try await MainActor.run {
-            try XCTUnwrap(session.handleLine(line))
+        let responseData = try await MainActor.run {
+            try XCTUnwrap(session.handleRequestData(data, activityContext: activityContext))
         }
-        let responseData = try XCTUnwrap(responseLine.data(using: .utf8))
         let responseObject = try JSONSerialization.jsonObject(with: responseData)
         return try XCTUnwrap(responseObject as? [String: Any])
     }

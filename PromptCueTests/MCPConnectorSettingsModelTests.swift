@@ -1233,7 +1233,14 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.automationExample(for: .codex), nil)
         XCTAssertTrue(example?.contains("--permission-mode dontAsk") == true)
         XCTAssertTrue(example?.contains("--allowedTools") == true)
+        XCTAssertTrue(example?.contains("mcp__backtick__list_saved_items") == true)
         XCTAssertTrue(example?.contains("mcp__backtick__mark_notes_executed") == true)
+        XCTAssertTrue(
+            example?.contains("Backtick overview across current Stack notes and saved Memory items") == true
+        )
+        XCTAssertTrue(
+            example?.range(of: "mcp__backtick__list_saved_items,mcp__backtick__list_notes") != nil
+        )
     }
 
     @MainActor

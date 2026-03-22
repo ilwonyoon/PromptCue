@@ -1998,6 +1998,10 @@ struct PromptCueSettingsView: View {
     }
 
     private var screenshotStatusTitle: String {
+        if screenshotSettingsModel.currentSystemFolderMismatch {
+            return "Needs attention"
+        }
+
         switch screenshotSettingsModel.accessState {
         case .notConfigured:
             return "Not connected"
@@ -2009,6 +2013,12 @@ struct PromptCueSettingsView: View {
     }
 
     private var screenshotStatusDetail: String {
+        if screenshotSettingsModel.currentSystemFolderMismatch,
+           case let .connected(_, displayPath) = screenshotSettingsModel.accessState,
+           let suggestedSystemPath = screenshotSettingsModel.suggestedSystemPath {
+            return "Backtick watches \(displayPath), but macOS is currently saving screenshots to \(suggestedSystemPath)."
+        }
+
         switch screenshotSettingsModel.accessState {
         case .notConfigured:
             if let suggestedSystemPath = screenshotSettingsModel.suggestedSystemPath {
@@ -2031,8 +2041,14 @@ struct PromptCueSettingsView: View {
                 screenshotSettingsModel.chooseFolder()
             }
         case .connected:
-            Button("Change…") {
-                screenshotSettingsModel.chooseFolder()
+            if screenshotSettingsModel.currentSystemFolderMismatch {
+                Button("Use Current Folder…") {
+                    screenshotSettingsModel.chooseCurrentSystemFolder()
+                }
+            } else {
+                Button("Change…") {
+                    screenshotSettingsModel.chooseFolder()
+                }
             }
         case .needsReconnect:
             Button("Reconnect…") {
@@ -2042,6 +2058,10 @@ struct PromptCueSettingsView: View {
     }
 
     private var screenshotStatusBadgeTone: SettingsStatusBadge.Tone {
+        if screenshotSettingsModel.currentSystemFolderMismatch {
+            return .warning
+        }
+
         switch screenshotSettingsModel.accessState {
         case .notConfigured:
             return .neutral

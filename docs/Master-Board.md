@@ -20,6 +20,9 @@ Ship Backtick as a native macOS utility app that gives AI-assisted developers a 
 - Screenshot strategy: user-selected screenshot folder with security-scoped bookmark support
 - Persistence baseline: local-only storage with optional auto-expiration, disabled by default
 - Storage engine baseline: `SQLite + GRDB`
+- First-launch review guardrail: `Capture` is bugfix-only before the first DMG;
+  non-blocking tuning in typing, IME, and screenshot-attach hot paths defers
+  until after launch unless a measured regression is being fixed
 
 ## Current Status
 

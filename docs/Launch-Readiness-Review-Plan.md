@@ -38,6 +38,24 @@ Before the first signed DMG ship candidate:
 
 This review is release-risk based.
 
+### Capture Protected Area Rule
+
+For the remainder of the first direct-download launch lane, `Capture` is a
+protected area.
+
+- treat `Capture` runtime changes as `bugfix-only`
+- do not land speculative cleanup, architectural tuning, or interaction polish
+  in the capture typing, IME, or screenshot-attach hot paths during launch review
+- only reopen those paths when all three exist:
+  - a user-visible regression or blocker
+  - a concrete root-cause diagnosis
+  - a reproducible before/after metric for the affected path
+- if a review finding does not break the current product contract for `Capture`,
+  classify it as `Defer` instead of reopening the hot path before ship
+
+This rule exists because late launch-review edits in `Capture` have repeatedly
+caused regressions that were more damaging than the original findings.
+
 ### In Scope
 
 - correctness and regression risk in the core user flow

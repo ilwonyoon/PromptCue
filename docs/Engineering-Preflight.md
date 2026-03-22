@@ -36,6 +36,18 @@ For now, keep `PromptCue` and `PromptCueCore` as technical names in the repo and
 - AI compression happens in Stack, not in Capture
 - Export is clipboard-first, not terminal-integrated
 
+### Launch Review Guardrail
+
+Before the first signed DMG ships, `Capture` should be treated as a protected
+runtime surface.
+
+- only reopen `Capture` typing, IME, layout, or screenshot-attach hot paths for
+  confirmed regressions
+- require a concrete diagnosis plus reproducible before/after measurement before
+  landing any launch-review `Capture` fix
+- defer non-blocking `Capture` tuning until after launch rather than risking a
+  last-minute regression in the primary dump flow
+
 ## 2. Repository And Project Setup
 
 ### Project Structure

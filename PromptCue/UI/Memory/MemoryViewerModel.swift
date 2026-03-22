@@ -4,6 +4,62 @@ import PromptCueCore
 
 @MainActor
 final class MemoryViewerModel: ObservableObject {
+    struct NewDocumentDraft: Equatable {
+        static let starterTemplate = """
+        ## Overview
+
+        Summarize the durable context, why it matters, and the current state so a future session can understand this document without rereading raw notes.
+
+        ## Details
+
+        Capture the key supporting details, constraints, decisions, and follow-up context that should stay durable in Memory.
+        """
+
+        var project: String
+        var topic: String
+        var documentType: ProjectDocumentType
+        var content: String
+
+        init(
+            project: String = "",
+            topic: String = "",
+            documentType: ProjectDocumentType = .discussion,
+            content: String = NewDocumentDraft.starterTemplate
+        ) {
+            self.project = project
+            self.topic = topic
+            self.documentType = documentType
+            self.content = content
+        }
+
+        static func contentForPastedText(_ pastedText: String?) -> String {
+            let trimmed = pastedText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !trimmed.isEmpty else {
+                return starterTemplate
+            }
+
+            if trimmed.hasPrefix("## ") || trimmed.contains("\n## ") {
+                return trimmed
+            }
+
+            return """
+            ## Overview
+
+            \(trimmed)
+
+            ## Details
+
+            Capture the key supporting details, constraints, decisions, and follow-up context that should stay durable in Memory.
+            """
+        }
+    }
+
+    enum SaveSelectedDocumentResult: Equatable {
+        case saved
+        case deleteIntent
+        case failed
+    }
+
     @Published private(set) var projects: [String] = []
     @Published private(set) var summariesByProject: [String: [ProjectDocumentSummary]] = [:]
     @Published private(set) var selectedDocument: ProjectDocument?
@@ -86,10 +142,65 @@ final class MemoryViewerModel: ObservableObject {
         pasteboard.setString(selectedDocument.content, forType: .string)
     }
 
+    func prepareNewDocumentDraft(fromClipboard: Bool = false) -> NewDocumentDraft {
+        NewDocumentDraft(
+            project: selectedProject ?? "",
+            content: fromClipboard
+                ? NewDocumentDraft.contentForPastedText(pasteboardString())
+                : NewDocumentDraft.starterTemplate
+        )
+    }
+
+    func pasteboardString() -> String? {
+        pasteboard.string(forType: .string)
+    }
+
     @discardableResult
-    func saveSelectedDocumentContent(_ content: String) -> Bool {
-        guard let selectedDocumentKey else {
+    func createDocument(
+        project: String,
+        topic: String,
+        documentType: ProjectDocumentType,
+        content: String
+    ) -> Bool {
+        let trimmedProject = project.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        do {
+            guard !trimmedProject.isEmpty else {
+                throw MemoryViewerModelError.projectRequired
+            }
+            guard !trimmedTopic.isEmpty else {
+                throw MemoryViewerModelError.topicRequired
+            }
+
+            try ProjectDocumentStore.validateContent(content)
+
+            let savedDocument = try store.saveDocument(
+                project: trimmedProject,
+                topic: trimmedTopic,
+                documentType: documentType,
+                content: content
+            )
+            storageErrorMessage = nil
+            refresh()
+            selectedProject = savedDocument.project
+            selectedDocumentKey = savedDocument.key
+            return true
+        } catch {
+            storageErrorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    @discardableResult
+    func saveSelectedDocumentContent(_ content: String) -> SaveSelectedDocumentResult {
+        guard let selectedDocumentKey else {
+            return .failed
+        }
+
+        if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            storageErrorMessage = nil
+            return .deleteIntent
         }
 
         do {
@@ -103,6 +214,49 @@ final class MemoryViewerModel: ObservableObject {
             refresh()
             selectedProject = savedDocument.project
             self.selectedDocumentKey = savedDocument.key
+            return .saved
+        } catch {
+            storageErrorMessage = error.localizedDescription
+            return .failed
+        }
+    }
+
+    @discardableResult
+    func deleteSelectedDocument() -> Bool {
+        guard let selectedDocumentKey else {
+            return false
+        }
+
+        let fallbackKey = preferredDocumentSelectionAfterDeletingSelectedDocument()
+
+        do {
+            _ = try store.deleteDocument(
+                project: selectedDocumentKey.project,
+                topic: selectedDocumentKey.topic,
+                documentType: selectedDocumentKey.documentType
+            )
+            storageErrorMessage = nil
+            refresh()
+
+            if let fallbackKey,
+               summaries(for: fallbackKey.project).contains(where: { $0.key == fallbackKey }) {
+                selectedProject = fallbackKey.project
+                self.selectedDocumentKey = fallbackKey
+            }
+
+            return true
+        } catch {
+            storageErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    func deleteProject(_ project: String) -> Bool {
+        do {
+            _ = try store.deleteProject(project)
+            storageErrorMessage = nil
+            refresh()
             return true
         } catch {
             storageErrorMessage = error.localizedDescription
@@ -142,6 +296,38 @@ final class MemoryViewerModel: ObservableObject {
         } catch {
             selectedDocument = nil
             storageErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func preferredDocumentSelectionAfterDeletingSelectedDocument() -> ProjectDocumentKey? {
+        guard let selectedProject,
+              let selectedDocumentKey else {
+            return nil
+        }
+
+        let projectSummaries = summaries(for: selectedProject)
+        guard let selectedIndex = projectSummaries.firstIndex(where: { $0.key == selectedDocumentKey }) else {
+            return projectSummaries.first?.key
+        }
+
+        if projectSummaries.indices.contains(selectedIndex + 1) {
+            return projectSummaries[selectedIndex + 1].key
+        }
+
+        return projectSummaries.first(where: { $0.key != selectedDocumentKey })?.key
+    }
+}
+
+private enum MemoryViewerModelError: LocalizedError {
+    case projectRequired
+    case topicRequired
+
+    var errorDescription: String? {
+        switch self {
+        case .projectRequired:
+            return "project is required"
+        case .topicRequired:
+            return "topic is required"
         }
     }
 }

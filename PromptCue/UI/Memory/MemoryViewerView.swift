@@ -7,6 +7,9 @@ struct MemoryViewerView: View {
     @State private var isEditing = false
     @State private var editorText = ""
     @State private var didCopy = false
+    @State private var isPresentingNewDocumentSheet = false
+    @State private var newDocumentDraft = MemoryViewerModel.NewDocumentDraft()
+    @State private var newDocumentErrorMessage: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -18,7 +21,10 @@ struct MemoryViewerView: View {
                     projects: model.projects,
                     selectedProject: model.selectedProject,
                     documentCount: { model.summaries(for: $0).count },
-                    onSelect: { model.selectedProject = $0 }
+                    onSelect: { model.selectedProject = $0 },
+                    onDeleteProject: { project in
+                        confirmDeleteProject(project)
+                    }
                 )
             }
             .frame(minWidth: 190, idealWidth: 220, maxWidth: 240, maxHeight: .infinity)
@@ -27,18 +33,13 @@ struct MemoryViewerView: View {
                 backgroundColor: Color(nsColor: .textBackgroundColor),
                 showsTrailingBorder: true
             ) {
-                if let selectedProject = model.selectedProject {
-                    MemoryDocumentListPane(
-                        summaries: model.summaries(for: selectedProject),
-                        selectedDocumentKey: model.selectedDocumentKey,
-                        onSelect: { model.selectedDocumentKey = $0 }
-                    )
-                } else {
-                    MemoryEmptyState(
-                        title: "No Project Selected",
-                        message: "Choose a project to browse its durable documents."
-                    )
-                }
+                MemoryDocumentListPane(
+                    selectedProject: model.selectedProject,
+                    summaries: model.summaries(for: model.selectedProject),
+                    selectedDocumentKey: model.selectedDocumentKey,
+                    onSelect: { model.selectedDocumentKey = $0 },
+                    onCreateDocument: { openNewDocumentSheet() }
+                )
             }
             .frame(minWidth: 176, idealWidth: 196, maxWidth: 220, maxHeight: .infinity)
 
@@ -64,16 +65,24 @@ struct MemoryViewerView: View {
                         isEditing = false
                     },
                     onSaveEditing: {
-                        if model.saveSelectedDocumentContent(editorText) {
+                        switch model.saveSelectedDocumentContent(editorText) {
+                        case .saved:
                             isEditing = false
+                        case .deleteIntent:
+                            confirmDeleteSelectedDocument()
+                        case .failed:
+                            break
                         }
+                    },
+                    onDeleteDocument: {
+                        confirmDeleteSelectedDocument()
                     }
                 )
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .automatic) {
                 Button {
                     model.refresh()
                     if !isEditing {
@@ -83,6 +92,41 @@ struct MemoryViewerView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
+        }
+        .sheet(isPresented: $isPresentingNewDocumentSheet) {
+            MemoryNewDocumentSheet(
+                draft: $newDocumentDraft,
+                errorMessage: newDocumentErrorMessage,
+                onPasteClipboard: {
+                    let pastedText = model.pasteboardString()
+                    guard let pastedText,
+                          !pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                        newDocumentErrorMessage = "Clipboard does not contain text."
+                        return
+                    }
+
+                    newDocumentDraft.content = MemoryViewerModel.NewDocumentDraft
+                        .contentForPastedText(pastedText)
+                    newDocumentErrorMessage = nil
+                },
+                onCancel: {
+                    isPresentingNewDocumentSheet = false
+                    newDocumentErrorMessage = nil
+                },
+                onCreate: {
+                    if model.createDocument(
+                        project: newDocumentDraft.project,
+                        topic: newDocumentDraft.topic,
+                        documentType: newDocumentDraft.documentType,
+                        content: newDocumentDraft.content
+                    ) {
+                        isPresentingNewDocumentSheet = false
+                        newDocumentErrorMessage = nil
+                    } else {
+                        newDocumentErrorMessage = model.storageErrorMessage
+                    }
+                }
+            )
         }
         .onChange(of: model.selectedDocument?.id) { _, _ in
             if !isEditing {
@@ -106,6 +150,82 @@ struct MemoryViewerView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             didCopy = false
         }
+    }
+
+    private func openNewDocumentSheet() {
+        newDocumentDraft = model.prepareNewDocumentDraft()
+        newDocumentErrorMessage = nil
+        isPresentingNewDocumentSheet = true
+    }
+
+    private func confirmDeleteSelectedDocument() {
+        guard let document = model.selectedDocument else {
+            return
+        }
+
+        let confirmed = presentDeletionAlert(
+            title: "Delete Document?",
+            message: "Delete \(document.topic) from \(document.project)? This removes it from the active Memory list.",
+            actionTitle: "Delete"
+        )
+
+        guard confirmed else {
+            return
+        }
+
+        if model.deleteSelectedDocument() {
+            isEditing = false
+            editorText = model.selectedDocument?.content ?? ""
+        }
+    }
+
+    private func confirmDeleteProject(_ project: String) {
+        let activeDocumentCount = model.summaries(for: project).count
+        let confirmed = presentDeletionAlert(
+            title: "Delete Project?",
+            message: "Delete \(activeDocumentCount) active document(s) from \(project)? This keeps historical superseded rows hidden but intact.",
+            actionTitle: "Delete Project"
+        )
+
+        guard confirmed else {
+            return
+        }
+
+        let deletedSelectedProject = project == model.selectedProject
+        if model.deleteProject(project),
+           deletedSelectedProject {
+            isEditing = false
+            editorText = model.selectedDocument?.content ?? ""
+        }
+    }
+
+    private func presentDeletionAlert(
+        title: String,
+        message: String,
+        actionTitle: String
+    ) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: actionTitle)
+        alert.addButton(withTitle: "Cancel")
+        alert.buttons.first?.hasDestructiveAction = true
+        alert.icon = themedAlertIcon()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func themedAlertIcon() -> NSImage? {
+        guard let image = NSImage(named: "BacktickSidebarMark")?.copy() as? NSImage else {
+            return nil
+        }
+
+        image.isTemplate = true
+        image.size = NSSize(
+            width: PrimitiveTokens.Alert.iconSize,
+            height: PrimitiveTokens.Alert.iconSize
+        )
+        return image
     }
 
     private static var notesSidebarBackground: Color {
@@ -145,6 +265,7 @@ private struct MemoryProjectListPane: View {
     let selectedProject: String?
     let documentCount: (String) -> Int
     let onSelect: (String) -> Void
+    let onDeleteProject: (String) -> Void
 
     var body: some View {
         ScrollView {
@@ -165,6 +286,11 @@ private struct MemoryProjectListPane: View {
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                         }
                     }
+                    .contextMenu {
+                        Button("Delete Project...", role: .destructive) {
+                            onDeleteProject(project)
+                        }
+                    }
                 }
             }
             .padding(10)
@@ -173,21 +299,54 @@ private struct MemoryProjectListPane: View {
 }
 
 private struct MemoryDocumentListPane: View {
+    let selectedProject: String?
     let summaries: [ProjectDocumentSummary]
     let selectedDocumentKey: ProjectDocumentKey?
     let onSelect: (ProjectDocumentKey) -> Void
+    let onCreateDocument: () -> Void
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: SettingsTokens.Layout.sidebarItemSpacing) {
-                ForEach(summaries) { summary in
-                    MemorySelectableRowShell(
-                        style: .content,
-                        isSelected: summary.key == selectedDocumentKey,
-                        action: { onSelect(summary.key) }
-                    ) {
-                        MemoryDocumentSummaryRow(summary: summary)
+        VStack(spacing: 0) {
+            if summaries.isEmpty {
+                MemoryEmptyState(
+                    title: selectedProject == nil ? "No Project Selected" : "No Documents",
+                    message: selectedProject == nil
+                        ? "Create a durable document or choose a project to browse."
+                        : "Create a durable document for this project."
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: SettingsTokens.Layout.sidebarItemSpacing) {
+                        ForEach(summaries) { summary in
+                            MemorySelectableRowShell(
+                                style: .content,
+                                isSelected: summary.key == selectedDocumentKey,
+                                action: { onSelect(summary.key) }
+                            ) {
+                                MemoryDocumentSummaryRow(summary: summary)
+                            }
+                        }
                     }
+                    .padding(10)
+                }
+            }
+
+            Divider()
+
+            MemorySelectableRowShell(
+                style: .content,
+                isSelected: false,
+                action: onCreateDocument
+            ) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.badge.plus")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+
+                    Text("New Document")
+                        .font(SettingsTokens.Typography.sidebarLabel)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                        .lineLimit(1)
                 }
             }
             .padding(10)
@@ -318,6 +477,91 @@ private struct MemoryDocumentSummaryRow: View {
     }
 }
 
+private struct MemoryNewDocumentSheet: View {
+    @Binding var draft: MemoryViewerModel.NewDocumentDraft
+    let errorMessage: String?
+    let onPasteClipboard: () -> Void
+    let onCancel: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("New Document")
+                .font(.title3.weight(.semibold))
+
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Project")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Project", text: $draft.project)
+                        .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Topic")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Topic", text: $draft.topic)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Type")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Type", selection: $draft.documentType) {
+                    ForEach(ProjectDocumentType.allCases, id: \.self) { documentType in
+                        Text(documentType.rawValue.capitalized)
+                            .tag(documentType)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Content")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Paste Clipboard", action: onPasteClipboard)
+                        .keyboardShortcut("v", modifiers: [.command, .shift])
+                }
+
+                MemoryPlainTextEditor(text: $draft.content)
+                    .frame(minHeight: 280)
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+                    }
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                Button("Create", action: onCreate)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 580, minHeight: 500)
+    }
+}
+
 private struct MemoryDetailPane: View {
     let document: ProjectDocument?
     @Binding var isEditing: Bool
@@ -327,6 +571,7 @@ private struct MemoryDetailPane: View {
     let onStartEditing: () -> Void
     let onCancelEditing: () -> Void
     let onSaveEditing: () -> Void
+    let onDeleteDocument: () -> Void
 
     var body: some View {
         if let document {
@@ -361,6 +606,13 @@ private struct MemoryDetailPane: View {
                             controlSize: 24,
                             isActive: didCopy,
                             action: onCopy
+                        )
+                        StackRailControlButton(
+                            systemName: "trash",
+                            accessibilityLabel: "Delete document",
+                            glyphSize: 13,
+                            controlSize: 24,
+                            action: onDeleteDocument
                         )
                         if isEditing {
                             StackRailControlButton(

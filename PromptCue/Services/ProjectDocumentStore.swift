@@ -23,6 +23,10 @@ enum ProjectDocumentStoreError: LocalizedError {
 final class ProjectDocumentStore {
     private let database: PromptCueDatabase
 
+    static func validateContent(_ content: String) throws {
+        try validateStoredDocumentContent(content)
+    }
+
     init(database: PromptCueDatabase) {
         self.database = database
     }
@@ -193,6 +197,46 @@ final class ProjectDocumentStore {
         } catch {
             NSLog("ProjectDocumentStore saveDocument failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.saveFailed(error)
+        }
+    }
+
+    func deleteProject(_ project: String) throws -> Int {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.write { db in
+                let deletedCount = try Int.fetchOne(
+                    db,
+                    sql: """
+                    SELECT COUNT(*)
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL
+                      AND project = ?
+                    """,
+                    arguments: [project]
+                ) ?? 0
+
+                guard deletedCount > 0 else {
+                    return 0
+                }
+
+                try db.execute(
+                    sql: """
+                    UPDATE \(ProjectDocumentRecord.databaseTableName)
+                    SET supersededByID = 'deleted'
+                    WHERE supersededByID IS NULL
+                      AND project = ?
+                    """,
+                    arguments: [project]
+                )
+
+                return deletedCount
+            }
+        } catch {
+            NSLog("ProjectDocumentStore deleteProject failed: %@", error.localizedDescription)
+            throw ProjectDocumentStoreError.deleteFailed(error)
         }
     }
 

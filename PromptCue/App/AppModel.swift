@@ -257,6 +257,44 @@ final class AppModel: ObservableObject {
         return payload
     }
 
+    func markCardCopiedWithoutCopy(_ card: CaptureCard) {
+        guard card.isCopied == false else {
+            return
+        }
+
+        let copiedAt = Date()
+        let updatedCards = sortedCards(
+            cards.map { existingCard in
+                guard existingCard.id == card.id else {
+                    return existingCard
+                }
+
+                return existingCard.markCopied(at: copiedAt)
+            }
+        )
+
+        guard let copiedCard = updatedCards.first(where: { $0.id == card.id }) else {
+            return
+        }
+
+        do {
+            try cardStore.upsert([copiedCard])
+            storageErrorMessage = nil
+        } catch {
+            logStorageFailure("Card copied-state save failed", error: error)
+            return
+        }
+
+        cards = updatedCards
+        selectedCardIDs.remove(card.id)
+        stagedCopiedCardIDs.removeAll { $0 == card.id }
+        syncStagedCopyMode()
+        if hasStagedCopiedCards {
+            _ = syncStagedMultiCopyClipboard()
+        }
+        pushCopiedCardsToCloudSync([copiedCard], forcePerCardDispatch: true)
+    }
+
     func commitDeferredCopies() {
         let deferredCopiedIDs = stagedCopiedCardIDs
         guard !deferredCopiedIDs.isEmpty else {

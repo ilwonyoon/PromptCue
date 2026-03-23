@@ -603,13 +603,17 @@ final class BacktickMCPServerSession {
             ],
             [
                 "name": "list_documents",
-                "description": "List durable project documents for lightweight discovery. Use this before recall_document, save_document, or update_document when the project is known but the right topic or documentType is unclear. Prefer this over guessing when multiple durable docs may exist for the same project, especially before proposing how to save a long or mixed discussion.",
+                "description": "List durable project documents for lightweight discovery, sorted by vividness (most vivid first). Dormant documents are excluded by default to keep the list focused — set include_dormant to true when the user explicitly asks for older memories. Each document includes a vividness tier (vivid, fading, dormant) and a dormantCount showing how many documents were filtered out.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
                         "project": [
                             "type": ["string", "null"],
                             "description": "Optional project filter. Omit to list all current documents.",
+                        ],
+                        "include_dormant": [
+                            "type": "boolean",
+                            "description": "Include dormant (long-unused) documents. Defaults to false.",
                         ],
                     ],
                     "additionalProperties": false,
@@ -1035,12 +1039,31 @@ final class BacktickMCPServerSession {
 
     private func listDocuments(arguments: [String: Any]) throws -> [String: Any] {
         let project = try parseOptionalString(arguments["project"])
-        let documents = try documentStore.list(project: project)
+        let includeDormant = (arguments["include_dormant"] as? Bool) ?? false
+        let allDocuments = try documentStore.list(project: project)
 
-        return [
-            "count": documents.count,
-            "documents": documents.map(documentSummaryDictionary),
+        let sorted = allDocuments.sorted { lhs, rhs in
+            lhs.retrievability() > rhs.retrievability()
+        }
+
+        if includeDormant {
+            return [
+                "count": sorted.count,
+                "documents": sorted.map(documentSummaryDictionary),
+            ]
+        }
+
+        let active = sorted.filter { $0.vividnessTier() != .dormant }
+        let dormantCount = sorted.count - active.count
+
+        var result: [String: Any] = [
+            "count": active.count,
+            "documents": active.map(documentSummaryDictionary),
         ]
+        if dormantCount > 0 {
+            result["dormantCount"] = dormantCount
+        }
+        return result
     }
 
     private func recallDocument(arguments: [String: Any]) throws -> [String: Any] {
@@ -1050,6 +1073,14 @@ final class BacktickMCPServerSession {
             topic: key.topic,
             documentType: key.documentType
         )
+
+        if document != nil {
+            try documentStore.recordRecall(
+                project: key.project,
+                topic: key.topic,
+                documentType: key.documentType
+            )
+        }
 
         return [
             "document": document.map(documentDictionary) ?? NSNull(),
@@ -1581,6 +1612,7 @@ final class BacktickMCPServerSession {
             "topic": summary.topic,
             "documentType": summary.documentType.rawValue,
             "updatedAt": Self.iso8601Formatter.string(from: summary.updatedAt),
+            "vividness": summary.vividnessTier().rawValue,
         ]
     }
 
@@ -1591,6 +1623,7 @@ final class BacktickMCPServerSession {
             "topic": document.topic,
             "documentType": document.documentType.rawValue,
             "updatedAt": Self.iso8601Formatter.string(from: document.updatedAt),
+            "vividness": document.vividnessTier().rawValue,
         ]
     }
 
@@ -1604,6 +1637,7 @@ final class BacktickMCPServerSession {
             "createdAt": Self.iso8601Formatter.string(from: document.createdAt),
             "updatedAt": Self.iso8601Formatter.string(from: document.updatedAt),
             "supersededByID": document.supersededByID?.uuidString.lowercased() ?? NSNull(),
+            "vividness": document.vividnessTier().rawValue,
         ]
     }
 

@@ -3,7 +3,8 @@ import CoreGraphics
 
 // Backtick stack-card overflow policy.
 // Owns long-card measurement and interaction thresholds so stack-card views can
-// stay lightweight and capture/runtime sizing can remain untouched.
+// stay lightweight and use a Stack-specific scan band instead of inheriting
+// Capture editor sizing.
 enum StackCardOverflowPolicy {
     struct Metrics: Equatable {
         let totalLineCount: Int
@@ -29,10 +30,10 @@ enum StackCardOverflowPolicy {
 
     static let collapsedCopiedSummaryLineLimit = 2
     static let collapsedCopiedLineLimit = collapsedCopiedSummaryLineLimit
-    static let restingMaxVisibleHeight = CaptureRuntimeMetrics.editorMaxHeight * 2
+    static let restingVisibleLineLimit = 8
     static let expandedMaxVisibleHeight = CGFloat.greatestFiniteMagnitude
     static let restingOverflowToleranceLines = 1
-    static let textBottomBreathingRoom: CGFloat = PrimitiveTokens.Space.xs
+    static let textBottomBreathingRoom: CGFloat = PrimitiveTokens.Space.sm
     static let affordanceTopSpacing: CGFloat = PrimitiveTokens.Space.xs
     static let actionColumnReservedWidth = PrimitiveTokens.Space.xl + PrimitiveTokens.Space.sm
     static let cardTextWidth =
@@ -159,8 +160,12 @@ enum StackCardOverflowPolicy {
     ) -> Metrics {
         let totalLineCount = max(1, Int(ceil((measuredHeight + bodyLineSpacing) / bodyLineAdvance)))
 
-        let restingVisibleTextHeight = min(measuredHeight, restingMaxVisibleHeight)
-        let rawHiddenRestingLineCount = max(0, totalLineCount - maxVisibleLineCount(in: restingVisibleTextHeight))
+        let restingVisibleLineCount = min(totalLineCount, restingVisibleLineLimit)
+        let restingVisibleTextHeight = min(
+            measuredHeight,
+            visibleTextHeight(forLineCount: restingVisibleLineCount)
+        )
+        let rawHiddenRestingLineCount = max(0, totalLineCount - restingVisibleLineCount)
         let hiddenRestingLineCount: Int
         let resolvedRestingVisibleTextHeight: CGFloat
         if rawHiddenRestingLineCount <= restingOverflowToleranceLines {
@@ -208,13 +213,27 @@ enum StackCardOverflowPolicy {
         max(1, Int(floor((height + bodyLineSpacing) / bodyLineAdvance)))
     }
 
-    private static func measureTextHeight(measurementText: NSAttributedString, width: CGFloat) -> CGFloat {
-        let boundingRect = measurementText.boundingRect(
-            with: CGSize(width: width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
+    private static func visibleTextHeight(forLineCount lineCount: Int) -> CGFloat {
+        guard lineCount > 1 else {
+            return bodyBaseLineHeight
+        }
 
-        return max(bodyBaseLineHeight, ceil(boundingRect.height))
+        return bodyBaseLineHeight + CGFloat(lineCount - 1) * bodyLineAdvance
+    }
+
+    private static func measureTextHeight(measurementText: NSAttributedString, width: CGFloat) -> CGFloat {
+        let textStorage = NSTextStorage(attributedString: measurementText)
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = 0
+
+        layoutManager.addTextContainer(textContainer)
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let measuredHeight = layoutManager.usedRect(for: textContainer).height
+        return max(bodyBaseLineHeight, ceil(measuredHeight))
     }
 
     private static func metricsCacheKey(text: String, width: CGFloat) -> NSString {

@@ -688,7 +688,9 @@ private final class StackPanelShellView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
-        layer?.masksToBounds = true
+        // Keep the backdrop itself rounded, but allow card/plate shadows near
+        // the panel edge to render without getting clipped by the shell layer.
+        layer?.masksToBounds = false
         layer?.backgroundColor = NSColor.clear.cgColor
 
         effectView.translatesAutoresizingMaskIntoConstraints = false

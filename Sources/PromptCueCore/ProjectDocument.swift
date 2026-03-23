@@ -32,6 +32,9 @@ public struct ProjectDocument: Codable, Sendable, Identifiable, Equatable {
     public var createdAt: Date
     public var updatedAt: Date
     public var supersededByID: UUID?
+    public var stability: Double
+    public var recallCount: Int
+    public var lastRecalledAt: Date?
 
     public init(
         id: UUID = UUID(),
@@ -41,7 +44,10 @@ public struct ProjectDocument: Codable, Sendable, Identifiable, Equatable {
         content: String,
         createdAt: Date,
         updatedAt: Date,
-        supersededByID: UUID? = nil
+        supersededByID: UUID? = nil,
+        stability: Double = DocumentVividness.defaultStability,
+        recallCount: Int = 0,
+        lastRecalledAt: Date? = nil
     ) {
         self.id = id
         self.project = project
@@ -51,6 +57,9 @@ public struct ProjectDocument: Codable, Sendable, Identifiable, Equatable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.supersededByID = supersededByID
+        self.stability = stability
+        self.recallCount = recallCount
+        self.lastRecalledAt = lastRecalledAt
     }
 
     public var key: ProjectDocumentKey {
@@ -72,19 +81,28 @@ public struct ProjectDocumentSummary: Codable, Sendable, Equatable, Identifiable
     public var topic: String
     public var documentType: ProjectDocumentType
     public var updatedAt: Date
+    public var stability: Double
+    public var recallCount: Int
+    public var lastRecalledAt: Date?
 
     public init(
         id: UUID,
         project: String,
         topic: String,
         documentType: ProjectDocumentType,
-        updatedAt: Date
+        updatedAt: Date,
+        stability: Double = DocumentVividness.defaultStability,
+        recallCount: Int = 0,
+        lastRecalledAt: Date? = nil
     ) {
         self.id = id
         self.project = project
         self.topic = topic
         self.documentType = documentType
         self.updatedAt = updatedAt
+        self.stability = stability
+        self.recallCount = recallCount
+        self.lastRecalledAt = lastRecalledAt
     }
 
     public var key: ProjectDocumentKey {

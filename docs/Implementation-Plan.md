@@ -213,6 +213,10 @@ Recently landed reference slices:
   - shipped as a capped resting card height plus `+N lines` affordance
   - clicking the overflow affordance expands active stack cards without introducing inner text scrollers
   - copied-stack collapsed summaries remain bounded and do not expand inline
+- follow-up rule locked after ship:
+  - Stack long-text collapse is governed by a Stack-specific resting line cap, not by `CaptureRuntimeMetrics.editorMaxHeight`
+  - active cards should stay fully visible through the scan band, but once they exceed that Stack cap they should collapse and show `+N lines`
+  - copied-stack collapsed summaries remain a stricter bounded summary and do not inherit the active-card cap
 
 Planning note:
 

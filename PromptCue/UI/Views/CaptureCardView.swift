@@ -45,6 +45,7 @@ struct CaptureCardView: View {
     let onCopy: () -> Void
     let onEdit: () -> Void
     let onCopyRaw: () -> Void
+    let onMarkCopied: () -> Void
     let onToggleSelection: () -> Void
     let onCmdClick: () -> Void
     let onToggleExpansion: () -> Void
@@ -86,6 +87,7 @@ struct CaptureCardView: View {
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void = {},
         onCopyRaw: @escaping () -> Void = {},
+        onMarkCopied: @escaping () -> Void = {},
         onToggleSelection: @escaping () -> Void,
         onCmdClick: @escaping () -> Void = {},
         onToggleExpansion: @escaping () -> Void,
@@ -104,6 +106,7 @@ struct CaptureCardView: View {
         self.onCopy = onCopy
         self.onEdit = onEdit
         self.onCopyRaw = onCopyRaw
+        self.onMarkCopied = onMarkCopied
         self.onToggleSelection = onToggleSelection
         self.onCmdClick = onCmdClick
         self.onToggleExpansion = onToggleExpansion
@@ -251,6 +254,9 @@ struct CaptureCardView: View {
                 Divider()
             }
             Button("Edit", action: onEdit)
+            if !card.isCopied {
+                Button("Mark as Copied", action: onMarkCopied)
+            }
             Button("Copy Raw  ⌥ click", action: onCopyRaw)
         }
         .onTapGesture {

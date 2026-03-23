@@ -242,6 +242,56 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertEqual(copiedIDs, [cards[0].id])
     }
 
+    func testMarkCardCopiedWithoutCopyMarksOnlyThatCardAndKeepsStackState() throws {
+        let cards = [
+            CaptureCard(id: UUID(), text: "First", createdAt: Date(timeIntervalSinceReferenceDate: 300), sortOrder: 30),
+            CaptureCard(id: UUID(), text: "Second", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+            CaptureCard(id: UUID(), text: "Third", createdAt: Date(timeIntervalSinceReferenceDate: 100), sortOrder: 10),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        _ = model.toggleMultiCopiedCard(cards[0])
+        _ = model.toggleMultiCopiedCard(cards[1])
+
+        model.markCardCopiedWithoutCopy(cards[0])
+
+        XCTAssertTrue(model.isMultiSelectMode)
+        XCTAssertEqual(model.stagedCopiedCardIDs, [cards[1].id])
+        XCTAssertTrue(model.cards.first(where: { $0.id == cards[0].id })?.isCopied == true)
+        XCTAssertTrue(model.cards.first(where: { $0.id == cards[1].id })?.isCopied == false)
+        XCTAssertTrue(model.cards.first(where: { $0.id == cards[2].id })?.isCopied == false)
+    }
+
+    func testMarkCardCopiedWithoutCopyDoesNothingForAlreadyCopiedCard() throws {
+        let copiedAt = Date(timeIntervalSinceReferenceDate: 400)
+        let cards = [
+            CaptureCard(
+                id: UUID(),
+                text: "Already copied",
+                createdAt: Date(timeIntervalSinceReferenceDate: 300),
+                lastCopiedAt: copiedAt,
+                sortOrder: 30
+            ),
+            CaptureCard(id: UUID(), text: "Active", createdAt: Date(timeIntervalSinceReferenceDate: 200), sortOrder: 20),
+        ]
+        try saveCards(cards)
+
+        let model = makeModel()
+        model.reloadCards()
+
+        model.markCardCopiedWithoutCopy(cards[0])
+
+        XCTAssertEqual(
+            model.cards.first(where: { $0.id == cards[0].id })?.lastCopiedAt,
+            copiedAt
+        )
+        XCTAssertFalse(model.isMultiSelectMode)
+        XCTAssertTrue(model.stagedCopiedCardIDs.isEmpty)
+    }
+
     func testRefreshCardsForExternalChangesReloadsCardsWrittenByExternalService() throws {
         let model = makeModel()
         model.reloadCards()

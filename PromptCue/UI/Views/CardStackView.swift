@@ -204,6 +204,9 @@ struct CardStackView: View {
             onCopyRaw: {
                 _ = model.copyRaw(card: card)
             },
+            onMarkCopied: {
+                model.markCardCopiedWithoutCopy(card)
+            },
             onToggleSelection: {
                 _ = model.toggleMultiCopiedCard(card)
             },
@@ -247,6 +250,9 @@ struct CardStackView: View {
                 },
                 onCopyRaw: {
                     _ = model.copyRaw(card: card)
+                },
+                onMarkCopied: {
+                    model.markCardCopiedWithoutCopy(card)
                 },
                 onToggleSelection: {
                     _ = model.toggleMultiCopiedCard(card)

@@ -600,6 +600,16 @@ private struct MemoryDocumentListPane: View {
     let onEditDocument: (ProjectDocumentKey) -> Void
     let onDeleteDocument: (ProjectDocumentKey) -> Void
 
+    @State private var isDormantExpanded = false
+
+    private var activeSummaries: [ProjectDocumentSummary] {
+        summaries.filter { $0.vividnessTier() != .dormant }
+    }
+
+    private var dormantSummaries: [ProjectDocumentSummary] {
+        summaries.filter { $0.vividnessTier() == .dormant }
+    }
+
     var body: some View {
         if summaries.isEmpty {
             MemoryEmptyState(
@@ -612,48 +622,89 @@ private struct MemoryDocumentListPane: View {
         } else {
             MemoryPaneScrollBody(horizontalPadding: MemoryPaneMetrics.documentListHorizontalInset) {
                 LazyVStack(spacing: PrimitiveTokens.Space.xxs) {
-                    ForEach(summaries) { summary in
-                        CompactSelectableRow(
-                            tone: .content,
-                            isSelected: summary.key == selectedDocumentKey,
-                            contentHorizontalPadding: MemoryPaneMetrics.documentRowContentPadding,
-                            debugFill: MemoryLayoutDebug.isEnabled ? MemoryLayoutDebug.rowContent : nil,
-                            action: {
-                                guard !isInteractionDisabled else { return }
-                                onSelect(summary.key)
-                            }
-                        ) {
-                            MemoryDocumentSummaryRow(summary: summary)
-                        }
-                        .contextMenu {
-                            Button("Copy") {
-                                onCopyDocument(summary.key)
-                            }
-                            .disabled(isInteractionDisabled)
-                            Button("Edit") {
-                                onEditDocument(summary.key)
-                            }
-                            .disabled(isInteractionDisabled)
-                            Button("Delete", role: .destructive) {
-                                onDeleteDocument(summary.key)
-                            }
-                            .disabled(isInteractionDisabled)
-                        }
+                    ForEach(activeSummaries) { summary in
+                        documentRow(for: summary)
+                    }
+
+                    if !dormantSummaries.isEmpty {
+                        dormantSection
                     }
                 }
             }
         }
     }
+
+    private func documentRow(for summary: ProjectDocumentSummary) -> some View {
+        CompactSelectableRow(
+            tone: .content,
+            isSelected: summary.key == selectedDocumentKey,
+            contentHorizontalPadding: MemoryPaneMetrics.documentRowContentPadding,
+            debugFill: MemoryLayoutDebug.isEnabled ? MemoryLayoutDebug.rowContent : nil,
+            action: {
+                guard !isInteractionDisabled else { return }
+                onSelect(summary.key)
+            }
+        ) {
+            MemoryDocumentSummaryRow(
+                summary: summary,
+                isFading: summary.vividnessTier() == .fading
+            )
+        }
+        .contextMenu {
+            Button("Copy") {
+                onCopyDocument(summary.key)
+            }
+            .disabled(isInteractionDisabled)
+            Button("Edit") {
+                onEditDocument(summary.key)
+            }
+            .disabled(isInteractionDisabled)
+            Button("Delete", role: .destructive) {
+                onDeleteDocument(summary.key)
+            }
+            .disabled(isInteractionDisabled)
+        }
+    }
+
+    private var dormantSection: some View {
+        VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+            Button {
+                withAnimation(.easeInOut(duration: PrimitiveTokens.Motion.hoverQuick)) {
+                    isDormantExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: PrimitiveTokens.Space.xxs) {
+                    Image(systemName: isDormantExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                    Text("Older (\(dormantSummaries.count))")
+                        .font(MemoryPaneTypography.summaryRow)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, PrimitiveTokens.Space.xxs)
+            }
+            .buttonStyle(.plain)
+
+            if isDormantExpanded {
+                ForEach(dormantSummaries) { summary in
+                    documentRow(for: summary)
+                }
+            }
+        }
+        .padding(.top, PrimitiveTokens.Space.xs)
+    }
 }
 
 private struct MemoryDocumentSummaryRow: View {
     let summary: ProjectDocumentSummary
+    var isFading: Bool = false
 
     var body: some View {
         Text(summary.topic)
             .font(MemoryPaneTypography.summaryRow)
             .lineLimit(1)
-            .foregroundStyle(SemanticTokens.Text.primary)
+            .foregroundStyle(isFading ? SemanticTokens.Text.secondary : SemanticTokens.Text.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

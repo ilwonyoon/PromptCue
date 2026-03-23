@@ -109,6 +109,36 @@ final class MemoryViewerModelTests: XCTestCase {
         XCTAssertEqual(model.summaries(for: "Backtick").count, 1)
     }
 
+    func testSaveDocumentDoesNotIncreaseRecallMetrics() throws {
+        let store = try makeStore()
+        let baseDate = Date(timeIntervalSince1970: 2_500)
+        _ = try store.saveDocument(
+            project: "Backtick",
+            topic: "brief",
+            documentType: .reference,
+            content: sampleContent(title: "Initial Brief"),
+            now: baseDate
+        )
+
+        let recalled = try XCTUnwrap(store.recordRecall(
+            project: "Backtick",
+            topic: "brief",
+            documentType: .reference,
+            now: baseDate.addingTimeInterval(86_400)
+        ))
+        let saved = try store.saveDocument(
+            project: "Backtick",
+            topic: "brief",
+            documentType: .reference,
+            content: sampleContent(title: "Updated Brief"),
+            now: baseDate.addingTimeInterval(2 * 86_400)
+        )
+
+        XCTAssertEqual(saved.recallCount, recalled.recallCount)
+        XCTAssertEqual(saved.lastRecalledAt, recalled.lastRecalledAt)
+        XCTAssertEqual(saved.stability, recalled.stability, accuracy: 0.001)
+    }
+
     func testDeleteSelectedDocumentPrefersNextDocumentInSameProject() throws {
         let store = try makeStore()
         let baseDate = Date(timeIntervalSince1970: 3_000)

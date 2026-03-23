@@ -165,6 +165,9 @@ Rules:
 - overflow should remain understandable
 - users should be able to read the full card on demand without turning Stack into a document reader
 - copied-stack summaries should obey the same overflow rules and stay visually stable
+- Stack must use its own resting long-text cap instead of reusing Capture editor height
+- active Stack cards should collapse once body text exceeds the resting scan limit, then expose `+N lines`
+- the resting scan limit should be line-based so future Capture sizing changes do not silently change Stack behavior
 
 ## Functional Scope
 

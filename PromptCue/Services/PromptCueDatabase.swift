@@ -189,6 +189,14 @@ final class PromptCueDatabase {
             )
         }
 
+        migrator.registerMigration("addDocumentVividness") { db in
+            try db.alter(table: PromptCueDatabaseSchema.projectDocumentsTableName) { table in
+                table.add(column: "stability", .double).notNull().defaults(to: 7.0)
+                table.add(column: "recallCount", .integer).notNull().defaults(to: 0)
+                table.add(column: "lastRecalledAt", .datetime)
+            }
+        }
+
         return migrator
     }
 }

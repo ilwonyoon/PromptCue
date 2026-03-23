@@ -107,6 +107,58 @@ final class ScreenshotDirectoryObserverTests: XCTestCase {
         XCTAssertNil(result.readableCandidate)
     }
 
+    func testLocatorReturnsLatestSignalAndReadableCandidatesFromAuthorizedFolder() throws {
+        let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
+        try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
+
+        let olderReadableURL = authorizedDirectoryURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.58 PM.png")
+        try Data("readable".utf8).write(to: olderReadableURL)
+
+        let latestSignalURL = authorizedDirectoryURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.59 PM.png")
+        FileManager.default.createFile(atPath: latestSignalURL.path, contents: Data())
+
+        let readableDate = Date().addingTimeInterval(-1)
+        let signalDate = Date()
+        try FileManager.default.setAttributes([.modificationDate: readableDate], ofItemAtPath: olderReadableURL.path)
+        try FileManager.default.setAttributes([.modificationDate: signalDate], ofItemAtPath: latestSignalURL.path)
+
+        let locator = RecentScreenshotLocator(
+            fileManager: .default,
+            authorizedDirectoryProvider: { authorizedDirectoryURL }
+        )
+
+        let result = locator.locateRecentScreenshot(now: signalDate.addingTimeInterval(1), maxAge: 30)
+
+        XCTAssertEqual(result.signalCandidate?.fileURL, latestSignalURL.standardizedFileURL)
+        XCTAssertEqual(result.readableCandidate?.fileURL, olderReadableURL.standardizedFileURL)
+    }
+
+    func testLocateRecentScreenshotSignalPrefersNewestSignalAndOmitsReadableCandidate() throws {
+        let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Desktop", isDirectory: true)
+        try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)
+
+        let olderReadableURL = authorizedDirectoryURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.58 PM.png")
+        try Data("readable".utf8).write(to: olderReadableURL)
+
+        let latestSignalURL = authorizedDirectoryURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.59 PM.png")
+        FileManager.default.createFile(atPath: latestSignalURL.path, contents: Data())
+
+        let readableDate = Date().addingTimeInterval(-1)
+        let signalDate = Date()
+        try FileManager.default.setAttributes([.modificationDate: readableDate], ofItemAtPath: olderReadableURL.path)
+        try FileManager.default.setAttributes([.modificationDate: signalDate], ofItemAtPath: latestSignalURL.path)
+
+        let locator = RecentScreenshotLocator(
+            fileManager: .default,
+            authorizedDirectoryProvider: { authorizedDirectoryURL }
+        )
+
+        let result = locator.locateRecentScreenshotSignal(now: signalDate.addingTimeInterval(1), maxAge: 30)
+
+        XCTAssertEqual(result.signalCandidate?.fileURL, latestSignalURL.standardizedFileURL)
+        XCTAssertNil(result.readableCandidate)
+    }
+
     func testObserverEmitsContentChangeWhenAuthorizedFolderChanges() throws {
         let authorizedDirectoryURL = tempDirectoryURL.appendingPathComponent("Downloads", isDirectory: true)
         try FileManager.default.createDirectory(at: authorizedDirectoryURL, withIntermediateDirectories: true)

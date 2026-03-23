@@ -266,6 +266,35 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         XCTAssertGreaterThan(averageSignalProbeCount, 0)
     }
 
+    func testAuthorizedDirectoryFullScanBenchmark() throws {
+        try XCTSkipUnless(
+            benchmarkRunEnabled,
+            "Compile with -DPROMPTCUE_RUN_PERF_BENCHMARKS or set PROMPTCUE_RUN_PERF_BENCHMARKS=1 to run recent screenshot benchmarks."
+        )
+
+        let fixture = try makeAuthorizedDirectoryFixture(fileCount: 160)
+        let locator = RecentScreenshotLocator(
+            fileManager: .default,
+            authorizedDirectoryProvider: { fixture.directoryURL }
+        )
+
+        let result = benchmark(label: "authorized-directory-full-scan") {
+            let scanResult = locator.locateRecentScreenshot(now: fixture.referenceDate, maxAge: 30)
+            XCTAssertNotNil(scanResult.signalCandidate)
+            XCTAssertNotNil(scanResult.readableCandidate)
+        }
+
+        print(
+            String(
+                format: "Recent screenshot benchmark [authorized-directory-full-scan]: total=%.2fms avg=%.2fms iterations=%d files=%d",
+                result.totalMilliseconds,
+                result.averageMilliseconds,
+                result.iterationCount,
+                fixture.fileCount
+            )
+        )
+    }
+
     private func benchmark(
         label: String,
         operation: () -> Void
@@ -338,6 +367,45 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         )
     }
 
+    private func makeAuthorizedDirectoryFixture(fileCount: Int) throws -> AuthorizedDirectoryFixture {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("AuthorizedScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let referenceDate = Date()
+        let calendar = Calendar(identifier: .gregorian)
+
+        for index in 0..<fileCount {
+            let fileURL = screenshotsURL.appendingPathComponent(String(format: "Screenshot 2026-03-22 at 09.%02d.%02d PM.png", index / 60, index % 60))
+            try Data("png".utf8).write(to: fileURL)
+
+            let modifiedAt = calendar.date(byAdding: .second, value: -(fileCount - index + 10), to: referenceDate) ?? referenceDate
+            try FileManager.default.setAttributes(
+                [.modificationDate: modifiedAt],
+                ofItemAtPath: fileURL.path
+            )
+        }
+
+        let latestSignalURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.59 PM.png")
+        FileManager.default.createFile(atPath: latestSignalURL.path, contents: Data())
+        try FileManager.default.setAttributes(
+            [.modificationDate: referenceDate],
+            ofItemAtPath: latestSignalURL.path
+        )
+
+        let latestReadableURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.58 PM.png")
+        try Data("readable".utf8).write(to: latestReadableURL)
+        try FileManager.default.setAttributes(
+            [.modificationDate: referenceDate.addingTimeInterval(-1)],
+            ofItemAtPath: latestReadableURL.path
+        )
+
+        return AuthorizedDirectoryFixture(
+            directoryURL: screenshotsURL,
+            referenceDate: referenceDate,
+            fileCount: fileCount + 2
+        )
+    }
+
     private func waitForCondition(
         _ description: String,
         timeout: TimeInterval,
@@ -362,6 +430,12 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
 private struct BenchmarkFixture {
     let referenceDate: Date
     let scanResult: RecentScreenshotScanResult
+}
+
+private struct AuthorizedDirectoryFixture {
+    let directoryURL: URL
+    let referenceDate: Date
+    let fileCount: Int
 }
 
 private struct BenchmarkResult {

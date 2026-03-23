@@ -94,20 +94,17 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
         var recentTemporaryContainerDate: Date?
 
         for directoryURL in monitoredDirectoryURLs() {
-            if let signalMatch = newestScreenshot(
+            let matches = newestScreenshotMatches(
                 in: directoryURL,
                 minimumDate: minimumDate,
-                requireReadableContents: false
-            ) {
+                includeReadableCandidate: includeReadableCandidates
+            )
+
+            if let signalMatch = matches.signalMatch {
                 signalCandidates.append(signalMatch)
             }
 
-            if includeReadableCandidates,
-               let readableMatch = newestScreenshot(
-                in: directoryURL,
-                minimumDate: minimumDate,
-                requireReadableContents: true
-               ) {
+            if let readableMatch = matches.readableMatch {
                 readableCandidates.append(readableMatch)
             }
         }
@@ -165,11 +162,11 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
         return url.standardizedFileURL.path.lowercased()
     }
 
-    private func newestScreenshot(
+    private func newestScreenshotMatches(
         in directoryURL: URL,
         minimumDate: Date,
-        requireReadableContents: Bool
-    ) -> ScreenshotMatch? {
+        includeReadableCandidate: Bool
+    ) -> (signalMatch: ScreenshotMatch?, readableMatch: ScreenshotMatch?) {
         guard let contents = try? fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [
@@ -181,18 +178,46 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
             ],
             options: [.skipsHiddenFiles, .skipsPackageDescendants]
         ) else {
-            return nil
+            return (nil, nil)
         }
 
-        return contents
-            .compactMap {
-                screenshotMatch(
-                    for: $0,
-                    minimumDate: minimumDate,
-                    requireReadableContents: requireReadableContents
-                )
+        var bestSignalMatch: ScreenshotMatch?
+        var bestReadableMatch: ScreenshotMatch?
+
+        for url in contents {
+            guard let resourceValues = try? url.resourceValues(
+                forKeys: [.isRegularFileKey, .fileSizeKey, .isReadableKey, .creationDateKey, .contentModificationDateKey]
+            ),
+            let match = screenshotMatch(
+                for: url,
+                minimumDate: minimumDate,
+                resourceValues: resourceValues
+            ) else {
+                continue
             }
-            .max(by: isLowerPriorityMatch)
+
+            if let currentBestSignalMatch = bestSignalMatch {
+                if isLowerPriorityMatch(currentBestSignalMatch, match) {
+                    bestSignalMatch = match
+                }
+            } else {
+                bestSignalMatch = match
+            }
+
+            guard includeReadableCandidate, isReadableCandidate(resourceValues, fileSize: match.fileSize) else {
+                continue
+            }
+
+            if let currentBestReadableMatch = bestReadableMatch {
+                if isLowerPriorityMatch(currentBestReadableMatch, match) {
+                    bestReadableMatch = match
+                }
+            } else {
+                bestReadableMatch = match
+            }
+        }
+
+        return (bestSignalMatch, bestReadableMatch)
     }
 
     private func newestTemporaryScreenshotMatches(
@@ -302,13 +327,13 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
     private func screenshotMatch(
         for url: URL,
         minimumDate: Date,
-        requireReadableContents: Bool
+        resourceValues: URLResourceValues
     ) -> ScreenshotMatch? {
-        guard isEligibleImage(url, requireReadableContents: requireReadableContents) else {
+        guard isEligibleImage(url, resourceValues: resourceValues) else {
             return nil
         }
 
-        guard let candidateDate = resourceDate(for: url), candidateDate >= minimumDate else {
+        guard let candidateDate = resourceDate(from: resourceValues), candidateDate >= minimumDate else {
             return nil
         }
 
@@ -317,30 +342,49 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
             return nil
         }
 
-        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        let fileSize = resourceValues.fileSize ?? 0
         return ScreenshotMatch(url: url, date: candidateDate, fileSize: fileSize, matchScore: matchScore)
     }
 
-    private func isEligibleImage(_ url: URL, requireReadableContents: Bool) -> Bool {
-        let resourceValues = try? url.resourceValues(
-            forKeys: [.isRegularFileKey, .fileSizeKey, .isReadableKey]
-        )
-        guard resourceValues?.isRegularFile == true else {
-            return false
+    private func screenshotMatch(
+        for url: URL,
+        minimumDate: Date,
+        requireReadableContents: Bool
+    ) -> ScreenshotMatch? {
+        guard let resourceValues = try? url.resourceValues(
+            forKeys: [.isRegularFileKey, .fileSizeKey, .isReadableKey, .creationDateKey, .contentModificationDateKey]
+        ),
+        let match = screenshotMatch(
+            for: url,
+            minimumDate: minimumDate,
+            resourceValues: resourceValues
+        ) else {
+            return nil
         }
 
-        if requireReadableContents {
-            guard resourceValues?.isReadable != false else {
-                return false
-            }
+        if requireReadableContents,
+           !isReadableCandidate(resourceValues, fileSize: match.fileSize) {
+            return nil
+        }
 
-            guard (resourceValues?.fileSize ?? 0) > 0 else {
-                return false
-            }
+        return match
+    }
+
+    private func isEligibleImage(_ url: URL, resourceValues: URLResourceValues) -> Bool {
+        guard resourceValues.isRegularFile == true else {
+            return false
         }
 
         let extensionType = UTType(filenameExtension: url.pathExtension)
         return extensionType?.conforms(to: .image) == true
+    }
+
+    private func isReadableCandidate(_ resourceValues: URLResourceValues, fileSize: Int) -> Bool {
+        guard resourceValues.isReadable != false else {
+            return false
+        }
+
+        return fileSize > 0
     }
 
     private func screenshotMatchScore(for url: URL) -> Int {
@@ -361,9 +405,16 @@ struct RecentScreenshotLocator: RecentScreenshotLocating {
         return 1
     }
 
+    private func resourceDate(from values: URLResourceValues) -> Date? {
+        values.creationDate ?? values.contentModificationDate
+    }
+
     private func resourceDate(for url: URL) -> Date? {
-        let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey])
-        return values?.creationDate ?? values?.contentModificationDate
+        guard let values = try? url.resourceValues(forKeys: [.creationDateKey, .contentModificationDateKey]) else {
+            return nil
+        }
+
+        return resourceDate(from: values)
     }
 }
 

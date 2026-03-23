@@ -278,12 +278,19 @@ final class CaptureEditorRuntimeHostView: NSView {
         lastMeasuredViewportWidth = viewportWidth
 
         let measurement = measureResolvedHeight(for: viewportWidth)
+        let desiredPlaceholderHidden = !textView.string.isEmpty
+        let needsPlaceholderVisibilityUpdate = placeholderField.isHidden != desiredPlaceholderHidden
+        let shouldApplyResolvedHeight = viewportWidthChanged
+            || needsPlaceholderVisibilityUpdate
+            || measurement != currentResolvedHeight
 
         let shouldScrollToSelection = forceScrollToSelection || pendingScrollToSelection
         pendingScrollToSelection = false
 
-        apply(resolvedHeight: measurement, viewportWidth: viewportWidth)
-        emitPreferredHeightIfNeeded(measurement.preferredHeight)
+        if shouldApplyResolvedHeight {
+            apply(resolvedHeight: measurement, viewportWidth: viewportWidth)
+            emitPreferredHeightIfNeeded(measurement.preferredHeight)
+        }
 
         if emitMetrics {
             pendingMetrics = nil

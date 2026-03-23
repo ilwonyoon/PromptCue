@@ -573,7 +573,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
 
     private func refreshInlineTagState(resetSuggestionSelection: Bool = false) {
         guard !editorHost.textView.isHandlingMarkedTextComposition else {
-            suspendInlineTagPresentationForMarkedText()
+            clearInlineTagPresentationIfNeeded()
             return
         }
 
@@ -609,7 +609,28 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         updateInlineTagSuggestionView()
     }
 
-    private func suspendInlineTagPresentationForMarkedText() {
+    private func refreshInlineTagStateForHotPath(resetSuggestionSelection: Bool = false) {
+        if editorHost.textView.isHandlingMarkedTextComposition {
+            clearInlineTagPresentationIfNeeded()
+            return
+        }
+
+        let currentText = editorHost.textView.string
+        guard currentText.utf8.contains(0x23) else {
+            clearInlineTagPresentationIfNeeded()
+            return
+        }
+
+        refreshInlineTagState(resetSuggestionSelection: resetSuggestionSelection)
+    }
+
+    private func clearInlineTagPresentationIfNeeded() {
+        guard lastInlineTagQueryValue != nil
+                || !inlineTagSuggestions.isEmpty
+                || !editorHost.highlightedInlineTagRanges.isEmpty else {
+            return
+        }
+
         lastInlineTagQueryValue = nil
         inlineTagSuggestions = []
         selectedInlineTagSuggestionIndex = 0
@@ -617,6 +638,10 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
         editorHost.setInlineCompletion(suffix: nil, caretUTF16Offset: nil)
         inlineTagSuggestionView.isHidden = true
         recomputePreferredPanelHeight()
+    }
+
+    private func suspendInlineTagPresentationForMarkedText() {
+        clearInlineTagPresentationIfNeeded()
     }
 
     private func updateInlineTagSuggestionView() {
@@ -812,7 +837,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             scheduleDraftSync(currentDraftText)
         }
 
-        refreshInlineTagState()
+        refreshInlineTagStateForHotPath()
 
         guard !shouldSkipMeasurement else {
             return
@@ -834,7 +859,7 @@ final class CapturePanelRuntimeViewController: NSViewController, NSTextViewDeleg
             return
         }
 
-        refreshInlineTagState()
+        refreshInlineTagStateForHotPath()
     }
 
     private func scheduleDraftSync(_ text: String) {

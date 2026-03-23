@@ -170,13 +170,19 @@ final class ProjectDocumentStore {
                     return existing.projectDocument
                 }
 
+                let existingDoc = existing?.projectDocument
+                let recalled = existingDoc?.recordingRecall(now: now)
+
                 let nextDocument = ProjectDocument(
                     project: project,
                     topic: topic,
                     documentType: documentType,
                     content: content,
-                    createdAt: now,
-                    updatedAt: now
+                    createdAt: existingDoc?.createdAt ?? now,
+                    updatedAt: now,
+                    stability: recalled?.stability ?? DocumentVividness.defaultStability,
+                    recallCount: recalled?.recallCount ?? 0,
+                    lastRecalledAt: recalled?.lastRecalledAt
                 )
 
                 if let existing {
@@ -350,6 +356,112 @@ final class ProjectDocumentStore {
         } catch {
             NSLog("ProjectDocumentStore deleteDocument failed: %@", error.localizedDescription)
             throw ProjectDocumentStoreError.deleteFailed(error)
+        }
+    }
+
+    /// Records a recall event for a document, updating its stability,
+    /// recallCount, and lastRecalledAt. Returns the updated document.
+    @discardableResult
+    func recordRecall(
+        project: String,
+        topic: String,
+        documentType: ProjectDocumentType,
+        now: Date = Date()
+    ) throws -> ProjectDocument? {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.write { db in
+                guard let existing = try ProjectDocumentRecord.fetchOne(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE supersededByID IS NULL
+                      AND project = ?
+                      AND topic = ?
+                      AND documentType = ?
+                    LIMIT 1
+                    """,
+                    arguments: [project, topic, documentType.rawValue]
+                ) else {
+                    return nil
+                }
+
+                let doc = existing.projectDocument
+                let recalled = doc.recordingRecall(now: now)
+
+                try db.execute(
+                    sql: """
+                    UPDATE \(ProjectDocumentRecord.databaseTableName)
+                    SET stability = ?, recallCount = ?, lastRecalledAt = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        recalled.stability,
+                        recalled.recallCount,
+                        recalled.lastRecalledAt,
+                        existing.id,
+                    ]
+                )
+
+                return recalled
+            }
+        } catch {
+            NSLog("ProjectDocumentStore recordRecall failed: %@", error.localizedDescription)
+            return nil
+        }
+    }
+
+    /// Records a recall event by document ID.
+    @discardableResult
+    func recordRecall(
+        id: UUID,
+        now: Date = Date()
+    ) throws -> ProjectDocument? {
+        guard let dbQueue = database.dbQueue else {
+            throw ProjectDocumentStoreError.unavailable(underlying: database.setupError)
+        }
+
+        do {
+            return try dbQueue.write { db in
+                guard let existing = try ProjectDocumentRecord.fetchOne(
+                    db,
+                    sql: """
+                    SELECT *
+                    FROM \(ProjectDocumentRecord.databaseTableName)
+                    WHERE id = ? AND supersededByID IS NULL
+                    LIMIT 1
+                    """,
+                    arguments: [id.uuidString]
+                ) else {
+                    return nil
+                }
+
+                let doc = existing.projectDocument
+                let recalled = doc.recordingRecall(now: now)
+
+                try db.execute(
+                    sql: """
+                    UPDATE \(ProjectDocumentRecord.databaseTableName)
+                    SET stability = ?, recallCount = ?, lastRecalledAt = ?
+                    WHERE id = ?
+                    """,
+                    arguments: [
+                        recalled.stability,
+                        recalled.recallCount,
+                        recalled.lastRecalledAt,
+                        existing.id,
+                    ]
+                )
+
+                return recalled
+            }
+        } catch {
+            NSLog("ProjectDocumentStore recordRecall by ID failed: %@", error.localizedDescription)
+            return nil
         }
     }
 }
@@ -608,6 +720,9 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
     let createdAt: Date
     let updatedAt: Date
     let supersededByID: String?
+    let stability: Double
+    let recallCount: Int
+    let lastRecalledAt: Date?
 
     init(projectDocument: ProjectDocument) {
         id = projectDocument.id.uuidString
@@ -618,6 +733,9 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
         createdAt = projectDocument.createdAt
         updatedAt = projectDocument.updatedAt
         supersededByID = projectDocument.supersededByID?.uuidString
+        stability = projectDocument.stability
+        recallCount = projectDocument.recallCount
+        lastRecalledAt = projectDocument.lastRecalledAt
     }
 
     var projectDocument: ProjectDocument {
@@ -629,7 +747,10 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
             content: content,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            supersededByID: supersededByID.flatMap(UUID.init(uuidString:))
+            supersededByID: supersededByID.flatMap(UUID.init(uuidString:)),
+            stability: stability,
+            recallCount: recallCount,
+            lastRecalledAt: lastRecalledAt
         )
     }
 
@@ -639,7 +760,10 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
             project: project,
             topic: topic,
             documentType: ProjectDocumentType(rawValue: documentType) ?? .discussion,
-            updatedAt: updatedAt
+            updatedAt: updatedAt,
+            stability: stability,
+            recallCount: recallCount,
+            lastRecalledAt: lastRecalledAt
         )
     }
 }

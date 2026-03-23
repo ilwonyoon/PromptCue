@@ -98,12 +98,15 @@ final class MemoryViewerModel: ObservableObject {
     func refresh() {
         do {
             let summaries = try store.list()
-            let grouped = Dictionary(grouping: summaries, by: \.project)
+            let sortedSummaries = summaries.sorted { lhs, rhs in
+                lhs.retrievability() > rhs.retrievability()
+            }
+            let grouped = Dictionary(grouping: sortedSummaries, by: \.project)
             let orderedProjects = grouped.keys.sorted { lhs, rhs in
-                let lhsLatest = grouped[lhs]?.first?.updatedAt ?? .distantPast
-                let rhsLatest = grouped[rhs]?.first?.updatedAt ?? .distantPast
-                if lhsLatest != rhsLatest {
-                    return lhsLatest > rhsLatest
+                let lhsBest = grouped[lhs]?.first?.retrievability() ?? 0
+                let rhsBest = grouped[rhs]?.first?.retrievability() ?? 0
+                if lhsBest != rhsBest {
+                    return lhsBest > rhsBest
                 }
                 return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
             }
@@ -311,6 +314,13 @@ final class MemoryViewerModel: ObservableObject {
                 topic: selectedDocumentKey.topic,
                 documentType: selectedDocumentKey.documentType
             )
+            if selectedDocument != nil {
+                try store.recordRecall(
+                    project: selectedDocumentKey.project,
+                    topic: selectedDocumentKey.topic,
+                    documentType: selectedDocumentKey.documentType
+                )
+            }
             storageErrorMessage = nil
         } catch {
             selectedDocument = nil

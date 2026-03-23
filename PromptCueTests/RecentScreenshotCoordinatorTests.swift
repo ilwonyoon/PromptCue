@@ -229,6 +229,168 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: XCTUnwrap(resolvedURL)), Data("png".utf8))
     }
 
+    func testPrepareForCaptureSessionWithoutPendingDetectionDoesNotKeepRepeatingSignalProbe() throws {
+        let now = Date()
+        let locator = SignalCountingRecentScreenshotLocator(
+            signalResult: RecentScreenshotScanResult(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            ),
+            fullResult: RecentScreenshotScanResult(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            )
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.2,
+            now: { now }
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        waitForCondition("idle settle window") {
+            Date().timeIntervalSince(now) >= 0.35
+        }
+
+        XCTAssertEqual(
+            locator.signalProbeCallCount,
+            1,
+            "Idle capture preparation should not keep repeating synchronous signal probes when nothing is pending."
+        )
+    }
+
+    func testPrepareForCaptureSessionWithClipboardPreviewDoesNotKeepRepeatingSignalProbe() throws {
+        let now = Date()
+        let clipboardCacheURL = tempDirectoryURL.appendingPathComponent("clipboard.png")
+        try Data("png".utf8).write(to: clipboardCacheURL)
+
+        let clipboardProvider = LocalTestRecentClipboardProvider()
+        clipboardProvider.currentImage = RecentClipboardImage(
+            changeCount: 1,
+            detectedAt: now,
+            cacheURL: clipboardCacheURL
+        )
+
+        let locator = SignalCountingRecentScreenshotLocator(
+            signalResult: RecentScreenshotScanResult(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            ),
+            fullResult: RecentScreenshotScanResult(
+                signalCandidate: nil,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            )
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)),
+            clipboardProvider: clipboardProvider,
+            maxAge: 30,
+            settleGrace: 0.2,
+            now: { now }
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        guard case .previewReady = coordinator.state else {
+            return XCTFail("Expected clipboard preview-ready state")
+        }
+
+        waitForCondition("clipboard settle window") {
+            Date().timeIntervalSince(now) >= 0.35
+        }
+
+        XCTAssertEqual(
+            locator.signalProbeCallCount,
+            1,
+            "Clipboard-ready capture should not keep repeating synchronous signal probes."
+        )
+    }
+
+    func testPrepareForCaptureSessionKeepsPollingWhenPendingDetectionNeedsReadablePromotion() throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 21.30.00.png")
+        try Data().write(to: screenshotURL)
+
+        let signalCandidate = makeCandidate(filename: screenshotURL.lastPathComponent, directory: screenshotsURL)
+        let locator = MutableRecentScreenshotLocator(
+            signalResult: RecentScreenshotScanResult(
+                signalCandidate: signalCandidate,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            ),
+            fullResult: RecentScreenshotScanResult(
+                signalCandidate: signalCandidate,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            )
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        waitForCondition("pending detected state") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            try? Data("png".utf8).write(to: screenshotURL)
+            let readableCandidate = self.makeCandidate(
+                filename: screenshotURL.lastPathComponent,
+                directory: screenshotsURL
+            )
+            locator.update(
+                fullResult: RecentScreenshotScanResult(
+                    signalCandidate: readableCandidate,
+                    readableCandidate: readableCandidate,
+                    recentTemporaryContainerDate: nil
+                )
+            )
+        }
+
+        waitForCondition("preview-ready promotion without observer change", timeout: 1.0) {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
+        XCTAssertGreaterThan(
+            locator.locateRecentScreenshotCallCount,
+            0,
+            "Pending detection should still rely on settle polling / async refresh to promote to a readable preview."
+        )
+    }
+
     func testAuthorizedDirectoryConfigurationChangeRebindsCoordinatorToNewFolder() throws {
         let firstScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-A", isDirectory: true)
         let secondScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-B", isDirectory: true)
@@ -682,6 +844,23 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         XCTFail("Timed out waiting for \(description)", file: file, line: line)
     }
+
+    private func makeCandidate(filename: String, directory: URL) -> RecentScreenshotCandidate {
+        let fileURL = directory.appendingPathComponent(filename)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? Data("png".utf8).write(to: fileURL)
+        }
+
+        return RecentScreenshotCandidate(
+            attachment: ScreenshotAttachment(
+                path: fileURL.path,
+                modifiedAt: Date(),
+                fileSize: 3
+            ),
+            sourceKey: filename.lowercased()
+        )
+    }
 }
 
 @MainActor
@@ -738,6 +917,37 @@ private final class CountingClipboardImageProvider: RecentClipboardImageProvidin
     func dismissCurrent() {}
 }
 
+@MainActor
+private final class LocalTestRecentClipboardProvider: RecentClipboardImageProviding {
+    var onImageDetected: (() -> Void)?
+    var currentImage: RecentClipboardImage?
+
+    func start() {}
+    func stop() {}
+    func setMonitoringActive(_: Bool) {}
+    func refreshNow() {}
+
+    func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? {
+        guard let currentImage else {
+            return nil
+        }
+
+        guard referenceDate.timeIntervalSince(currentImage.detectedAt) <= maxAge else {
+            return nil
+        }
+
+        return currentImage
+    }
+
+    func consumeCurrent() {
+        currentImage = nil
+    }
+
+    func dismissCurrent() {
+        currentImage = nil
+    }
+}
+
 private struct DelayedSignalProbeLocator: RecentScreenshotLocating {
     let fullScanDelay: TimeInterval
     let signalResult: RecentScreenshotScanResult
@@ -758,6 +968,7 @@ private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
     private let fullScanDelay: TimeInterval
     private var signalResult: RecentScreenshotScanResult
     private var fullResult: RecentScreenshotScanResult
+    private(set) var locateRecentScreenshotCallCount = 0
 
     init(
         fullScanDelay: TimeInterval = 0,
@@ -791,6 +1002,7 @@ private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
         }
 
         lock.lock()
+        locateRecentScreenshotCallCount += 1
         defer { lock.unlock() }
         return fullResult
     }
@@ -798,6 +1010,32 @@ private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
     func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
         lock.lock()
         defer { lock.unlock() }
+        return signalResult
+    }
+}
+
+private final class SignalCountingRecentScreenshotLocator: RecentScreenshotLocating {
+    private let lock = NSLock()
+    private let signalResult: RecentScreenshotScanResult
+    private let fullResult: RecentScreenshotScanResult
+    private(set) var signalProbeCallCount = 0
+
+    init(
+        signalResult: RecentScreenshotScanResult,
+        fullResult: RecentScreenshotScanResult
+    ) {
+        self.signalResult = signalResult
+        self.fullResult = fullResult
+    }
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        lock.lock()
+        signalProbeCallCount += 1
+        lock.unlock()
         return signalResult
     }
 }

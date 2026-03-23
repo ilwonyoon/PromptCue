@@ -114,7 +114,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         setCaptureSessionMonitoringActive(true)
         clipboardProvider.refreshNow()
         refreshState(allowSynchronousSignalProbe: true)
-        scheduleSettlePolling()
+        scheduleSettlePollingIfNeeded(referenceDate: now())
     }
 
     func endCaptureSession() {
@@ -150,6 +150,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             allowSynchronousSignalProbe: true,
             scheduleAsyncRefresh: false
         )
+        scheduleSettlePollingIfNeeded(referenceDate: referenceDate)
         if case .previewReady(_, let cacheURL, _) = state {
             return cacheURL
         }
@@ -246,7 +247,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         }
 
         refreshState()
-        scheduleSettlePolling()
+        scheduleSettlePollingIfNeeded(referenceDate: now())
     }
 
     private func setCaptureSessionMonitoringActive(_ isActive: Bool) {
@@ -581,12 +582,17 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         return max(fileAgeExpiration, detectionExpiration)
     }
 
-    private func scheduleSettlePolling() {
+    private func scheduleSettlePollingIfNeeded(referenceDate: Date) {
         guard settleGrace > 0 else {
             return
         }
 
-        settleDeadline = now().addingTimeInterval(settleGrace)
+        guard shouldKeepSettlePolling else {
+            invalidateSettlePolling()
+            return
+        }
+
+        settleDeadline = referenceDate.addingTimeInterval(settleGrace)
 
         guard settleTimer == nil else {
             return
@@ -604,14 +610,21 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
                 let referenceDate = self.now()
                 let shouldStop = (self.settleDeadline.map { referenceDate >= $0 } ?? true)
                     || self.currentSession?.cacheURL != nil
+                    || !self.shouldKeepSettlePolling
 
                 if shouldStop {
                     timer.invalidate()
-                    self.settleTimer = nil
-                    self.settleDeadline = nil
+                    self.invalidateSettlePolling()
                 }
             }
         }
+    }
+
+    private var shouldKeepSettlePolling: Bool {
+        isStarted
+            && isCaptureSessionMonitoringActive
+            && currentSession?.cacheURL == nil
+            && state.showsCaptureSlot
     }
 
     private func scheduleExpirationIfNeeded(
@@ -708,10 +721,14 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     }
 
     private func invalidateTimers() {
+        invalidateSettlePolling()
+        invalidateExpirationTimer()
+    }
+
+    private func invalidateSettlePolling() {
         settleTimer?.invalidate()
         settleTimer = nil
         settleDeadline = nil
-        invalidateExpirationTimer()
     }
 
     private func invalidateExpirationTimer() {

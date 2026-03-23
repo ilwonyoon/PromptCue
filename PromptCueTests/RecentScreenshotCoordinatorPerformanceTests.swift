@@ -113,6 +113,74 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         )
     }
 
+    func testIdleSettlePollingSignalProbeBenchmark() throws {
+        try XCTSkipUnless(
+            benchmarkRunEnabled,
+            "Compile with -DPROMPTCUE_RUN_PERF_BENCHMARKS or set PROMPTCUE_RUN_PERF_BENCHMARKS=1 to run recent screenshot benchmarks."
+        )
+
+        let signalDelayMilliseconds = benchmarkDelayMilliseconds
+        let settleWindow = 0.35
+        var totalSignalProbeCount = 0
+        var totalSignalBlockedMilliseconds = 0.0
+
+        for iteration in 0..<benchmarkIterations {
+            let cacheDirectoryURL = tempDirectoryURL.appendingPathComponent(
+                "IdleTransientScreenshots-\(iteration)",
+                isDirectory: true
+            )
+            let locator = CountingDelayedSignalLocator(
+                signalDelay: signalDelayMilliseconds / 1_000,
+                signalResult: RecentScreenshotScanResult(
+                    signalCandidate: nil,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                ),
+                fullResult: RecentScreenshotScanResult(
+                    signalCandidate: nil,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                )
+            )
+            let coordinator = RecentScreenshotCoordinator(
+                observer: BenchmarkRecentScreenshotObserver(),
+                locator: locator,
+                cache: TransientScreenshotCache(baseDirectoryURL: cacheDirectoryURL),
+                clipboardProvider: BenchmarkNilClipboardProvider(),
+                maxAge: 30,
+                settleGrace: 0.2,
+                now: Date.init
+            )
+
+            coordinator.start()
+            coordinator.prepareForCaptureSession()
+
+            let deadline = Date().addingTimeInterval(settleWindow)
+            while Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+
+            totalSignalProbeCount += locator.signalProbeCallCount
+            totalSignalBlockedMilliseconds += locator.totalSignalBlockedMilliseconds
+            coordinator.stop()
+        }
+
+        let averageSignalProbeCount = Double(totalSignalProbeCount) / Double(benchmarkIterations)
+        let averageSignalBlockedMilliseconds = totalSignalBlockedMilliseconds / Double(benchmarkIterations)
+
+        print(
+            String(
+                format: "Recent screenshot benchmark [idle-settle-signal-probe]: avg_calls=%.2f avg_blocked_ms=%.2f iterations=%d delay=%.0fms",
+                averageSignalProbeCount,
+                averageSignalBlockedMilliseconds,
+                benchmarkIterations,
+                signalDelayMilliseconds
+            )
+        )
+
+        XCTAssertGreaterThan(averageSignalProbeCount, 0)
+    }
+
     private func benchmark(
         label: String,
         operation: () -> Void
@@ -224,6 +292,41 @@ private struct DelayedRecentScreenshotLocator: RecentScreenshotLocating {
     func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
         Thread.sleep(forTimeInterval: delay)
         return result
+    }
+}
+
+private final class CountingDelayedSignalLocator: RecentScreenshotLocating {
+    private let lock = NSLock()
+    private let signalDelay: TimeInterval
+    private let signalResult: RecentScreenshotScanResult
+    private let fullResult: RecentScreenshotScanResult
+    private(set) var signalProbeCallCount = 0
+    private(set) var totalSignalBlockedMilliseconds = 0.0
+
+    init(
+        signalDelay: TimeInterval,
+        signalResult: RecentScreenshotScanResult,
+        fullResult: RecentScreenshotScanResult
+    ) {
+        self.signalDelay = signalDelay
+        self.signalResult = signalResult
+        self.fullResult = fullResult
+    }
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        let startedAt = CFAbsoluteTimeGetCurrent()
+        Thread.sleep(forTimeInterval: signalDelay)
+        let elapsedMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
+
+        lock.lock()
+        signalProbeCallCount += 1
+        totalSignalBlockedMilliseconds += elapsedMilliseconds
+        lock.unlock()
+        return signalResult
     }
 }
 

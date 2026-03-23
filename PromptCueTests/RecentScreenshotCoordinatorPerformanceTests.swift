@@ -181,6 +181,91 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         XCTAssertGreaterThan(averageSignalProbeCount, 0)
     }
 
+    func testDetectedFileSettlePollingSignalProbeBenchmark() throws {
+        try XCTSkipUnless(
+            benchmarkRunEnabled,
+            "Compile with -DPROMPTCUE_RUN_PERF_BENCHMARKS or set PROMPTCUE_RUN_PERF_BENCHMARKS=1 to run recent screenshot benchmarks."
+        )
+
+        let signalDelayMilliseconds = benchmarkDelayMilliseconds
+        let settleWindow = 0.35
+        var totalSignalProbeCount = 0
+        var totalSignalBlockedMilliseconds = 0.0
+
+        for iteration in 0..<benchmarkIterations {
+            let screenshotsURL = tempDirectoryURL.appendingPathComponent(
+                "DetectedScreenshots-\(iteration)",
+                isDirectory: true
+            )
+            try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+            let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 9.45.00 PM.png")
+            try Data().write(to: screenshotURL)
+            let candidate = RecentScreenshotCandidate(
+                attachment: ScreenshotAttachment(
+                    path: screenshotURL.path,
+                    modifiedAt: Date(),
+                    fileSize: 0
+                ),
+                sourceKey: screenshotURL.lastPathComponent.lowercased()
+            )
+            let locator = CountingDelayedSignalLocator(
+                signalDelay: signalDelayMilliseconds / 1_000,
+                signalResult: RecentScreenshotScanResult(
+                    signalCandidate: candidate,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                ),
+                fullResult: RecentScreenshotScanResult(
+                    signalCandidate: candidate,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                )
+            )
+            let coordinator = RecentScreenshotCoordinator(
+                observer: BenchmarkRecentScreenshotObserver(),
+                locator: locator,
+                cache: TransientScreenshotCache(
+                    baseDirectoryURL: tempDirectoryURL.appendingPathComponent(
+                        "DetectedTransientScreenshots-\(iteration)",
+                        isDirectory: true
+                    )
+                ),
+                clipboardProvider: BenchmarkNilClipboardProvider(),
+                maxAge: 30,
+                settleGrace: 0.2,
+                now: Date.init
+            )
+
+            coordinator.start()
+            coordinator.prepareForCaptureSession()
+
+            let deadline = Date().addingTimeInterval(settleWindow)
+            while Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+
+            totalSignalProbeCount += locator.signalProbeCallCount
+            totalSignalBlockedMilliseconds += locator.totalSignalBlockedMilliseconds
+            coordinator.stop()
+        }
+
+        let averageSignalProbeCount = Double(totalSignalProbeCount) / Double(benchmarkIterations)
+        let averageSignalBlockedMilliseconds = totalSignalBlockedMilliseconds / Double(benchmarkIterations)
+
+        print(
+            String(
+                format: "Recent screenshot benchmark [detected-file-settle-signal-probe]: avg_calls=%.2f avg_blocked_ms=%.2f iterations=%d delay=%.0fms",
+                averageSignalProbeCount,
+                averageSignalBlockedMilliseconds,
+                benchmarkIterations,
+                signalDelayMilliseconds
+            )
+        )
+
+        XCTAssertGreaterThan(averageSignalProbeCount, 0)
+    }
+
     private func benchmark(
         label: String,
         operation: () -> Void

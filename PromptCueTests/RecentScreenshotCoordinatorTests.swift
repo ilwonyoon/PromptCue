@@ -391,6 +391,83 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         )
     }
 
+    func testDetectedFileSessionStopsRepeatingSignalProbeWhileAwaitingReadablePromotion() throws {
+        let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
+        let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
+        try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+
+        let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 21.45.00.png")
+        try Data().write(to: screenshotURL)
+
+        let signalCandidate = makeCandidate(filename: screenshotURL.lastPathComponent, directory: screenshotsURL)
+        let locator = MutableRecentScreenshotLocator(
+            signalResult: RecentScreenshotScanResult(
+                signalCandidate: signalCandidate,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            ),
+            fullResult: RecentScreenshotScanResult(
+                signalCandidate: signalCandidate,
+                readableCandidate: nil,
+                recentTemporaryContainerDate: nil
+            )
+        )
+        let coordinator = RecentScreenshotCoordinator(
+            observer: TestRecentScreenshotObserver(),
+            locator: locator,
+            cache: TransientScreenshotCache(baseDirectoryURL: cacheURL),
+            clipboardProvider: NilClipboardImageProvider(),
+            maxAge: 30,
+            settleGrace: 0.2
+        )
+
+        coordinator.start()
+        coordinator.prepareForCaptureSession()
+
+        waitForCondition("detected file-backed state") {
+            if case .detected = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            try? Data("png".utf8).write(to: screenshotURL)
+            let readableCandidate = self.makeCandidate(
+                filename: screenshotURL.lastPathComponent,
+                directory: screenshotsURL
+            )
+            locator.update(
+                fullResult: RecentScreenshotScanResult(
+                    signalCandidate: readableCandidate,
+                    readableCandidate: readableCandidate,
+                    recentTemporaryContainerDate: nil
+                )
+            )
+        }
+
+        waitForCondition("preview-ready promotion for file-backed session", timeout: 1.0) {
+            if case .previewReady = coordinator.state {
+                return true
+            }
+
+            return false
+        }
+
+        XCTAssertEqual(
+            locator.signalProbeCallCount,
+            1,
+            "File-backed detected sessions should rely on async refresh for readable promotion instead of repeating sync signal probes."
+        )
+        XCTAssertGreaterThan(
+            locator.locateRecentScreenshotCallCount,
+            0,
+            "Readable promotion should still happen through async full scans."
+        )
+    }
+
     func testAuthorizedDirectoryConfigurationChangeRebindsCoordinatorToNewFolder() throws {
         let firstScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-A", isDirectory: true)
         let secondScreenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots-B", isDirectory: true)
@@ -969,6 +1046,7 @@ private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
     private var signalResult: RecentScreenshotScanResult
     private var fullResult: RecentScreenshotScanResult
     private(set) var locateRecentScreenshotCallCount = 0
+    private(set) var signalProbeCallCount = 0
 
     init(
         fullScanDelay: TimeInterval = 0,
@@ -1009,6 +1087,7 @@ private final class MutableRecentScreenshotLocator: RecentScreenshotLocating {
 
     func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
         lock.lock()
+        signalProbeCallCount += 1
         defer { lock.unlock() }
         return signalResult
     }

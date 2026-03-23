@@ -605,7 +605,9 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
                     return
                 }
 
-                self.refreshState(allowSynchronousSignalProbe: true)
+                self.refreshState(
+                    allowSynchronousSignalProbe: self.shouldAllowSynchronousSignalProbeDuringSettlePolling
+                )
 
                 let referenceDate = self.now()
                 let shouldStop = (self.settleDeadline.map { referenceDate >= $0 } ?? true)
@@ -625,6 +627,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             && isCaptureSessionMonitoringActive
             && currentSession?.cacheURL == nil
             && state.showsCaptureSlot
+    }
+
+    private var shouldAllowSynchronousSignalProbeDuringSettlePolling: Bool {
+        currentSession?.sourceKey == nil
     }
 
     private func scheduleExpirationIfNeeded(

@@ -495,8 +495,8 @@ struct PromptCueSettingsView: View {
             }
 
             SettingsSection(
-                title: "ChatGPT Web (Experimental)",
-                footer: "Set up in ChatGPT web first. Once connected there, ChatGPT macOS uses the same app. iPhone/iPad are not yet verified.",
+                title: "Remote MCP (Experimental)",
+                footer: "Use this with ChatGPT web or a Claude app custom connector. ChatGPT macOS uses the same app as web. iPhone/iPad are not yet verified.",
                 headerAccessory: {
                     Toggle(
                         "Enable ChatGPT connection",
@@ -538,7 +538,9 @@ struct PromptCueSettingsView: View {
                            let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action {
                             Button(action.title) {
                                 mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(action)
-                                if action == .copyPublicMCPURL {
+                                if action == .copyPublicMCPURL
+                                    || (action == .resetLocalState
+                                        && mcpConnectorSettingsModel.experimentalRemotePublicEndpoint != nil) {
                                     showExperimentalRemotePublicEndpointCopiedFeedback()
                                 }
                             }
@@ -585,7 +587,7 @@ struct PromptCueSettingsView: View {
                     if mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL,
                        let publicEndpoint = mcpConnectorSettingsModel.experimentalRemotePublicEndpoint {
                         SettingsDetailGroupRow(
-                            "ChatGPT MCP URL",
+                            "Remote MCP URL",
                             showsDivider: mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled
                         ) {
                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
@@ -595,10 +597,10 @@ struct PromptCueSettingsView: View {
                                     .textSelection(.enabled)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                rowNote("Paste this into ChatGPT web first. ChatGPT macOS uses the same app.")
+                                rowNote("Paste this into ChatGPT web or a Claude app custom connector. ChatGPT macOS uses the same app as web.")
                             }
                         } actions: {
-                            Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
+                            Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy Remote MCP URL") {
                                 mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
                                 showExperimentalRemotePublicEndpointCopiedFeedback()
                             }
@@ -741,13 +743,13 @@ struct PromptCueSettingsView: View {
 
                                         if let publicEndpoint = mcpConnectorSettingsModel.experimentalRemotePublicEndpoint,
                                            !mcpConnectorSettingsModel.experimentalRemoteShouldShowInlineChatGPTMCPURL {
-                                            advancedDetailPane(label: "ChatGPT MCP URL") {
+                                            advancedDetailPane(label: "Remote MCP URL") {
                                                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                                                     advancedValueBlock(publicEndpoint, emphasized: true)
                                                     advancedMessageBlock(
-                                                        "Paste this into ChatGPT web first. ChatGPT macOS uses the same app."
+                                                        "Paste this into ChatGPT web or a Claude app custom connector. ChatGPT macOS uses the same app."
                                                     )
-                                                    Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy ChatGPT MCP URL") {
+                                                    Button(didCopyExperimentalRemotePublicEndpoint ? "Copied" : "Copy Remote MCP URL") {
                                                         mcpConnectorSettingsModel.copyExperimentalRemotePublicEndpoint()
                                                         showExperimentalRemotePublicEndpointCopiedFeedback()
                                                     }

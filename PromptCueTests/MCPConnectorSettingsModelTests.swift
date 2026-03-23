@@ -1604,6 +1604,51 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExperimentalRemoteReconnectActionResetsStateAndCopiesPublicURL() throws {
+        let userDefaults = makeUserDefaults()
+        let notificationCenter = NotificationCenter()
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name(UUID().uuidString))
+        pasteboard.clearContents()
+        let oauthStateURL = homeDirectoryURL
+            .appendingPathComponent("Library/Application Support/PromptCue/BacktickMCPOAuthState.json")
+        try FileManager.default.createDirectory(
+            at: oauthStateURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        {"dynamicClients":{},"refreshTokens":{},"accessTokens":{}}
+        """.write(to: oauthStateURL, atomically: true, encoding: .utf8)
+
+        let model = MCPConnectorSettingsModel(
+            inspector: makeInspector(),
+            connectionTester: TestConnectionTester(state: .failed(.unavailable)),
+            pasteboard: pasteboard,
+            userDefaults: userDefaults,
+            notificationCenter: notificationCenter,
+            experimentalRemoteOAuthStateFileURL: oauthStateURL
+        )
+        let expectation = expectation(description: "oauth reset requested")
+        let observer = notificationCenter.addObserver(
+            forName: .experimentalMCPHTTPOAuthResetRequested,
+            object: model,
+            queue: nil
+        ) { _ in
+            expectation.fulfill()
+        }
+
+        model.updateExperimentalRemoteEnabled(true)
+        model.updateExperimentalRemoteAuthMode(.oauth)
+        _ = model.updateExperimentalRemotePublicBaseURL("https://backtick.test")
+
+        model.performExperimentalRemoteStatusAction(.resetLocalState)
+
+        wait(for: [expectation], timeout: 1)
+        notificationCenter.removeObserver(observer)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oauthStateURL.path))
+        XCTAssertEqual(pasteboard.string(forType: .string), "https://backtick.test/mcp")
+    }
+
+    @MainActor
     func testExperimentalRemoteStatusPresentationRequiresPublicURLForOAuth() {
         let userDefaults = makeUserDefaults()
         let model = MCPConnectorSettingsModel(
@@ -1645,7 +1690,8 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("older Backtick OAuth grant"))
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("recreate the Backtick app"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("copy the current Remote MCP URL"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("connector list"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("iPhone · invalid_grant · refresh_token") == true)
     }
 
@@ -1713,7 +1759,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Ready to connect")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT web"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("Claude app custom connector"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("macOS uses the same app"))
     }
 
@@ -1737,7 +1783,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Connected on Web")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .success)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .copyPublicMCPURL)
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("ChatGPT web"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("web remote MCP client"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · backtick_list_docs") == true)
 
         _ = model.updateExperimentalRemotePublicBaseURL("https://new-backtick.test")
@@ -1765,7 +1811,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
         XCTAssertNil(model.experimentalRemoteStatusPresentation.action)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("older tool name `list_documents`"))
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("Refresh the Backtick app in ChatGPT web"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("connector list"))
         XCTAssertTrue(model.experimentalRemoteShouldShowInlineChatGPTMCPURL)
         XCTAssertFalse(model.experimentalRemoteIsConnected)
     }
@@ -1793,10 +1839,11 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             "Backtick MCP HTTP served protected remote request surface=web path=/mcp bodyBytes=288 rpcMethod=tools/call targetKind=tool targetName=backtick_recall_doc"
         )
 
-        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Some ChatGPT surfaces need reconnect")
+        XCTAssertEqual(model.experimentalRemoteStatusPresentation.title, "Some remote surfaces need reconnect")
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.tone, .warning)
         XCTAssertEqual(model.experimentalRemoteStatusPresentation.action, .resetLocalState)
-        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("another stays stale"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("copy the current Remote MCP URL"))
+        XCTAssertTrue(model.experimentalRemoteStatusPresentation.reason.contains("connector list"))
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("Web · tools/call · backtick_recall_doc") == true)
         XCTAssertTrue(model.experimentalRemoteStatusPresentation.detail?.contains("iPhone · invalid_grant · refresh_token") == true)
     }

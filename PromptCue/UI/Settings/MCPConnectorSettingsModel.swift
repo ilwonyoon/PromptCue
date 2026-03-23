@@ -398,9 +398,9 @@ enum ExperimentalMCPHTTPStatusAction: Equatable {
         case .installTunnel:
             return "Install ngrok"
         case .copyPublicMCPURL:
-            return "Copy ChatGPT MCP URL"
+            return "Copy Remote MCP URL"
         case .resetLocalState:
-            return "Reset OAuth State"
+            return "Reconnect"
         case .retry:
             return "Try Again"
         }
@@ -448,17 +448,17 @@ private enum ExperimentalMCPHTTPRemoteClientSurface: String, Equatable {
     var fullTitle: String {
         switch self {
         case .web:
-            return "ChatGPT web"
+            return "the web connector"
         case .macos:
-            return "ChatGPT macOS"
+            return "the macOS connector"
         case .iphone:
-            return "ChatGPT iPhone"
+            return "the iPhone connector"
         case .ipad:
-            return "ChatGPT iPad"
+            return "the iPad connector"
         case .android:
-            return "ChatGPT Android"
+            return "the Android connector"
         case .unknown:
-            return "another ChatGPT surface"
+            return "another remote connector"
         }
     }
 }
@@ -2073,6 +2073,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             copyExperimentalRemotePublicEndpoint()
         case .resetLocalState:
             _ = resetExperimentalRemoteOAuthState()
+            copyExperimentalRemotePublicEndpoint()
         case .retry:
             retryExperimentalRemote()
         }
@@ -3068,7 +3069,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     private var runningStatusReason: String {
         if experimentalRemoteSettings.authMode == .oauth {
-            return "Backtick is running and ready for ChatGPT web. Connect it there first, then ChatGPT macOS uses the same app."
+            return "Backtick is running and ready for a remote MCP client. Use this URL in ChatGPT web or in a Claude app custom connector. ChatGPT macOS uses the same app as web."
         }
 
         return "Backtick is running and ready. Copy the public MCP URL below and pair it with your Auth Token in the remote client."
@@ -3086,11 +3087,11 @@ final class MCPConnectorSettingsModel: ObservableObject {
     private func connectedReason(for surface: ExperimentalMCPHTTPRemoteClientSurface) -> String {
         switch surface {
         case .unknown:
-            return "ChatGPT has already reached this Backtick endpoint with your current app setup."
+            return "A remote MCP client has already reached this Backtick endpoint with your current app setup."
         case .web:
-            return "ChatGPT web has already reached this Backtick endpoint. ChatGPT macOS uses the same app."
+            return "A web remote MCP client has already reached this Backtick endpoint. If you are using ChatGPT, ChatGPT macOS uses the same app as web."
         default:
-            return "\(surface.fullTitle) has already reached this Backtick endpoint with your current app setup."
+            return "\(surface.fullTitle.capitalized) has already reached this Backtick endpoint with your current app setup."
         }
     }
 
@@ -3109,8 +3110,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
            failureActivity.surface != .unknown,
            successActivity.surface != failureActivity.surface {
             return ExperimentalMCPHTTPStatusPresentation(
-                title: "Some ChatGPT surfaces need reconnect",
-                reason: "Backtick recently worked from \(successActivity.surface.fullTitle), but \(failureActivity.surface.fullTitle) is still presenting an older Backtick OAuth grant. One ChatGPT surface can keep working while another stays stale until you reset OAuth state here and recreate the Backtick app in the failing surface.",
+                title: "Some remote surfaces need reconnect",
+                reason: "Backtick recently worked from \(successActivity.surface.fullTitle), but \(failureActivity.surface.fullTitle) is still presenting an older Backtick OAuth grant. Click Reconnect here to reset Backtick's local OAuth state and copy the current Remote MCP URL, then return to the connector list in that client and approve again if it offers re-authorization. Recreate the connector only if the client still fails or only reopens the connector details.",
                 detail: detail,
                 tone: .warning,
                 action: .resetLocalState
@@ -3119,7 +3120,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         return ExperimentalMCPHTTPStatusPresentation(
             title: "Reconnect needed",
-            reason: "\(failureActivity.surface.fullTitle) is still presenting an older Backtick OAuth grant. Reset OAuth state here, then recreate the Backtick app in that ChatGPT surface.",
+            reason: "\(failureActivity.surface.fullTitle.capitalized) is still presenting an older Backtick OAuth grant. Click Reconnect here to reset Backtick's local OAuth state and copy the current Remote MCP URL, then return to the connector list in that client and approve again if it offers re-authorization. Recreate the connector only if the client still fails or only reopens the connector details.",
             detail: detail,
             tone: .warning,
             action: .resetLocalState
@@ -3157,7 +3158,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
         return ExperimentalMCPHTTPStatusPresentation(
             title: "Refresh needed",
-            reason: "\(surfaceTitle) is still calling Backtick with the older tool name `\(toolName)`. Refresh the Backtick app in ChatGPT web, or recreate it there, so ChatGPT pulls the latest tool surface. ChatGPT macOS uses the same app as web.",
+            reason: "\(surfaceTitle.capitalized) is still calling Backtick with the older tool name `\(toolName)`. Return to the connector list in that client and refresh or re-authorize it if the client offers that flow. Recreate the connector only if the client still fails or only reopens the connector details.",
             detail: "Recent request: \(requestActivity.summary).",
             tone: .warning,
             action: nil

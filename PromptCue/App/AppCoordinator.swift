@@ -332,6 +332,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
             PerformanceTrace.beginCaptureOpenTrace()
         }
         stackPanelController.close()
+        memoryWindowController.hide()
         capturePanelController.toggle()
     }
 

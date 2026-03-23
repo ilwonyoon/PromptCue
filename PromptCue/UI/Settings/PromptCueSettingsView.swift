@@ -1387,7 +1387,7 @@ struct PromptCueSettingsView: View {
                             .foregroundStyle(SemanticTokens.Text.primary)
 
                         Text("Backtick connects through \(client.client.title). Install it first, then come back here for the next step.")
-                            .font(PrimitiveTokens.Typography.body)
+                            .font(SettingsTokens.Typography.supporting)
                             .foregroundStyle(SemanticTokens.Text.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1418,7 +1418,7 @@ struct PromptCueSettingsView: View {
                                 .foregroundStyle(SemanticTokens.Text.primary)
 
                             Text(mcpConnectorSettingsModel.clientNextStepDetail(for: client))
-                                .font(PrimitiveTokens.Typography.body)
+                                .font(SettingsTokens.Typography.supporting)
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -1709,7 +1709,7 @@ struct PromptCueSettingsView: View {
                                     .foregroundStyle(SemanticTokens.Text.primary)
 
                                 Text("Copy this command, run it in Terminal, then return here to check it, or use Backtick once in the client.")
-                                    .font(PrimitiveTokens.Typography.body)
+                                    .font(SettingsTokens.Typography.supporting)
                                     .foregroundStyle(SemanticTokens.Text.secondary)
                             }
                         }
@@ -1807,7 +1807,7 @@ struct PromptCueSettingsView: View {
                                     .foregroundStyle(SemanticTokens.Text.primary)
 
                                 Text("Paste this into the \(client.title) config file instead of running the command.")
-                                    .font(PrimitiveTokens.Typography.body)
+                                    .font(SettingsTokens.Typography.supporting)
                                     .foregroundStyle(SemanticTokens.Text.secondary)
                             }
                         }
@@ -2368,7 +2368,7 @@ private struct SettingsConnectorClientRow<Badge: View, Accessory: View, Footer: 
                     }
 
                     Text(detail)
-                        .font(PrimitiveTokens.Typography.body)
+                        .font(SettingsTokens.Typography.supporting)
                         .foregroundStyle(SemanticTokens.Text.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

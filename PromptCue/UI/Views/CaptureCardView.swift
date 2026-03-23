@@ -251,11 +251,13 @@ struct CaptureCardView: View {
                 Divider()
             }
             Button("Edit", action: onEdit)
-            Button("Copy Raw", action: onCopyRaw)
+            Button("Copy Raw  ⌥ click", action: onCopyRaw)
         }
         .onTapGesture {
             if isCommandClickEvent {
                 onCmdClick()
+            } else if isOptionClickEvent {
+                onCopyRaw()
             } else {
                 performPrimaryAction()
             }
@@ -602,6 +604,10 @@ struct CaptureCardView: View {
 
     private var isCommandClickEvent: Bool {
         NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command) == true
+    }
+
+    private var isOptionClickEvent: Bool {
+        NSApp.currentEvent?.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.option) == true
     }
 
     private func accessibilityLabel(displayText: String) -> String {

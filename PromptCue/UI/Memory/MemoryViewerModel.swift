@@ -176,6 +176,13 @@ final class MemoryViewerModel: ObservableObject {
             }
 
             try ProjectDocumentStore.validateContent(content)
+            if try store.currentDocument(
+                project: trimmedProject,
+                topic: trimmedTopic,
+                documentType: documentType
+            ) != nil {
+                throw MemoryViewerModelError.duplicateDocument
+            }
 
             let savedDocument = try store.saveDocument(
                 project: trimmedProject,
@@ -323,6 +330,7 @@ final class MemoryViewerModel: ObservableObject {
 private enum MemoryViewerModelError: LocalizedError {
     case projectRequired
     case topicRequired
+    case duplicateDocument
 
     var errorDescription: String? {
         switch self {
@@ -330,6 +338,8 @@ private enum MemoryViewerModelError: LocalizedError {
             return "project is required"
         case .topicRequired:
             return "topic is required"
+        case .duplicateDocument:
+            return "A document with this project, topic, and type already exists."
         }
     }
 }

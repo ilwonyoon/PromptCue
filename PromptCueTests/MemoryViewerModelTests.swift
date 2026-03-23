@@ -260,6 +260,33 @@ final class MemoryViewerModelTests: XCTestCase {
         XCTAssertTrue(model.selectedDocument?.content.contains("Roadmap") == true)
     }
 
+    func testCreateDocumentRejectsDuplicateActiveKeyWithoutOverwriting() throws {
+        let store = try makeStore()
+        _ = try store.saveDocument(
+            project: "Backtick",
+            topic: "roadmap",
+            documentType: .plan,
+            content: sampleContent(title: "Original Roadmap")
+        )
+
+        let model = MemoryViewerModel(store: store)
+
+        XCTAssertFalse(
+            model.createDocument(
+                project: "Backtick",
+                topic: "roadmap",
+                documentType: .plan,
+                content: sampleContent(title: "Replacement Roadmap")
+            )
+        )
+        XCTAssertEqual(
+            model.storageErrorMessage,
+            "A document with this project, topic, and type already exists."
+        )
+        XCTAssertEqual(model.summaries(for: "Backtick").count, 1)
+        XCTAssertTrue(model.selectedDocument?.content.contains("Original Roadmap") == true)
+    }
+
     func testSaveSelectedDocumentContentTreatsWhitespaceOnlyAsDeleteIntent() throws {
         let store = try makeStore()
         _ = try store.saveDocument(

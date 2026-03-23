@@ -75,7 +75,7 @@ struct CompactSelectableRow<Content: View>: View {
             )
 
         case .content:
-            return Color(nsColor: .textBackgroundColor)
+            return CompactSelectableRowColors.contentBackground
         }
     }
 
@@ -118,7 +118,7 @@ struct CompactSelectableRow<Content: View>: View {
     }
 
     private var borderBaseColor: Color {
-        Color(nsColor: .separatorColor)
+        CompactSelectableRowColors.borderBase
     }
 
     private var borderOpacity: Double {
@@ -167,4 +167,16 @@ struct CompactSelectableRow<Content: View>: View {
             return 30
         }
     }
+}
+
+private enum CompactSelectableRowColors {
+    static let contentBackground = SemanticTokens.adaptiveColor(
+        light: NSColor.textBackgroundColor,
+        dark: NSColor.textBackgroundColor
+    )
+
+    static let borderBase = SemanticTokens.adaptiveColor(
+        light: NSColor.separatorColor,
+        dark: NSColor.separatorColor
+    )
 }

@@ -86,7 +86,7 @@ struct MemoryViewerView: View {
         .toolbar(removing: .sidebarToggle)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            Color(nsColor: .windowBackgroundColor)
+            MemoryPaneColors.windowBackground
                 .ignoresSafeArea()
         }
         .sheet(isPresented: $uiState.isPresentingNewDocumentSheet) {
@@ -139,6 +139,7 @@ struct MemoryProjectsPaneView: View {
             MemoryProjectListPane(
                 projects: model.projects,
                 selectedProject: model.selectedProject,
+                isInteractionDisabled: uiState.isEditing,
                 documentCount: { model.summaries(for: $0).count },
                 onSelect: { model.selectedProject = $0 },
                 onDeleteProject: confirmDeleteProject
@@ -171,11 +172,12 @@ struct MemoryDocumentsPaneView: View {
     @ObservedObject var uiState: MemoryViewerUIState
 
     var body: some View {
-        MemoryFooterColumnPane(backgroundColor: Color(nsColor: .textBackgroundColor)) {
+        MemoryFooterColumnPane(backgroundColor: MemoryPaneColors.textBackground) {
             MemoryDocumentListPane(
                 selectedProject: model.selectedProject,
                 summaries: model.summaries(for: model.selectedProject),
                 selectedDocumentKey: model.selectedDocumentKey,
+                isInteractionDisabled: uiState.isEditing,
                 onSelect: { model.selectedDocumentKey = $0 },
                 onCopyDocument: copyDocument,
                 onEditDocument: startEditingDocument,
@@ -217,7 +219,7 @@ struct MemoryDetailPaneView: View {
     @ObservedObject var uiState: MemoryViewerUIState
 
     var body: some View {
-        MemoryColumnPane(backgroundColor: Color(nsColor: .textBackgroundColor)) {
+        MemoryColumnPane(backgroundColor: MemoryPaneColors.textBackground) {
             MemoryDetailPane(
                 document: model.selectedDocument,
                 isEditing: $uiState.isEditing,
@@ -253,8 +255,8 @@ struct MemoryDetailPaneView: View {
                 Text(storageErrorMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, MemoryPaneMetrics.statusMessageHorizontalInset)
+                    .padding(.bottom, MemoryPaneMetrics.statusMessageBottomInset)
             }
         }
     }
@@ -312,6 +314,31 @@ private enum MemoryPaneColors {
             dark: NSColor(calibratedWhite: 0.16, alpha: 1)
         )
     }
+
+    static let textBackground = SemanticTokens.adaptiveColor(
+        light: NSColor.textBackgroundColor,
+        dark: NSColor.textBackgroundColor
+    )
+
+    static let windowBackground = SemanticTokens.adaptiveColor(
+        light: NSColor.windowBackgroundColor,
+        dark: NSColor.windowBackgroundColor
+    )
+
+    static let separator = SemanticTokens.adaptiveColor(
+        light: NSColor.separatorColor,
+        dark: NSColor.separatorColor
+    )
+
+    static let separatorSoft = separator.opacity(0.42)
+    static let separatorMedium = separator.opacity(0.5)
+    static let separatorStrong = separator.opacity(0.55)
+    static let separatorTable = separator.opacity(0.75)
+
+    static let destructive = SemanticTokens.adaptiveColor(
+        light: NSColor.systemRed,
+        dark: NSColor.systemRed
+    )
 }
 
 private enum MemoryPaneMetrics {
@@ -325,6 +352,49 @@ private enum MemoryPaneMetrics {
     static let detailHeaderActionTrailingInset: CGFloat = 16
     static let detailContentInset: CGFloat = 24
     static let footerHorizontalInset: CGFloat = detailContentInset
+    static let statusMessageHorizontalInset: CGFloat = PrimitiveTokens.Space.md
+    static let statusMessageBottomInset: CGFloat = PrimitiveTokens.Space.sm
+    static let footerActionIconSpacing: CGFloat = PrimitiveTokens.Space.xs
+    static let footerActionHeight: CGFloat = 42
+    static let footerHoverInset: CGFloat = PrimitiveTokens.Space.xs
+    static let rowAccessorySpacing: CGFloat = 6
+    static let rowCountSpacing: CGFloat = 4
+    static let newDocumentFormSpacing: CGFloat = 18
+    static let newDocumentFieldSpacing: CGFloat = 6
+    static let newDocumentEditorMinHeight: CGFloat = 260
+    static let newDocumentEditorOuterInset: CGFloat = 10
+    static let newDocumentEditorCornerRadius: CGFloat = 10
+    static let newDocumentSheetWidth: CGFloat = 620
+    static let newDocumentSheetHeight: CGFloat = 560
+    static let detailHeaderBottomInset: CGFloat = 10
+    static let detailTitleBottomSpacing: CGFloat = PrimitiveTokens.Space.xs
+    static let detailMetadataSpacing: CGFloat = 6
+    static let detailCopyIconSize: CGFloat = 24
+    static let renderedSectionSpacing: CGFloat = 30
+    static let renderedBlockSpacing: CGFloat = 24
+    static let renderedListSpacing: CGFloat = 10
+    static let renderedBulletSize: CGFloat = 5
+    static let renderedNestedBulletSize: CGFloat = 4
+    static let renderedBulletTopInset: CGFloat = PrimitiveTokens.Space.xs
+    static let renderedTopInset: CGFloat = 14
+    static let renderedBottomInset: CGFloat = 28
+    static let renderedNumberMinWidth: CGFloat = 24
+    static let tableCornerRadius: CGFloat = 10
+    static let tableVerticalInset: CGFloat = 2
+    static let tableCellMinWidth: CGFloat = 120
+    static let tableCellVerticalInset: CGFloat = 10
+    static let emptyStateMaxWidth: CGFloat = 320
+    static let tagCompactHeight: CGFloat = 18
+    static let tagRegularHeight: CGFloat = 22
+    static let tagCompactHorizontalInset: CGFloat = 6
+}
+
+private enum MemoryPaneTypography {
+    static let footerActionIcon = PrimitiveTokens.Typography.metaStrong
+    static let accessoryIcon = Font.system(size: PrimitiveTokens.FontSize.chip, weight: .semibold)
+    static let summaryRow = PrimitiveTokens.Typography.meta
+    static let codeLanguage = Font.system(size: PrimitiveTokens.FontSize.micro, weight: .medium)
+    static let tag = Font.system(size: PrimitiveTokens.FontSize.micro, weight: .medium)
 }
 
 private enum MemoryLayoutDebug {
@@ -424,9 +494,9 @@ private struct MemoryPaneFooterAction: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
+            HStack(spacing: MemoryPaneMetrics.footerActionIconSpacing) {
                 Image(systemName: systemName)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(MemoryPaneTypography.footerActionIcon)
                     .foregroundStyle(SemanticTokens.Text.secondary)
 
                 Text(title)
@@ -437,15 +507,15 @@ private struct MemoryPaneFooterAction: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, horizontalPadding)
-            .frame(height: 42, alignment: .leading)
+            .frame(height: MemoryPaneMetrics.footerActionHeight, alignment: .leading)
             .background(hoverFill)
         }
         .buttonStyle(.plain)
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(MemoryPaneColors.textBackground)
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color(nsColor: .separatorColor).opacity(0.42))
-                .frame(height: 1)
+                .fill(MemoryPaneColors.separatorSoft)
+                .frame(height: PrimitiveTokens.Stroke.subtle)
         }
         .onHover { isHovered = $0 }
     }
@@ -460,13 +530,14 @@ private struct MemoryPaneFooterAction: View {
                     )
                     : .clear
             )
-            .padding(8)
+            .padding(MemoryPaneMetrics.footerHoverInset)
     }
 }
 
 private struct MemoryProjectListPane: View {
     let projects: [String]
     let selectedProject: String?
+    let isInteractionDisabled: Bool
     let documentCount: (String) -> Int
     let onSelect: (String) -> Void
     let onDeleteProject: (String) -> Void
@@ -478,14 +549,17 @@ private struct MemoryProjectListPane: View {
                     CompactSelectableRow(
                         tone: .sidebar,
                         isSelected: project == selectedProject,
-                        action: { onSelect(project) }
+                        action: {
+                            guard !isInteractionDisabled else { return }
+                            onSelect(project)
+                        }
                     ) {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.rowAccessorySpacing) {
                             Image(systemName: "folder")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(MemoryPaneTypography.accessoryIcon)
                                 .foregroundStyle(SemanticTokens.Text.secondary)
 
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.rowCountSpacing) {
                                 Text(project)
                                     .font(SettingsTokens.Typography.sidebarLabel)
                                     .foregroundStyle(SemanticTokens.Text.primary)
@@ -508,6 +582,7 @@ private struct MemoryProjectListPane: View {
                         Button("Delete Project...", role: .destructive) {
                             onDeleteProject(project)
                         }
+                        .disabled(isInteractionDisabled)
                     }
                 }
             }
@@ -519,6 +594,7 @@ private struct MemoryDocumentListPane: View {
     let selectedProject: String?
     let summaries: [ProjectDocumentSummary]
     let selectedDocumentKey: ProjectDocumentKey?
+    let isInteractionDisabled: Bool
     let onSelect: (ProjectDocumentKey) -> Void
     let onCopyDocument: (ProjectDocumentKey) -> Void
     let onEditDocument: (ProjectDocumentKey) -> Void
@@ -542,7 +618,10 @@ private struct MemoryDocumentListPane: View {
                             isSelected: summary.key == selectedDocumentKey,
                             contentHorizontalPadding: MemoryPaneMetrics.documentRowContentPadding,
                             debugFill: MemoryLayoutDebug.isEnabled ? MemoryLayoutDebug.rowContent : nil,
-                            action: { onSelect(summary.key) }
+                            action: {
+                                guard !isInteractionDisabled else { return }
+                                onSelect(summary.key)
+                            }
                         ) {
                             MemoryDocumentSummaryRow(summary: summary)
                         }
@@ -550,12 +629,15 @@ private struct MemoryDocumentListPane: View {
                             Button("Copy") {
                                 onCopyDocument(summary.key)
                             }
+                            .disabled(isInteractionDisabled)
                             Button("Edit") {
                                 onEditDocument(summary.key)
                             }
+                            .disabled(isInteractionDisabled)
                             Button("Delete", role: .destructive) {
                                 onDeleteDocument(summary.key)
                             }
+                            .disabled(isInteractionDisabled)
                         }
                     }
                 }
@@ -569,7 +651,7 @@ private struct MemoryDocumentSummaryRow: View {
 
     var body: some View {
         Text(summary.topic)
-            .font(.system(size: 13, weight: .regular))
+            .font(MemoryPaneTypography.summaryRow)
             .lineLimit(1)
             .foregroundStyle(SemanticTokens.Text.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -591,12 +673,12 @@ private struct MemoryNewDocumentSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: MemoryPaneMetrics.newDocumentFormSpacing) {
                     Text("New Document")
                         .font(.title3.weight(.semibold))
 
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: PrimitiveTokens.Space.sm) {
+                        VStack(alignment: .leading, spacing: MemoryPaneMetrics.newDocumentFieldSpacing) {
                             Text("Project")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -604,7 +686,7 @@ private struct MemoryNewDocumentSheet: View {
                                 .textFieldStyle(.roundedBorder)
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: MemoryPaneMetrics.newDocumentFieldSpacing) {
                             Text("Topic")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -613,7 +695,7 @@ private struct MemoryNewDocumentSheet: View {
                         }
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: MemoryPaneMetrics.newDocumentFieldSpacing) {
                         Text("Type")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -627,7 +709,7 @@ private struct MemoryNewDocumentSheet: View {
                         .pickerStyle(.menu)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                         HStack {
                             Text("Content")
                                 .font(.caption)
@@ -641,35 +723,35 @@ private struct MemoryNewDocumentSheet: View {
                             text: $draft.content,
                             contentInsets: NSSize(width: 12, height: 12)
                         )
-                        .frame(minHeight: 260)
-                        .padding(10)
+                        .frame(minHeight: MemoryPaneMetrics.newDocumentEditorMinHeight)
+                        .padding(MemoryPaneMetrics.newDocumentEditorOuterInset)
                         .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(nsColor: .textBackgroundColor))
+                            RoundedRectangle(cornerRadius: MemoryPaneMetrics.newDocumentEditorCornerRadius, style: .continuous)
+                                .fill(MemoryPaneColors.textBackground)
                         )
                         .overlay {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: MemoryPaneMetrics.newDocumentEditorCornerRadius, style: .continuous)
+                                .stroke(MemoryPaneColors.separatorMedium, lineWidth: PrimitiveTokens.Stroke.subtle)
                         }
                     }
                 }
-                .padding(24)
+                .padding(PrimitiveTokens.Space.xl)
             }
 
             Divider()
 
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: PrimitiveTokens.Space.md) {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.caption)
-                        .foregroundStyle(Color(nsColor: .systemRed))
+                        .foregroundStyle(MemoryPaneColors.destructive)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     Spacer()
                         .frame(maxWidth: .infinity)
                 }
 
-                HStack(spacing: 12) {
+                HStack(spacing: PrimitiveTokens.Space.sm) {
                     Button("Cancel", action: onCancel)
                     Button("Create", action: onCreate)
                         .keyboardShortcut(.defaultAction)
@@ -677,11 +759,11 @@ private struct MemoryNewDocumentSheet: View {
                         .opacity(canSubmit ? 1 : 0.55)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .padding(.horizontal, PrimitiveTokens.Space.xl)
+            .padding(.vertical, PrimitiveTokens.Space.md)
+            .background(MemoryPaneColors.windowBackground)
         }
-        .frame(width: 620, height: 560)
+        .frame(width: MemoryPaneMetrics.newDocumentSheetWidth, height: MemoryPaneMetrics.newDocumentSheetHeight)
     }
 }
 
@@ -702,7 +784,7 @@ private struct MemoryDetailPane: View {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
                     MemoryChromeBar(debugColor: MemoryLayoutDebug.detailHeaderChrome) {
-                        HStack(alignment: .center, spacing: 12) {
+                        HStack(alignment: .center, spacing: PrimitiveTokens.Space.sm) {
                             MemoryTag(text: document.documentType.rawValue)
                                 .layoutPriority(1)
 
@@ -752,11 +834,11 @@ private struct MemoryDetailPane: View {
                                 Button(action: onCopy) {
                                     Image(systemName: didCopy ? "checkmark" : isCopyHovered ? "doc.on.doc.fill" : "doc.on.doc")
                                         .symbolRenderingMode(.monochrome)
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(MemoryPaneTypography.footerActionIcon)
                                         .foregroundStyle(didCopy || isCopyHovered
                                             ? SemanticTokens.Text.primary
                                             : SemanticTokens.Text.secondary)
-                                        .frame(width: 24, height: 24)
+                                        .frame(width: MemoryPaneMetrics.detailCopyIconSize, height: MemoryPaneMetrics.detailCopyIconSize)
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -768,17 +850,17 @@ private struct MemoryDetailPane: View {
                     }
                     .padding(.horizontal, MemoryPaneMetrics.detailHeaderChromeInset)
                     .padding(.top, MemoryPaneMetrics.detailHeaderTopInset)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, MemoryPaneMetrics.detailHeaderBottomInset)
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: MemoryPaneMetrics.detailTitleBottomSpacing) {
                         Text(document.topic)
                             .font(.title2.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
 
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.detailMetadataSpacing) {
                             Image(systemName: "folder")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(MemoryPaneTypography.accessoryIcon)
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                                 .accessibilityHidden(true)
 
@@ -797,7 +879,7 @@ private struct MemoryDetailPane: View {
                         }
                     }
                     .padding(.horizontal, MemoryPaneMetrics.detailContentInset)
-                    .padding(.bottom, 18)
+                    .padding(.bottom, PrimitiveTokens.Space.lg)
                     .memoryDebugOverlay(MemoryLayoutDebug.detailContent)
                 }
 
@@ -811,7 +893,7 @@ private struct MemoryDetailPane: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(nsColor: .textBackgroundColor))
+            .background(MemoryPaneColors.textBackground)
         } else {
             MemoryEmptyState(
                 title: "No Document Selected",
@@ -833,17 +915,17 @@ private struct MemoryRenderedDocumentView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 30) {
+            VStack(alignment: .leading, spacing: MemoryPaneMetrics.renderedSectionSpacing) {
                 ForEach(ParsedMemoryMarkdown.parse(markdown)) { section in
                     VStack(alignment: .leading, spacing: 0) {
                         if let title = section.title {
                             Text(title)
                                 .font(.title3.weight(.semibold))
                                 .foregroundStyle(SemanticTokens.Text.primary)
-                                .padding(.bottom, 8)
+                                .padding(.bottom, PrimitiveTokens.Space.xs)
                         }
 
-                        VStack(alignment: .leading, spacing: 24) {
+                        VStack(alignment: .leading, spacing: MemoryPaneMetrics.renderedBlockSpacing) {
                             ForEach(Array(section.blocks.enumerated()), id: \.offset) { _, block in
                                 switch block {
                                 case .paragraph(let text):
@@ -854,13 +936,13 @@ private struct MemoryRenderedDocumentView: View {
                                         .fixedSize(horizontal: false, vertical: true)
 
                                 case .bullets(let items):
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: MemoryPaneMetrics.renderedListSpacing) {
                                         ForEach(items, id: \.self) { item in
-                                            HStack(alignment: .top, spacing: 10) {
+                                            HStack(alignment: .top, spacing: MemoryPaneMetrics.renderedListSpacing) {
                                                 Circle()
                                                     .fill(SemanticTokens.Text.secondary.opacity(0.7))
-                                                    .frame(width: 5, height: 5)
-                                                    .padding(.top, 8)
+                                                    .frame(width: MemoryPaneMetrics.renderedBulletSize, height: MemoryPaneMetrics.renderedBulletSize)
+                                                    .padding(.top, MemoryPaneMetrics.renderedBulletTopInset)
 
                                                 MemoryInlineMarkdownText(markdown: item)
                                                     .font(.body)
@@ -878,13 +960,13 @@ private struct MemoryRenderedDocumentView: View {
                                     MemoryMarkdownTableView(table: table)
 
                                 case .numberedList(let items):
-                                    VStack(alignment: .leading, spacing: 10) {
+                                    VStack(alignment: .leading, spacing: MemoryPaneMetrics.renderedListSpacing) {
                                         ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
-                                            HStack(alignment: .top, spacing: 8) {
+                                            HStack(alignment: .top, spacing: PrimitiveTokens.Space.xs) {
                                                 Text("\(idx + 1).")
                                                     .font(.body.monospacedDigit())
                                                     .foregroundStyle(SemanticTokens.Text.secondary)
-                                                    .frame(minWidth: 24, alignment: .trailing)
+                                                    .frame(minWidth: MemoryPaneMetrics.renderedNumberMinWidth, alignment: .trailing)
 
                                                 MemoryInlineMarkdownText(markdown: item)
                                                     .font(.body)
@@ -896,15 +978,15 @@ private struct MemoryRenderedDocumentView: View {
                                     }
 
                                 case .nestedBullets(let items):
-                                    VStack(alignment: .leading, spacing: 8) {
+                                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                                         ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                                            HStack(alignment: .top, spacing: 8) {
+                                            HStack(alignment: .top, spacing: PrimitiveTokens.Space.xs) {
                                                 Circle()
                                                     .fill(SemanticTokens.Text.secondary.opacity(
                                                         item.indent == 0 ? 0.7 : 0.45
                                                     ))
-                                                    .frame(width: 4, height: 4)
-                                                    .padding(.top, 8)
+                                                    .frame(width: MemoryPaneMetrics.renderedNestedBulletSize, height: MemoryPaneMetrics.renderedNestedBulletSize)
+                                                    .padding(.top, MemoryPaneMetrics.renderedBulletTopInset)
 
                                                 MemoryInlineMarkdownText(markdown: item.text)
                                                     .font(.body)
@@ -923,8 +1005,8 @@ private struct MemoryRenderedDocumentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, MemoryPaneMetrics.detailContentInset)
-            .padding(.top, 14)
-            .padding(.bottom, 28)
+            .padding(.top, MemoryPaneMetrics.renderedTopInset)
+            .padding(.bottom, MemoryPaneMetrics.renderedBottomInset)
         }
         .scrollIndicators(.automatic)
     }
@@ -960,7 +1042,7 @@ private struct MemoryCodeBlockView: View {
         VStack(alignment: .leading, spacing: 0) {
             if let language {
                 Text(language)
-                    .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .medium))
+                    .font(MemoryPaneTypography.codeLanguage)
                     .foregroundStyle(SemanticTokens.Text.secondary)
                     .padding(.horizontal, PrimitiveTokens.Space.sm)
                     .padding(.top, PrimitiveTokens.Space.xs)
@@ -1021,12 +1103,12 @@ private struct MemoryMarkdownTableView: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MemoryPaneMetrics.tableCornerRadius, style: .continuous))
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color(nsColor: .separatorColor).opacity(0.75), lineWidth: 1)
+                RoundedRectangle(cornerRadius: MemoryPaneMetrics.tableCornerRadius, style: .continuous)
+                    .stroke(MemoryPaneColors.separatorTable, lineWidth: PrimitiveTokens.Stroke.subtle)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, MemoryPaneMetrics.tableVerticalInset)
         }
         .scrollIndicators(.automatic)
     }
@@ -1045,22 +1127,22 @@ private struct MemoryMarkdownTableCell: View {
             .font(isHeader ? .callout.weight(.semibold) : .body)
             .foregroundStyle(SemanticTokens.Text.primary)
             .multilineTextAlignment(alignment.textAlignment)
-            .frame(minWidth: 120, maxWidth: .infinity, alignment: alignment.frameAlignment)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .frame(minWidth: MemoryPaneMetrics.tableCellMinWidth, maxWidth: .infinity, alignment: alignment.frameAlignment)
+            .padding(.horizontal, PrimitiveTokens.Space.sm)
+            .padding(.vertical, MemoryPaneMetrics.tableCellVerticalInset)
             .background(backgroundFill)
             .overlay(alignment: .trailing) {
                 if showsTrailingDivider {
                     Rectangle()
-                        .fill(Color(nsColor: .separatorColor).opacity(0.55))
-                        .frame(width: 1)
+                        .fill(MemoryPaneColors.separatorStrong)
+                        .frame(width: PrimitiveTokens.Stroke.subtle)
                 }
             }
             .overlay(alignment: .bottom) {
                 if showsBottomDivider {
                     Rectangle()
-                        .fill(Color(nsColor: .separatorColor).opacity(0.55))
-                        .frame(height: 1)
+                        .fill(MemoryPaneColors.separatorStrong)
+                        .frame(height: PrimitiveTokens.Stroke.subtle)
                 }
             }
     }
@@ -1518,7 +1600,7 @@ private struct MemoryEmptyState: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: MemoryPaneMetrics.emptyStateMaxWidth)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1539,12 +1621,12 @@ private struct MemoryTag: View {
                 light: NSColor.black.withAlphaComponent(0.02),
                 dark: NSColor.white.withAlphaComponent(0.04)
             ),
-            border: Color(nsColor: .separatorColor).opacity(0.34),
-            horizontalPadding: density == .compact ? 6 : PrimitiveTokens.Space.xs,
-            height: density == .compact ? 18 : 22
+            border: MemoryPaneColors.separator.opacity(0.34),
+            horizontalPadding: density == .compact ? MemoryPaneMetrics.tagCompactHorizontalInset : PrimitiveTokens.Space.xs,
+            height: density == .compact ? MemoryPaneMetrics.tagCompactHeight : MemoryPaneMetrics.tagRegularHeight
         ) {
             Text(text)
-                .font(.system(size: PrimitiveTokens.FontSize.micro, weight: .medium))
+                .font(MemoryPaneTypography.tag)
                 .foregroundStyle(SemanticTokens.Text.secondary)
                 .lineLimit(1)
                 .fixedSize(horizontal: false, vertical: true)

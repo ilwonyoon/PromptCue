@@ -53,6 +53,8 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
 
     func reveal() {
         if let window, window.isVisible {
+            model.refresh()
+            uiState.syncSelection(with: model)
             if window.isMiniaturized {
                 window.deminiaturize(nil)
             }

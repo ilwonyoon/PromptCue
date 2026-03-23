@@ -35,7 +35,7 @@ struct SettingsSimulationView: View {
         var fill: Color {
             switch self {
             case .success:
-                return Color(nsColor: .systemGreen)
+                return SettingsSimulationColors.statusSuccessDot
             case .neutral:
                 return SettingsSemanticTokens.Text.secondary
             }
@@ -44,9 +44,9 @@ struct SettingsSimulationView: View {
         var foreground: Color {
             switch self {
             case .success:
-                return Color(nsColor: .systemGreen).opacity(0.18)
+                return SettingsSimulationColors.statusSuccessFill
             case .neutral:
-                return Color.white.opacity(0.08)
+                return SettingsSimulationColors.statusNeutralFill
             }
         }
     }
@@ -54,10 +54,10 @@ struct SettingsSimulationView: View {
     @State private var selectedPage: Page = .general
 
     private let sidebarEntries: [SidebarEntry] = [
-        .init(page: .general, title: "General", icon: .asset("BacktickSidebarMark"), color: Color(nsColor: .systemGray)),
-        .init(page: .capture, title: "Capture", icon: .system("rectangle.dashed"), color: Color(nsColor: .systemPurple)),
-        .init(page: .stack, title: "Stack", icon: .system("square.stack.3d.up.fill"), color: Color(nsColor: .systemOrange)),
-        .init(page: nil, title: "Connectors", icon: .system("link"), color: Color(nsColor: .systemBlue)),
+        .init(page: .general, title: "General", icon: .asset("BacktickSidebarMark"), color: SettingsSimulationColors.sidebarGeneral),
+        .init(page: .capture, title: "Capture", icon: .system("rectangle.dashed"), color: SettingsSimulationColors.sidebarCapture),
+        .init(page: .stack, title: "Stack", icon: .system("square.stack.3d.up.fill"), color: SettingsSimulationColors.sidebarStack),
+        .init(page: nil, title: "Connectors", icon: .system("link"), color: SettingsSimulationColors.sidebarConnectors),
     ]
 
     var body: some View {
@@ -69,7 +69,7 @@ struct SettingsSimulationView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(maxWidth: 220)
+                .frame(maxWidth: SettingsSimulationMetrics.pickerWidth)
 
                 Spacer(minLength: 0)
 
@@ -83,7 +83,7 @@ struct SettingsSimulationView: View {
 
                 Rectangle()
                     .fill(SettingsSemanticTokens.Border.paneDivider)
-                    .frame(width: 1)
+                    .frame(width: PrimitiveTokens.Stroke.subtle)
 
                 content
             }
@@ -243,7 +243,7 @@ struct SettingsSimulationView: View {
                                 .font(PrimitiveTokens.Typography.body)
                                 .foregroundStyle(SemanticTokens.Text.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .frame(minHeight: 120, alignment: .topLeading)
+                                .frame(minHeight: SettingsSimulationMetrics.longFormMinHeight, alignment: .topLeading)
                         }
                     }
 
@@ -254,7 +254,7 @@ struct SettingsSimulationView: View {
                                 .foregroundStyle(SemanticTokens.Text.secondary)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .frame(minHeight: 120, alignment: .topLeading)
+                                .frame(minHeight: SettingsSimulationMetrics.longFormMinHeight, alignment: .topLeading)
                         }
                     }
                 }
@@ -275,7 +275,7 @@ struct SettingsSimulationView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 220)
+                    .frame(width: SettingsSimulationMetrics.pickerWidth)
                 }
             }
 
@@ -346,7 +346,7 @@ struct SettingsSimulationView: View {
             if showsDivider {
                 Rectangle()
                     .fill(SettingsSemanticTokens.Border.rowSeparator)
-                    .frame(height: 1)
+                    .frame(height: PrimitiveTokens.Stroke.subtle)
                     .padding(.horizontal, SettingsTokens.Layout.groupInset)
             }
         }
@@ -381,7 +381,7 @@ struct SettingsSimulationView: View {
                 .foregroundStyle(SemanticTokens.Text.primary)
 
             Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 11, weight: .semibold))
+                .font(SettingsTokens.Typography.supportingStrong)
                 .foregroundStyle(SemanticTokens.Text.secondary)
         }
         .padding(.horizontal, PrimitiveTokens.Space.sm)
@@ -398,7 +398,10 @@ struct SettingsSimulationView: View {
         HStack(spacing: PrimitiveTokens.Space.xxs) {
             Circle()
                 .fill(tone.fill)
-                .frame(width: 8, height: 8)
+                .frame(
+                    width: SettingsTokens.Layout.statusBadgeDotSize,
+                    height: SettingsTokens.Layout.statusBadgeDotSize
+                )
 
             Text(title)
                 .font(PrimitiveTokens.Typography.bodyStrong)
@@ -425,3 +428,19 @@ private let mockPreviewText = """
 
 The note above is raw input.
 """
+
+private enum SettingsSimulationMetrics {
+    static let pickerWidth: CGFloat = 220
+    static let longFormMinHeight: CGFloat = 120
+}
+
+private enum SettingsSimulationColors {
+    static let statusSuccessDot = Color(red: 0.19, green: 0.69, blue: 0.31)
+    static let statusSuccessFill = statusSuccessDot.opacity(0.18)
+    static let statusNeutralFill = Color.white.opacity(0.08)
+
+    static let sidebarGeneral = Color(red: 0.55, green: 0.55, blue: 0.58)
+    static let sidebarCapture = Color(red: 0.65, green: 0.43, blue: 0.84)
+    static let sidebarStack = Color(red: 0.92, green: 0.56, blue: 0.18)
+    static let sidebarConnectors = Color(red: 0.22, green: 0.50, blue: 0.95)
+}

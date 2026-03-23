@@ -225,6 +225,7 @@
 		4D6DB42BC146CA3B8533D1C3 /* SettingsGroupDivider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsGroupDivider.swift; sourceTree = "<group>"; };
 		4D905A922322288295EECE24 /* StackCardOverflowPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackCardOverflowPerformanceTests.swift; sourceTree = "<group>"; };
 		503A6CF43E7AA68788A9AF1B /* AppModelRecentScreenshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModelRecentScreenshotTests.swift; sourceTree = "<group>"; };
+		51DE05F7462D920818C4001F /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		5287D013CA7D419F8D42EB4F /* SearchFieldSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFieldSurface.swift; sourceTree = "<group>"; };
 		531B52F266F2281C9C2C2FED /* ScreenshotDirectoryObserverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotDirectoryObserverTests.swift; sourceTree = "<group>"; };
 		538FD2D12C938EEE09CB144D /* PromptCueShadowModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueShadowModifiers.swift; sourceTree = "<group>"; };
@@ -280,7 +281,6 @@
 		9D7037F3C1F08BD57AE02B42 /* CloudSyncControlling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncControlling.swift; sourceTree = "<group>"; };
 		A377806B38E2AD651F10793B /* CaptureEditorResolvedHeight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorResolvedHeight.swift; sourceTree = "<group>"; };
 		A3BAAF04096830B510376E3E /* DevSigned.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = DevSigned.xcconfig; sourceTree = "<group>"; };
-		FCC0DA0CEB333E6FD4817948 /* PromptCue */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PromptCue; path = .; sourceTree = SOURCE_ROOT; };
 		A50539CFB15DD7757BC97835 /* CaptureEditorLayoutCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorLayoutCalculator.swift; sourceTree = "<group>"; };
 		A679683687A04D7C37581DDD /* RecentScreenshotCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentScreenshotCoordinatorTests.swift; sourceTree = "<group>"; };
 		ABB36AED40CA89C7F61009CE /* CloudSyncMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncMergeTests.swift; sourceTree = "<group>"; };
@@ -511,7 +511,7 @@
 		6FDC8665E7B2B81DDA302044 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				FCC0DA0CEB333E6FD4817948 /* PromptCue */,
+				51DE05F7462D920818C4001F /* PromptCue */,
 			);
 			name = Packages;
 			sourceTree = "<group>";

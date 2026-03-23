@@ -295,6 +295,117 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         )
     }
 
+    func testResolveDetectedScreenshotPromotionBenchmark() async throws {
+        try XCTSkipUnless(
+            benchmarkRunEnabled,
+            "Compile with -DPROMPTCUE_RUN_PERF_BENCHMARKS or set PROMPTCUE_RUN_PERF_BENCHMARKS=1 to run recent screenshot benchmarks."
+        )
+
+        let promotionDelayMilliseconds = 120.0
+        let result = await benchmarkAsync(label: "resolve-detected-promotion") { iteration in
+            let screenshotsURL = tempDirectoryURL.appendingPathComponent("ResolveScreenshots-\(iteration)", isDirectory: true)
+            let cacheDirectoryURL = tempDirectoryURL.appendingPathComponent("ResolveTransientScreenshots-\(iteration)", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
+            } catch {
+                XCTFail("Failed to create benchmark screenshot directory: \(error)")
+                return nil
+            }
+
+            let screenshotURL = screenshotsURL.appendingPathComponent("Screenshot 2026-03-22 at 10.59.59 PM.png")
+            FileManager.default.createFile(atPath: screenshotURL.path, contents: Data())
+            let signalCandidate = RecentScreenshotCandidate(
+                attachment: ScreenshotAttachment(
+                    path: screenshotURL.path,
+                    modifiedAt: Date(),
+                    fileSize: 0
+                ),
+                sourceKey: screenshotURL.lastPathComponent.lowercased()
+            )
+            let observer = BenchmarkRecentScreenshotObserver()
+            let locator = BenchmarkMutableRecentScreenshotLocator(
+                signalResult: RecentScreenshotScanResult(
+                    signalCandidate: signalCandidate,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                ),
+                fullResult: RecentScreenshotScanResult(
+                    signalCandidate: signalCandidate,
+                    readableCandidate: nil,
+                    recentTemporaryContainerDate: nil
+                )
+            )
+            let coordinator = RecentScreenshotCoordinator(
+                observer: observer,
+                locator: locator,
+                cache: TransientScreenshotCache(baseDirectoryURL: cacheDirectoryURL),
+                clipboardProvider: BenchmarkNilClipboardProvider(),
+                maxAge: 30,
+                settleGrace: 0.5,
+                now: Date.init
+            )
+
+            coordinator.start()
+            coordinator.prepareForCaptureSession()
+
+            waitForCondition("benchmark detected state", timeout: 1.0) {
+                if case .detected = coordinator.state {
+                    return true
+                }
+
+                return false
+            }
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(promotionDelayMilliseconds * 1_000_000))
+                do {
+                    try Data("readable".utf8).write(to: screenshotURL)
+                } catch {
+                    XCTFail("Failed to promote benchmark screenshot to readable contents: \(error)")
+                    return
+                }
+                let readableCandidate = RecentScreenshotCandidate(
+                    attachment: ScreenshotAttachment(
+                        path: screenshotURL.path,
+                        modifiedAt: Date(),
+                        fileSize: 8
+                    ),
+                    sourceKey: screenshotURL.lastPathComponent.lowercased()
+                )
+                locator.update(
+                    signalResult: RecentScreenshotScanResult(
+                        signalCandidate: signalCandidate,
+                        readableCandidate: nil,
+                        recentTemporaryContainerDate: nil
+                    ),
+                    fullResult: RecentScreenshotScanResult(
+                        signalCandidate: signalCandidate,
+                        readableCandidate: readableCandidate,
+                        recentTemporaryContainerDate: nil
+                    )
+                )
+            }
+
+            let startedAt = CFAbsoluteTimeGetCurrent()
+            let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.8)
+            let elapsedMilliseconds = (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
+
+            XCTAssertNotNil(resolvedURL)
+            coordinator.stop()
+            return elapsedMilliseconds
+        }
+
+        print(
+            String(
+                format: "Recent screenshot benchmark [resolve-detected-promotion]: total=%.2fms avg=%.2fms iterations=%d promotion_delay=%.0fms",
+                result.totalMilliseconds,
+                result.averageMilliseconds,
+                result.iterationCount,
+                promotionDelayMilliseconds
+            )
+        )
+    }
+
     private func benchmark(
         label: String,
         operation: () -> Void
@@ -314,6 +425,41 @@ final class RecentScreenshotCoordinatorPerformanceTests: XCTestCase {
         for iteration in 0..<benchmarkIterations {
             let startedAt = CFAbsoluteTimeGetCurrent()
             let customElapsedMilliseconds = operation(iteration)
+
+            if let customElapsedMilliseconds {
+                totalMilliseconds += customElapsedMilliseconds
+            } else {
+                totalMilliseconds += (CFAbsoluteTimeGetCurrent() - startedAt) * 1_000
+            }
+        }
+
+        let averageMilliseconds = totalMilliseconds / Double(benchmarkIterations)
+        print(
+            String(
+                format: "Recent screenshot benchmark [%@]: total=%.2fms avg=%.2fms iterations=%d",
+                label,
+                totalMilliseconds,
+                averageMilliseconds,
+                benchmarkIterations
+            )
+        )
+
+        return BenchmarkResult(
+            totalMilliseconds: totalMilliseconds,
+            averageMilliseconds: averageMilliseconds,
+            iterationCount: benchmarkIterations
+        )
+    }
+
+    private func benchmarkAsync(
+        label: String,
+        operation: (Int) async -> Double?
+    ) async -> BenchmarkResult {
+        var totalMilliseconds = 0.0
+
+        for iteration in 0..<benchmarkIterations {
+            let startedAt = CFAbsoluteTimeGetCurrent()
+            let customElapsedMilliseconds = await operation(iteration)
 
             if let customElapsedMilliseconds {
                 totalMilliseconds += customElapsedMilliseconds
@@ -495,6 +641,10 @@ private final class BenchmarkRecentScreenshotObserver: RecentScreenshotObserving
 
     func start() {}
     func stop() {}
+
+    func signalChange(_ event: RecentScreenshotObservationEvent) {
+        onChange?(event)
+    }
 }
 
 @MainActor
@@ -506,4 +656,46 @@ private final class BenchmarkNilClipboardProvider: RecentClipboardImageProviding
     func recentImage(referenceDate: Date, maxAge: TimeInterval) -> RecentClipboardImage? { nil }
     func consumeCurrent() {}
     func dismissCurrent() {}
+}
+
+private final class BenchmarkMutableRecentScreenshotLocator: RecentScreenshotLocating {
+    private let lock = NSLock()
+    private var signalResult: RecentScreenshotScanResult
+    private var fullResult: RecentScreenshotScanResult
+
+    init(
+        signalResult: RecentScreenshotScanResult,
+        fullResult: RecentScreenshotScanResult
+    ) {
+        self.signalResult = signalResult
+        self.fullResult = fullResult
+    }
+
+    func update(
+        signalResult: RecentScreenshotScanResult? = nil,
+        fullResult: RecentScreenshotScanResult? = nil
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let signalResult {
+            self.signalResult = signalResult
+        }
+
+        if let fullResult {
+            self.fullResult = fullResult
+        }
+    }
+
+    func locateRecentScreenshot(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        lock.lock()
+        defer { lock.unlock() }
+        return fullResult
+    }
+
+    func locateRecentScreenshotSignal(now: Date, maxAge: TimeInterval) -> RecentScreenshotScanResult {
+        lock.lock()
+        defer { lock.unlock() }
+        return signalResult
+    }
 }

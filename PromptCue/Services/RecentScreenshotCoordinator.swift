@@ -11,6 +11,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             }
 
             onStateChange?(state)
+            signalResolveProgressWaiters()
         }
     }
 
@@ -37,6 +38,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     private var pendingPreviewCacheRequest: PendingPreviewCacheRequest?
     private var isCaptureSessionMonitoringActive = false
     private var ignoredPendingDetectionUntil: Date?
+    private var resolveProgressWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
 
     init(
         observer: RecentScreenshotObserving? = nil,
@@ -107,6 +109,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         currentSession = nil
         ignoredSourceKeys.removeAll()
         ignoredPendingDetectionUntil = nil
+        signalResolveProgressWaiters()
         state = .idle
     }
 
@@ -176,13 +179,19 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
                 return nil
             }
 
+            if pendingPreviewCacheRequest == nil,
+               currentSession?.cacheURL == nil,
+               !scanInFlight,
+               pendingScanReferenceDate == nil {
+                scheduleAsyncRefresh(referenceDate: now())
+            }
+
             let remaining = deadline.timeIntervalSince(now())
             guard remaining > 0 else {
                 break
             }
 
-            let sleepInterval = min(remaining, 0.05)
-            try? await Task.sleep(nanoseconds: UInt64(sleepInterval * 1_000_000_000))
+            await waitForResolveProgress(until: deadline)
         }
 
         refreshState(
@@ -682,6 +691,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         clearCurrentSessionCache()
         currentSession = nil
         invalidateTimers()
+        signalResolveProgressWaiters()
         state = .expired(sessionID: session.id)
     }
 
@@ -829,7 +839,10 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         if let pendingScanReferenceDate {
             self.pendingScanReferenceDate = nil
             scheduleAsyncRefresh(referenceDate: pendingScanReferenceDate)
+            return
         }
+
+        signalResolveProgressWaiters()
     }
 
     private func applyScanResult(
@@ -948,6 +961,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
 
         guard let cacheURL else {
             state = .detected(sessionID: currentSession.id, detectedAt: currentSession.detectedAt)
+            signalResolveProgressWaiters()
             return
         }
 
@@ -956,6 +970,43 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
             cacheURL: cacheURL,
             thumbnailState: .ready
         )
+    }
+
+    private func waitForResolveProgress(until deadline: Date) async {
+        let remaining = deadline.timeIntervalSince(now())
+        guard remaining > 0 else {
+            return
+        }
+
+        let waiterID = UUID()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            resolveProgressWaiters[waiterID] = continuation
+
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                await MainActor.run {
+                    self?.resumeResolveProgressWaiter(id: waiterID)
+                }
+            }
+        }
+    }
+
+    private func signalResolveProgressWaiters() {
+        guard !resolveProgressWaiters.isEmpty else {
+            return
+        }
+
+        let waiters = Array(resolveProgressWaiters.values)
+        resolveProgressWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
+
+    private func resumeResolveProgressWaiter(id: UUID) {
+        guard let waiter = resolveProgressWaiters.removeValue(forKey: id) else {
+            return
+        }
+
+        waiter.resume()
     }
 }
 

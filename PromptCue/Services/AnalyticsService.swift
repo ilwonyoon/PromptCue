@@ -2,6 +2,8 @@ import Foundation
 import TelemetryDeck
 import PromptCueCore
 
+private let bundledTelemetryDeckAppID = "F4233BDD-165C-4AB1-A88A-E883D8201965"
+
 /// Minimal privacy-first KPI bridge for the first DMG launch.
 ///
 /// Analytics stay fully disabled until a valid TelemetryDeck App ID is present.
@@ -38,6 +40,7 @@ final class AnalyticsService {
 
     private let infoDictionaryProvider: () -> [String: Any]
     private let environmentProvider: () -> [String: String]
+    private let bundledAppID: String?
     private let userDefaults: UserDefaults
     private let nowProvider: () -> Date
     private let initializeTelemetryDeck: (String) -> Void
@@ -48,6 +51,7 @@ final class AnalyticsService {
     init(
         infoDictionaryProvider: @escaping () -> [String: Any] = { Bundle.main.infoDictionary ?? [:] },
         environmentProvider: @escaping () -> [String: String] = { ProcessInfo.processInfo.environment },
+        bundledAppID: String? = bundledTelemetryDeckAppID,
         userDefaults: UserDefaults = .standard,
         nowProvider: @escaping () -> Date = Date.init,
         initializeTelemetryDeck: @escaping (String) -> Void = { appID in
@@ -60,6 +64,7 @@ final class AnalyticsService {
     ) {
         self.infoDictionaryProvider = infoDictionaryProvider
         self.environmentProvider = environmentProvider
+        self.bundledAppID = bundledAppID
         self.userDefaults = userDefaults
         self.nowProvider = nowProvider
         self.initializeTelemetryDeck = initializeTelemetryDeck
@@ -217,6 +222,7 @@ final class AnalyticsService {
         let candidates = [
             environmentValues[Self.telemetryAppIDEnvironmentKey],
             infoDictionary[Self.telemetryAppIDInfoKey] as? String,
+            bundledAppID,
         ]
 
         for candidate in candidates {

@@ -28,6 +28,7 @@ final class AnalyticsServiceTests: XCTestCase {
         let service = AnalyticsService(
             infoDictionaryProvider: { [:] },
             environmentProvider: { [:] },
+            bundledAppID: nil,
             userDefaults: defaults,
             initializeTelemetryDeck: { initializedAppIDs.append($0) },
             sendSignal: { name, parameters in
@@ -43,6 +44,22 @@ final class AnalyticsServiceTests: XCTestCase {
         XCTAssertFalse(service.isConfigured)
         XCTAssertTrue(initializedAppIDs.isEmpty)
         XCTAssertTrue(signals.isEmpty)
+    }
+
+    func testConfigureFallsBackToBundledAppIDWhenOverridesAreMissing() {
+        var initializedAppIDs: [String] = []
+        let service = AnalyticsService(
+            infoDictionaryProvider: { [:] },
+            environmentProvider: { [:] },
+            userDefaults: defaults,
+            initializeTelemetryDeck: { initializedAppIDs.append($0) },
+            sendSignal: { _, _ in }
+        )
+
+        service.configure()
+
+        XCTAssertTrue(service.isConfigured)
+        XCTAssertEqual(initializedAppIDs, ["F4233BDD-165C-4AB1-A88A-E883D8201965"])
     }
 
     func testCoreKPIsEmitExpectedSignalsWhenConfigured() {

@@ -16,7 +16,6 @@ configFiles:
   AppStore: Config/AppStore.xcconfig
 settings:
   base:
-    PROMPTCUE_TELEMETRYDECK_APP_ID: F4233BDD-165C-4AB1-A88A-E883D8201965
     SWIFT_VERSION: 5.0
 fileGroups:
   - Config
@@ -96,7 +95,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
         PRODUCT_NAME: Prompt Cue
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_BacktickTelemetryDeckAppID: $(PROMPTCUE_TELEMETRYDECK_APP_ID)
         INFOPLIST_KEY_CFBundleDisplayName: Prompt Cue
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSUIElement: YES

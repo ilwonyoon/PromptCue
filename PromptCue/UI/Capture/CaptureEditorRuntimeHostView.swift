@@ -145,16 +145,46 @@ final class CaptureEditorRuntimeHostView: NSView {
     }
 
     func focusIfPossible() {
+        if attemptImmediateFocusIfPossible() {
+            return
+        }
+
         attemptFocus(remainingAttempts: 8)
+    }
+
+    @discardableResult
+    private func attemptImmediateFocusIfPossible() -> Bool {
+        guard let window,
+              NSApp.isActive,
+              window.isKeyWindow
+        else {
+            return false
+        }
+
+        if window.firstResponder !== textView {
+            window.makeFirstResponder(textView)
+        }
+
+        guard window.firstResponder === textView else {
+            return false
+        }
+
+        PerformanceTrace.markCaptureOpenPhase("focused_editor")
+        PerformanceTrace.completeCaptureOpenTraceIfNeeded()
+        return true
     }
 
     private func attemptFocus(remainingAttempts: Int) {
         DispatchQueue.main.async {
-            guard let window = self.window else {
+            guard let _ = self.window else {
                 return
             }
 
-            if !NSApp.isActive || !window.isKeyWindow {
+            if self.attemptImmediateFocusIfPossible() {
+                return
+            }
+
+            if !NSApp.isActive || self.window?.isKeyWindow != true {
                 guard remainingAttempts > 0 else {
                     return
                 }
@@ -162,16 +192,6 @@ final class CaptureEditorRuntimeHostView: NSView {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.025) {
                     self.attemptFocus(remainingAttempts: remainingAttempts - 1)
                 }
-                return
-            }
-
-            if window.firstResponder !== self.textView {
-                window.makeFirstResponder(self.textView)
-            }
-
-            if window.firstResponder === self.textView {
-                PerformanceTrace.markCaptureOpenPhase("focused_editor")
-                PerformanceTrace.completeCaptureOpenTraceIfNeeded()
                 return
             }
 

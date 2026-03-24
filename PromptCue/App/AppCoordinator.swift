@@ -272,7 +272,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = makeStatusItemImage()
         item.button?.imagePosition = .imageOnly
-        item.button?.imageScaling = .scaleProportionallyUpOrDown
+        item.button?.imageScaling = .scaleNone
         item.button?.appearance = nil
 
         let menu = NSMenu()
@@ -300,7 +300,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private func makeStatusItemImage() -> NSImage? {
         if let image = NSImage(named: NSImage.Name("BacktickStatusMark")) {
             image.isTemplate = true
-            image.size = NSSize(width: 18, height: 18)
+            image.size = NSSize(width: 20, height: 20)
             return image
         }
 

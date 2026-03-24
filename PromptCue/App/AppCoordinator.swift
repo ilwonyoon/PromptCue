@@ -290,7 +290,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Quit Prompt Cue", action: #selector(handleQuit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Backtick", action: #selector(handleQuit), keyEquivalent: "q"))
 
         menu.items.forEach { $0.target = self }
         item.menu = menu

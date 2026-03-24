@@ -95,7 +95,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
         PRODUCT_NAME: Prompt Cue
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Prompt Cue
+        INFOPLIST_KEY_CFBundleDisplayName: Backtick
+        INFOPLIST_KEY_CFBundleName: Backtick
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHighResolutionCapable: YES

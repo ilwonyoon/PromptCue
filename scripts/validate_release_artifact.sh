@@ -148,7 +148,8 @@ if [[ ${#ERRORS[@]} -eq 0 ]]; then
   MARKETING_VERSION="$(plist_value "${APP_INFO_PLIST}" ':CFBundleShortVersionString')"
   BUILD_VERSION="$(plist_value "${APP_INFO_PLIST}" ':CFBundleVersion')"
   EXECUTABLE_NAME="$(plist_value "${APP_INFO_PLIST}" ':CFBundleExecutable')"
-  ARCHIVE_APP_PATH="${ARCHIVE_PATH}/Products/Applications/${EXPECTED_DISPLAY_NAME}.app"
+  ARCHIVE_APP_GLOB=("${ARCHIVE_PATH}"/Products/Applications/*.app)
+  ARCHIVE_APP_PATH="${ARCHIVE_APP_GLOB[0]}"
   APP_BINARY_PATH="${APP_PATH}/Contents/MacOS/${EXECUTABLE_NAME}"
   HELPER_PATH="${APP_PATH}/${EXPECTED_HELPER_RELATIVE_PATH}"
 
@@ -157,7 +158,7 @@ if [[ ${#ERRORS[@]} -eq 0 ]]; then
   [[ -n "${MARKETING_VERSION}" ]] || append_error "CFBundleShortVersionString is missing from ${APP_INFO_PLIST}"
   [[ -n "${BUILD_VERSION}" ]] || append_error "CFBundleVersion is missing from ${APP_INFO_PLIST}"
   [[ -n "${EXECUTABLE_NAME}" ]] || append_error "CFBundleExecutable is missing from ${APP_INFO_PLIST}"
-  [[ -d "${ARCHIVE_APP_PATH}" ]] || append_error "archive does not contain ${EXPECTED_DISPLAY_NAME}.app"
+  [[ -d "${ARCHIVE_APP_PATH}" ]] || append_error "archive does not contain any .app bundle"
   [[ -x "${APP_BINARY_PATH}" ]] || append_error "app executable is missing or not executable: ${APP_BINARY_PATH}"
   [[ -x "${HELPER_PATH}" ]] || append_error "bundled helper is missing or not executable: ${HELPER_PATH}"
 

@@ -448,6 +448,7 @@ case "${PACKAGE_FORMAT}" in
     rm -rf "${DMG_STAGE_DIR}"
     mkdir -p "${DMG_STAGE_DIR}"
     ditto "${EXPORTED_APP_PATH}" "${DMG_STAGE_DIR}/${DMG_APP_NAME}"
+    ln -s /Applications "${DMG_STAGE_DIR}/Applications"
     run hdiutil create \
       -quiet \
       -volname "${ARTIFACT_VOLUME_NAME}" \
@@ -465,6 +466,7 @@ case "${PACKAGE_FORMAT}" in
     rm -rf "${DMG_STAGE_DIR}"
     mkdir -p "${DMG_STAGE_DIR}"
     ditto "${EXPORTED_APP_PATH}" "${DMG_STAGE_DIR}/${DMG_APP_NAME}"
+    ln -s /Applications "${DMG_STAGE_DIR}/Applications"
     run hdiutil create \
       -quiet \
       -volname "${ARTIFACT_VOLUME_NAME}" \

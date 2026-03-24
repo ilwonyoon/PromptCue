@@ -14,7 +14,7 @@ enum CardRetentionPreferences {
 
     static func load(defaults: UserDefaults = .standard) -> CardRetentionState {
         CardRetentionState(
-            isAutoExpireEnabled: defaults.object(forKey: autoExpireEnabledKey) as? Bool ?? false
+            isAutoExpireEnabled: defaults.object(forKey: autoExpireEnabledKey) as? Bool ?? true
         )
     }
 

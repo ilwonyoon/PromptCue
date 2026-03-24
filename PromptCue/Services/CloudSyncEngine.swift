@@ -83,7 +83,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         startNetworkMonitor()
 
         let status = await checkAccountStatus()
-        syncLog.error("CloudSync account status: \(String(describing: status))")
+        syncLog.error("CloudSync account status: \(String(describing: status), privacy: .public)")
         accountStatus = status
         delegate?.cloudSync(self, accountStatusChanged: status)
 
@@ -107,7 +107,7 @@ final class CloudSyncEngine: CloudSyncControlling {
             try await subscribeToChanges()
             syncLog.error("CloudSync subscription created/verified")
         } catch {
-            syncLog.error("CloudSync setup failed: \(String(describing: error))")
+            syncLog.error("CloudSync setup failed: \(String(describing: error), privacy: .public)")
             delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
         }
     }

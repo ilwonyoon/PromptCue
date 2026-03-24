@@ -693,7 +693,6 @@ final class AppModel: ObservableObject {
     }
 
     private func startCloudSync(initialFetchMode: CloudSyncInitialFetchMode = .immediate) {
-
         guard let cloudSyncEngine else { return }
         cloudSyncEngine.delegate = self
 
@@ -705,7 +704,15 @@ final class AppModel: ObservableObject {
             case .deferred:
                 scheduleDeferredCloudSyncFetch()
             }
+            let allCards = cards
+            if !allCards.isEmpty {
+                cloudSyncEngine.pushAllLocalCards(cards: allCards)
+            }
         }
+    }
+
+    func fetchRemoteChangesIfSyncEnabled() {
+        cloudSyncEngine?.fetchRemoteChanges()
     }
 
     func handleCloudRemoteNotification() {

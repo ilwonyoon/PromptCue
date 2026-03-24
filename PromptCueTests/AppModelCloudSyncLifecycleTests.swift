@@ -119,6 +119,8 @@ private final class RecordingCloudSyncEngine: CloudSyncControlling {
     func pushBatch(cards: [CaptureCard], deletions: [UUID]) {
         pushBatchCallCount += 1
     }
+
+    func pushAllLocalCards(cards: [CaptureCard]) {}
 }
 
 @MainActor

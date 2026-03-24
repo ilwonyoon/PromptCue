@@ -12,4 +12,5 @@ protocol CloudSyncControlling: AnyObject {
     func pushLocalChange(card: CaptureCard)
     func pushDeletion(id: UUID)
     func pushBatch(cards: [CaptureCard], deletions: [UUID])
+    func pushAllLocalCards(cards: [CaptureCard])
 }

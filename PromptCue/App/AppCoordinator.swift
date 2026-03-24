@@ -143,6 +143,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
                 AnalyticsService.shared.syncMCPActivitySignals()
                 self.model.refreshCardsForExternalChanges()
                 self.recheckExperimentalMCPHTTPHealth()
+                self.model.fetchRemoteChangesIfSyncEnabled()
             }
         }
 
@@ -153,6 +154,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.recheckExperimentalMCPHTTPHealth()
+                self?.model.fetchRemoteChangesIfSyncEnabled()
             }
         }
     }

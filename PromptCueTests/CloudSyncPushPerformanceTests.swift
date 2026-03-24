@@ -191,6 +191,8 @@ private final class BenchmarkCloudSyncEngine: CloudSyncControlling {
         simulateOperationSetup(seed: cards.count &+ deletions.count)
     }
 
+    func pushAllLocalCards(cards: [CaptureCard]) {}
+
     func resetMetrics() {
         localPushCount = 0
         batchPushCount = 0

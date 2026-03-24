@@ -37,10 +37,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     private let database: CKDatabase
     private let zoneID: CKRecordZone.ID
     private let zone: CKRecordZone
-    private var recentlyPushedIDs = Set<UUID>()
-    private static let maxRecentlyPushedIDs = 500
+    private var recentlyPushedTimestamps: [UUID: Date] = [:]
+    private static let echoSuppressionTTL: TimeInterval = 30
     private var isFetching = false
     private var networkMonitor: NWPathMonitor?
+    private var periodicFetchTimer: Timer?
     private(set) var isNetworkAvailable = true
     private(set) var accountStatus: CloudSyncAccountStatus = .unknown
 
@@ -106,6 +107,7 @@ final class CloudSyncEngine: CloudSyncControlling {
             syncLog.error("CloudSync zone created/verified")
             try await subscribeToChanges()
             syncLog.error("CloudSync subscription created/verified")
+            startPeriodicFetch()
         } catch {
             syncLog.error("CloudSync setup failed: \(String(describing: error), privacy: .public)")
             delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
@@ -113,6 +115,8 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     func stop() {
+        periodicFetchTimer?.invalidate()
+        periodicFetchTimer = nil
         stopNetworkMonitor()
         isFetching = false
     }
@@ -147,6 +151,18 @@ final class CloudSyncEngine: CloudSyncControlling {
         }
         monitor.start(queue: DispatchQueue(label: "CloudSyncEngine.network"))
         networkMonitor = monitor
+    }
+
+    private func startPeriodicFetch() {
+        periodicFetchTimer = Timer.scheduledTimer(
+            withTimeInterval: 300,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.fetchRemoteChanges()
+            }
+        }
+        periodicFetchTimer?.tolerance = 60
     }
 
     func stopNetworkMonitor() {
@@ -275,6 +291,43 @@ final class CloudSyncEngine: CloudSyncControlling {
         database.add(operation)
     }
 
+    func pushAllLocalCards(cards: [CaptureCard]) {
+        guard !cards.isEmpty else { return }
+        guard isNetworkAvailable else {
+            NSLog("CloudSync initial push skipped (offline), %d cards", cards.count)
+            return
+        }
+
+        let records = cards.map { newRecord(from: $0) }
+        let chunks = stride(from: 0, to: records.count, by: 400).map {
+            Array(records[$0..<min($0 + 400, records.count)])
+        }
+
+        for chunk in chunks {
+            let operation = CKModifyRecordsOperation(
+                recordsToSave: chunk,
+                recordIDsToDelete: nil
+            )
+            operation.savePolicy = .changedKeys
+            operation.qualityOfService = .utility
+
+            operation.modifyRecordsResultBlock = { [weak self] result in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    switch result {
+                    case .success:
+                        syncLog.error("CloudSync initial push batch complete (\(chunk.count, privacy: .public) records)")
+                    case .failure(let error):
+                        NSLog("CloudSync initial push batch failed: %@", String(describing: error))
+                        self.delegate?.cloudSync(self, didFailWithError: error.localizedDescription)
+                    }
+                }
+            }
+
+            database.add(operation)
+        }
+    }
+
     // MARK: - Pull
 
     func fetchRemoteChanges() {
@@ -349,30 +402,37 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     private func insertRecentlyPushedID(_ id: UUID) {
-        if recentlyPushedIDs.count >= Self.maxRecentlyPushedIDs {
-            recentlyPushedIDs.removeAll()
-        }
-        recentlyPushedIDs.insert(id)
+        pruneExpiredEchoEntries()
+        recentlyPushedTimestamps[id] = Date()
+    }
+
+    private func pruneExpiredEchoEntries() {
+        let cutoff = Date().addingTimeInterval(-Self.echoSuppressionTTL)
+        recentlyPushedTimestamps = recentlyPushedTimestamps.filter { $0.value > cutoff }
+    }
+
+    private func isRecentlyPushed(_ id: UUID) -> Bool {
+        guard let timestamp = recentlyPushedTimestamps[id] else { return false }
+        return Date().timeIntervalSince(timestamp) < Self.echoSuppressionTTL
     }
 
     // MARK: - Private
 
     private func processRemoteChanges(upserted: [CKRecord], deleted: [CKRecord.ID]) {
-        let echoIDs = recentlyPushedIDs
-        recentlyPushedIDs.removeAll()
+        pruneExpiredEchoEntries()
 
         var changes: [SyncChange] = []
 
         for record in upserted {
             guard let card = captureCard(from: record) else { continue }
-            guard !echoIDs.contains(card.id) else { continue }
+            guard !isRecentlyPushed(card.id) else { continue }
             let assetURL = (record["screenshot"] as? CKAsset)?.fileURL
             changes.append(.upsert(card, screenshotAssetURL: assetURL))
         }
 
         for recordID in deleted {
             guard let uuid = UUID(uuidString: recordID.recordName) else { continue }
-            guard !echoIDs.contains(uuid) else { continue }
+            guard !isRecentlyPushed(uuid) else { continue }
             changes.append(.delete(uuid))
         }
 

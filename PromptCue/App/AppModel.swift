@@ -101,7 +101,7 @@ final class AppModel: ObservableObject {
         let willCreateEngine = syncEnabled && hasProfile
         if !isTestEnvironment {
             Logger(subsystem: "com.promptcue.promptcue", category: "CloudSync")
-                .info("AppModel init: syncEnabled=\(syncEnabled) hasProfile=\(hasProfile) willCreateEngine=\(willCreateEngine)")
+                .error("AppModel init: syncEnabled=\(syncEnabled) hasProfile=\(hasProfile) willCreateEngine=\(willCreateEngine)")
         }
         self.init(
             cardStore: CardStore(),

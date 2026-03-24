@@ -79,11 +79,11 @@ final class CloudSyncEngine: CloudSyncControlling {
     // MARK: - Setup
 
     func setup() async {
-        syncLog.info("CloudSync setup starting")
+        syncLog.error("CloudSync setup starting")
         startNetworkMonitor()
 
         let status = await checkAccountStatus()
-        syncLog.info("CloudSync account status: \(String(describing: status))")
+        syncLog.error("CloudSync account status: \(String(describing: status))")
         accountStatus = status
         delegate?.cloudSync(self, accountStatusChanged: status)
 
@@ -103,9 +103,9 @@ final class CloudSyncEngine: CloudSyncControlling {
 
         do {
             try await createZoneIfNeeded()
-            syncLog.info("CloudSync zone created/verified")
+            syncLog.error("CloudSync zone created/verified")
             try await subscribeToChanges()
-            syncLog.info("CloudSync subscription created/verified")
+            syncLog.error("CloudSync subscription created/verified")
         } catch {
             syncLog.error("CloudSync setup failed: \(String(describing: error))")
             delegate?.cloudSync(self, didFailWithError: error.localizedDescription)

@@ -305,7 +305,10 @@ struct MCPConnectorInspection: Equatable {
     let clients: [MCPConnectorClientStatus]
 
     func status(for client: MCPConnectorClient) -> MCPConnectorClientStatus {
-        clients.first(where: { $0.client == client })!
+        guard let status = clients.first(where: { $0.client == client }) else {
+            preconditionFailure("MCPConnectorInspection missing status for \(client)")
+        }
+        return status
     }
 }
 

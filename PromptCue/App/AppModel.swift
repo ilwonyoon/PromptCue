@@ -610,12 +610,13 @@ final class AppModel: ObservableObject {
             return
         }
 
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: cleanupInterval, repeats: true) { [weak self] _ in
+        let interval = max(cleanupInterval, 300)
+        cleanupTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.purgeExpiredCards()
             }
         }
-        cleanupTimer?.tolerance = min(cleanupInterval * 0.25, 15)
+        cleanupTimer?.tolerance = min(interval * 0.25, 60)
     }
 
     private func scheduleDeferredStartupMaintenance() {

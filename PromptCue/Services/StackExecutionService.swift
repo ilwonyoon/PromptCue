@@ -153,7 +153,10 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
 
     var captureCard: CaptureCard {
         CaptureCard(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(uuidString: id) ?? {
+                assertionFailure("StackExecutionService: corrupt UUID '\(id)'")
+                return UUID()
+            }(),
             text: text,
             tags: CaptureTag.decodeJSONArray(tagsJSON),
             createdAt: createdAt,

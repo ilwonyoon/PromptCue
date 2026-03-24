@@ -189,7 +189,10 @@ private struct CardRecord: Codable, FetchableRecord, PersistableRecord {
 
     var captureCard: CaptureCard {
         CaptureCard(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(uuidString: id) ?? {
+                assertionFailure("CardStore: corrupt UUID '\(id)'")
+                return UUID()
+            }(),
             text: text,
             tags: CaptureTag.decodeJSONArray(tagsJSON),
             createdAt: createdAt,

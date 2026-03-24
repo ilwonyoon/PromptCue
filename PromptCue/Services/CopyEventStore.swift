@@ -101,8 +101,14 @@ private struct CopyEventRecord: Codable, FetchableRecord, PersistableRecord {
 
     var copyEvent: CopyEvent {
         CopyEvent(
-            id: UUID(uuidString: id) ?? UUID(),
-            noteID: UUID(uuidString: noteID) ?? UUID(),
+            id: UUID(uuidString: id) ?? {
+                assertionFailure("CopyEventStore: corrupt UUID '\(id)'")
+                return UUID()
+            }(),
+            noteID: UUID(uuidString: noteID) ?? {
+                assertionFailure("CopyEventStore: corrupt noteID '\(noteID)'")
+                return UUID()
+            }(),
             sessionID: sessionID,
             copiedAt: copiedAt,
             copiedVia: CopyEventVia(rawValue: copiedVia) ?? .clipboard,

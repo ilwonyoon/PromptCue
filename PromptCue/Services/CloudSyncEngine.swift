@@ -426,6 +426,7 @@ final class CloudSyncEngine: CloudSyncControlling {
         record["createdAt"] = card.createdAt as NSDate
         record["lastCopiedAt"] = card.lastCopiedAt as NSDate?
         record["sortOrder"] = NSNumber(value: card.sortOrder)
+        record["isPinned"] = NSNumber(value: card.isPinned)
 
         if let screenshotURL = ManagedScreenshotAccess.readableURL(for: card),
            FileManager.default.fileExists(atPath: screenshotURL.path) {
@@ -478,7 +479,8 @@ final class CloudSyncEngine: CloudSyncControlling {
             createdAt: createdAt,
             screenshotPath: nil,
             lastCopiedAt: record["lastCopiedAt"] as? Date,
-            sortOrder: (record["sortOrder"] as? Double) ?? createdAt.timeIntervalSinceReferenceDate
+            sortOrder: (record["sortOrder"] as? Double) ?? createdAt.timeIntervalSinceReferenceDate,
+            isPinned: (record["isPinned"] as? Bool) ?? false
         )
     }
 }

@@ -757,7 +757,12 @@ actor BacktickMCPOAuthProvider {
 
     private static func randomToken(length: Int) -> String {
         let characters = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-        return String((0..<length).map { _ in characters.randomElement()! })
+        var bytes = [UInt8](repeating: 0, count: length)
+        let status = SecRandomCopyBytes(kSecRandomDefault, length, &bytes)
+        guard status == errSecSuccess else {
+            return String((0..<length).map { _ in characters.randomElement()! })
+        }
+        return String(bytes.map { characters[Int($0) % characters.count] })
     }
 
     private static func base64URLEncode<D: DataProtocol>(_ data: D) -> String {

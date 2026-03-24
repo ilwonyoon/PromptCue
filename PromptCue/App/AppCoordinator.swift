@@ -43,6 +43,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private var experimentalMCPHTTPRetryObserver: NSObjectProtocol?
     private var experimentalMCPHTTPOAuthResetObserver: NSObjectProtocol?
     private var experimentalMCPHTTPDidBecomeActiveObserver: NSObjectProtocol?
+    private var lastDidBecomeActiveWork = Date.distantPast
     private var experimentalMCPHTTPWakeObserver: NSObjectProtocol?
     private var experimentalMCPHTTPProcess: Process?
     private var experimentalMCPHTTPLogPipe: Pipe?
@@ -135,9 +136,13 @@ final class AppCoordinator: AppLifecycleCoordinating {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                guard let self else { return }
+                let now = Date()
+                if now.timeIntervalSince(self.lastDidBecomeActiveWork) < 30 { return }
+                self.lastDidBecomeActiveWork = now
                 AnalyticsService.shared.syncMCPActivitySignals()
-                self?.model.refreshCardsForExternalChanges()
-                self?.recheckExperimentalMCPHTTPHealth()
+                self.model.refreshCardsForExternalChanges()
+                self.recheckExperimentalMCPHTTPHealth()
             }
         }
 

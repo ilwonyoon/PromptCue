@@ -739,7 +739,10 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
 
     var projectDocument: ProjectDocument {
         ProjectDocument(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(uuidString: id) ?? {
+                assertionFailure("ProjectDocumentStore: corrupt UUID '\(id)'")
+                return UUID()
+            }(),
             project: project,
             topic: topic,
             documentType: ProjectDocumentType(rawValue: documentType) ?? .discussion,
@@ -755,7 +758,10 @@ private struct ProjectDocumentRecord: Codable, FetchableRecord, PersistableRecor
 
     var summary: ProjectDocumentSummary {
         ProjectDocumentSummary(
-            id: UUID(uuidString: id) ?? UUID(),
+            id: UUID(uuidString: id) ?? {
+                assertionFailure("ProjectDocumentStore: corrupt UUID '\(id)'")
+                return UUID()
+            }(),
             project: project,
             topic: topic,
             documentType: ProjectDocumentType(rawValue: documentType) ?? .discussion,

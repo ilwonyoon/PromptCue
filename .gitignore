@@ -10,3 +10,4 @@ DerivedData/
 .env.local
 /Config/Local.xcconfig
 .mcp.json
+/build/

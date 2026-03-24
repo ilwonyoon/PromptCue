@@ -74,6 +74,13 @@ final class BacktickMCPConnectionActivityStore {
             return
         }
 
+        let sanitizedArgs = launchArguments.map { arg in
+            if arg.hasPrefix("--api-key") || arg.contains("api-key=") {
+                return "--api-key=<redacted>"
+            }
+            return arg
+        }
+
         let activity = BacktickMCPConnectionActivity(
             transport: context.transport,
             surface: context.surface,
@@ -85,7 +92,7 @@ final class BacktickMCPConnectionActivityStore {
             recordedAt: Date(),
             configuredClientID: configuredClientID,
             launchCommand: launchCommand,
-            launchArguments: launchArguments
+            launchArguments: sanitizedArgs
         )
 
         var activities = loadState(from: fileURL)?.activities ?? []

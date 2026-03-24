@@ -789,7 +789,7 @@ protocol MCPServerConnectionTesting {
 
 struct MCPConnectorInspector {
     static let connectorClientEnvironmentKey = "BACKTICK_CONNECTOR_CLIENT"
-    private static let stableLauncherRelativePath = "Library/Application Support/Backtick/bin/BacktickMCP"
+    private static let stableLauncherRelativePath = ".local/bin/BacktickMCP"
 
     private let fileManager: FileManager
     private let environment: [String: String]

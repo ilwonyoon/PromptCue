@@ -778,10 +778,18 @@ final class BacktickMCPHTTPHandler {
     }
 
     private func corsHeaders() -> [String: String] {
-        [
+        let origin: String
+        if let publicBaseURL = configuration.publicBaseURL {
+            var urlString = publicBaseURL.absoluteString
+            while urlString.hasSuffix("/") { urlString = String(urlString.dropLast()) }
+            origin = urlString
+        } else {
+            origin = "http://\(configuration.host):\(configuration.port)"
+        }
+        return [
             "Access-Control-Allow-Headers": "Authorization, Content-Type, X-API-Key",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": origin,
         ]
     }
 

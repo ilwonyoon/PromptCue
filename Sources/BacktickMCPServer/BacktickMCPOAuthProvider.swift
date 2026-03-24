@@ -627,6 +627,10 @@ actor BacktickMCPOAuthProvider {
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = try encoder.encode(persistedState)
             try data.write(to: stateFileURL, options: .atomic)
+            try fileManager.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: stateFileURL.path
+            )
         } catch {
             NSLog("BacktickMCPOAuthProvider persist failed: %@", error.localizedDescription)
         }

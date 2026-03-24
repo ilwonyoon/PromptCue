@@ -33,7 +33,7 @@ schemes:
       targets:
         - name: PromptCueTests
     archive:
-      config: AppStore
+      config: Release
 packages:
   PromptCueCore:
     path: .

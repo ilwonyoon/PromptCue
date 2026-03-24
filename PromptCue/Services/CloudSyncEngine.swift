@@ -35,6 +35,7 @@ final class CloudSyncEngine: CloudSyncControlling {
     private let zoneID: CKRecordZone.ID
     private let zone: CKRecordZone
     private var recentlyPushedIDs = Set<UUID>()
+    private static let maxRecentlyPushedIDs = 500
     private var isFetching = false
     private var networkMonitor: NWPathMonitor?
     private(set) var isNetworkAvailable = true
@@ -178,7 +179,7 @@ final class CloudSyncEngine: CloudSyncControlling {
     // MARK: - Push
 
     func pushLocalChange(card: CaptureCard) {
-        recentlyPushedIDs.insert(card.id)
+        insertRecentlyPushedID(card.id)
 
         guard isNetworkAvailable else {
             NSLog("CloudSync push skipped (offline) for %@", card.id.uuidString)
@@ -203,7 +204,7 @@ final class CloudSyncEngine: CloudSyncControlling {
     }
 
     func pushDeletion(id: UUID) {
-        recentlyPushedIDs.insert(id)
+        insertRecentlyPushedID(id)
 
         guard isNetworkAvailable else {
             NSLog("CloudSync delete skipped (offline) for %@", id.uuidString)
@@ -233,10 +234,10 @@ final class CloudSyncEngine: CloudSyncControlling {
         }
 
         for card in cards {
-            recentlyPushedIDs.insert(card.id)
+            insertRecentlyPushedID(card.id)
         }
         for id in deletions {
-            recentlyPushedIDs.insert(id)
+            insertRecentlyPushedID(id)
         }
 
         let recordsToSave = cards.map { newRecord(from: $0) }
@@ -338,6 +339,13 @@ final class CloudSyncEngine: CloudSyncControlling {
 
     func handleRemoteNotification() {
         fetchRemoteChanges()
+    }
+
+    private func insertRecentlyPushedID(_ id: UUID) {
+        if recentlyPushedIDs.count >= Self.maxRecentlyPushedIDs {
+            recentlyPushedIDs.removeAll()
+        }
+        recentlyPushedIDs.insert(id)
     }
 
     // MARK: - Private

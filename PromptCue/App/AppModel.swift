@@ -125,7 +125,7 @@ final class AppModel: ObservableObject {
         ensureCloudSyncToggleObserver()
         retentionSettingsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
-            object: nil,
+            object: UserDefaults.standard,
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -562,7 +562,8 @@ final class AppModel: ObservableObject {
                     createdAt: card.createdAt,
                     screenshotPath: migratedPath,
                     lastCopiedAt: card.lastCopiedAt,
-                    sortOrder: card.sortOrder
+                    sortOrder: card.sortOrder,
+                    isPinned: card.isPinned
                 )
                 didChange = true
             }
@@ -909,7 +910,8 @@ extension AppModel: CloudSyncDelegate {
             createdAt: card.createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: card.lastCopiedAt,
-            sortOrder: card.sortOrder
+            sortOrder: card.sortOrder,
+            isPinned: card.isPinned
         )
     }
 

@@ -149,6 +149,7 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
     let screenshotPath: String?
     let lastCopiedAt: Date?
     let sortOrder: Double
+    let isPinned: Bool
 
     var captureCard: CaptureCard {
         CaptureCard(
@@ -158,7 +159,8 @@ private struct StackExecutionCardRecord: FetchableRecord, Decodable {
             createdAt: createdAt,
             screenshotPath: screenshotPath,
             lastCopiedAt: lastCopiedAt,
-            sortOrder: sortOrder
+            sortOrder: sortOrder,
+            isPinned: isPinned
         )
     }
 }

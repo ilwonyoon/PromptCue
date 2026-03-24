@@ -255,7 +255,22 @@ struct PromptCueSettingsView: View {
     private var generalPage: some View {
         settingsScrollPage {
             generalSections
+
+            HStack {
+                Spacer()
+                Text(appVersionString)
+                    .font(PrimitiveTokens.Typography.meta)
+                    .foregroundStyle(SemanticTokens.Text.secondary)
+                Spacer()
+            }
+            .padding(.top, PrimitiveTokens.Space.sm)
         }
+    }
+
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "–"
+        return "Backtick \(version) (\(build))"
     }
 
     private var capturePage: some View {

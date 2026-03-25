@@ -1765,7 +1765,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(activity.clientName, "claude-code")
         XCTAssertEqual(activity.clientVersion, "1.0.0")
         XCTAssertEqual(activity.toolName, exposedToolName("get_started"))
-        XCTAssertNotNil(activity.sessionID)
+        XCTAssertNil(activity.sessionID)
         XCTAssertEqual(activity.configuredClientID, "claudeCode")
         XCTAssertEqual(activity.launchCommand, "/tmp/BacktickMCP")
         XCTAssertEqual(activity.launchArguments ?? [], ["--stdio"])
@@ -1942,8 +1942,7 @@ final class BacktickMCPServerTests: XCTestCase {
 
         let initializeResponse = await handler.response(for: initializeRequest)
         XCTAssertEqual(initializeResponse.statusCode, 200)
-        let sessionID = try XCTUnwrap(initializeResponse.headers["Mcp-Session-Id"])
-        XCTAssertFalse(sessionID.isEmpty)
+        XCTAssertNil(initializeResponse.headers["Mcp-Session-Id"])
 
         let notificationBody = Data(
             #"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#.utf8
@@ -1961,7 +1960,7 @@ final class BacktickMCPServerTests: XCTestCase {
 
         let notificationResponse = await handler.response(for: notificationRequest)
         XCTAssertEqual(notificationResponse.statusCode, 202)
-        XCTAssertEqual(notificationResponse.headers["Mcp-Session-Id"], sessionID)
+        XCTAssertNil(notificationResponse.headers["Mcp-Session-Id"])
     }
 
     func testOAuthProtectedEndpointsSupportPathScopedDiscoveryVariants() async throws {

@@ -307,14 +307,10 @@ final class BacktickMCPHTTPHandler {
             request.body,
             activityContext: .remoteHTTP(surface: remoteSurface.rawValue)
         ) else {
-            var notificationHeaders = corsHeaders()
-            if let sessionID = await session.sessionID {
-                notificationHeaders["Mcp-Session-Id"] = sessionID
-            }
             return BacktickMCPHTTPResponse(
                 statusCode: 202,
                 reasonPhrase: "Accepted",
-                headers: notificationHeaders,
+                headers: corsHeaders(),
                 body: Data()
             )
         }
@@ -327,12 +323,9 @@ final class BacktickMCPHTTPHandler {
             )
         }
 
-        var extraHeaders = [
+        let extraHeaders = [
             "Cache-Control": "no-store",
         ]
-        if let sessionID = await session.sessionID {
-            extraHeaders["Mcp-Session-Id"] = sessionID
-        }
 
         return jsonResponse(
             statusCode: 200,
@@ -790,7 +783,6 @@ final class BacktickMCPHTTPHandler {
             "Access-Control-Allow-Headers": "Authorization, Content-Type, X-API-Key",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Origin": origin,
-            "Access-Control-Expose-Headers": "Mcp-Session-Id",
         ]
     }
 

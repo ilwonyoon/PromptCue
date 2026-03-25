@@ -332,8 +332,6 @@ final class BacktickMCPServerSession {
         let clientInfo = params["clientInfo"] as? [String: Any]
         clientName = clientInfo?["name"] as? String
         clientVersion = clientInfo?["version"] as? String
-        sessionID = UUID().uuidString.lowercased()
-
         return [
             "protocolVersion": protocolVersion,
             "instructions": serverInstructions(),

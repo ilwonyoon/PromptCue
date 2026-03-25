@@ -1280,14 +1280,14 @@ struct MCPConnectorInspector {
                 .map { "-e \(shellEscapedEnvPair(key: $0.key, value: $0.value))" }
                 .joined(separator: " ")
             let envSegment = envFlags.isEmpty ? "" : "\(envFlags) "
-            return "\(cliCommand) --transport stdio --scope user \(envSegment)backtick -- \(configuredLaunchSpec.commandLine)"
+            return "\(cliCommand) backtick --transport stdio --scope user \(envSegment)-- \(configuredLaunchSpec.commandLine)"
         case .codex:
             let envFlags = configuredLaunchSpec.environment
                 .sorted(by: { $0.key < $1.key })
                 .map { "--env \(shellEscapedEnvPair(key: $0.key, value: $0.value))" }
                 .joined(separator: " ")
             let envSegment = envFlags.isEmpty ? "" : "\(envFlags) "
-            return "\(cliCommand) \(envSegment)backtick -- \(configuredLaunchSpec.commandLine)"
+            return "\(cliCommand) backtick \(envSegment)-- \(configuredLaunchSpec.commandLine)"
         }
     }
 

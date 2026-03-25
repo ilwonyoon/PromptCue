@@ -8,7 +8,7 @@ struct BacktickMCPHTTPConfiguration {
     var apiKey: String?
     var publicBaseURL: URL?
     var oauthStateFileURL: URL?
-    var accessTokenLifetime: TimeInterval = 3600
+    var accessTokenLifetime: TimeInterval = 86400
 }
 
 struct BacktickMCPHTTPRequest {
@@ -790,6 +790,7 @@ final class BacktickMCPHTTPHandler {
             "Access-Control-Allow-Headers": "Authorization, Content-Type, X-API-Key",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Origin": origin,
+            "Access-Control-Expose-Headers": "Mcp-Session-Id",
         ]
     }
 

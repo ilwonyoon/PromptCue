@@ -217,6 +217,22 @@ actor BacktickMCPOAuthProvider {
             throw OAuthError.invalidClientMetadata("Only token_endpoint_auth_method=none is supported")
         }
 
+        let sortedRequestURIs = request.redirectURIs.sorted()
+        if let existingRegistration = dynamicClients.values.first(where: { existing in
+            existing.redirectURIs.sorted() == sortedRequestURIs
+                && existing.clientName == request.clientName
+        }) {
+            return DynamicClientRegistrationResponse(
+                clientID: existingRegistration.clientID,
+                clientIDIssuedAt: Int(existingRegistration.createdAt.timeIntervalSince1970),
+                redirectURIs: existingRegistration.redirectURIs,
+                grantTypes: ["authorization_code", "refresh_token"],
+                responseTypes: ["code"],
+                tokenEndpointAuthMethod: existingRegistration.tokenEndpointAuthMethod,
+                clientName: existingRegistration.clientName
+            )
+        }
+
         let clientID = Self.randomToken(length: 24)
         let registration = DynamicClientRegistration(
             clientID: clientID,

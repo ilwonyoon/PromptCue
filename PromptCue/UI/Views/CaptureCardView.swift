@@ -530,9 +530,9 @@ struct CaptureCardView: View {
         StackCardOverflowPolicy.cardTextWidth
     }
 
-    private func visibleTextHeight(for metrics: StackCardOverflowPolicy.Metrics) -> CGFloat {
+    private func visibleTextHeight(for metrics: StackCardOverflowPolicy.Metrics) -> CGFloat? {
         if isExpanded {
-            return metrics.expandedVisibleTextHeight
+            return nil
         }
 
         return metrics.restingVisibleTextHeight

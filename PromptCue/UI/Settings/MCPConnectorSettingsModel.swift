@@ -306,7 +306,7 @@ enum TunnelProvider: String, Equatable {
         switch self {
         case .ngrok: return "ngrok"
         case .cloudflare: return "Cloudflare Tunnel"
-        case .none: return "tunnel"
+        case .none: return "ngrok"
         }
     }
 

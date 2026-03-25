@@ -2113,7 +2113,9 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .launchTunnel:
             _ = launchExperimentalRemoteRecommendedTunnelInTerminal()
         case .installTunnel:
-            openExperimentalRemoteTunnelDocumentation()
+            _ = terminalLauncher.launchInTerminal(
+                command: "brew install ngrok && ngrok http \(experimentalRemoteSettings.port)"
+            )
         case .copyPublicMCPURL:
             copyExperimentalRemotePublicEndpoint()
         case .resetLocalState:

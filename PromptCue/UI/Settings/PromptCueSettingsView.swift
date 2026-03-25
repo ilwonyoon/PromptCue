@@ -602,9 +602,7 @@ struct PromptCueSettingsView: View {
                         }
 
                         Button("Setup Guide") {
-                            NSWorkspace.shared.open(
-                                URL(string: "https://github.com/ilwonyoon/Backtick/blob/main/docs/ChatGPT-Setup-Guide.md")!
-                            )
+                            NSWorkspace.shared.open(MCPConnectorSettingsModel.chatGPTSetupGuideURL)
                         }
                         .controlSize(.small)
                     }

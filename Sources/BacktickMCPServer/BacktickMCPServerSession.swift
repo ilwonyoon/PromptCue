@@ -113,7 +113,6 @@ final class BacktickMCPServerSession {
     private let launchCommand: String?
     private let launchArguments: [String]
 
-    private(set) var sessionID: String?
     private var clientName: String?
     private var clientVersion: String?
     private var currentActivityContext: BacktickMCPConnectionContext = .stdio
@@ -363,7 +362,7 @@ final class BacktickMCPServerSession {
             context: activityContext,
             clientName: clientName,
             clientVersion: clientVersion,
-            sessionID: sessionID,
+            sessionID: nil,
             toolName: toolName,
             requestedToolName: requestedToolName,
             configuredClientID: configuredClientID,

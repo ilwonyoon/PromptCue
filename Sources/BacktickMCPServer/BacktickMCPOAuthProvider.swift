@@ -221,6 +221,7 @@ actor BacktickMCPOAuthProvider {
         if let existingRegistration = dynamicClients.values.first(where: { existing in
             existing.redirectURIs.sorted() == sortedRequestURIs
                 && existing.clientName == request.clientName
+                && existing.tokenEndpointAuthMethod == tokenEndpointAuthMethod
         }) {
             return DynamicClientRegistrationResponse(
                 clientID: existingRegistration.clientID,

@@ -183,6 +183,7 @@ public enum BacktickMCPApp {
                 apiKey: httpAPIKey,
                 publicBaseURL: httpPublicBaseURL,
                 oauthStateFileURL: httpOAuthStateFileURL,
+                // 24-hour fallback: see BacktickMCPHTTPConfiguration for rationale
                 accessTokenLifetime: httpAccessTokenLifetime ?? 86400
             )
             self.parentProcessIdentifier = parentProcessIdentifier

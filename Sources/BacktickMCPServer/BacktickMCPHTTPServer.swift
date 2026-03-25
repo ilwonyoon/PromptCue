@@ -8,6 +8,9 @@ struct BacktickMCPHTTPConfiguration {
     var apiKey: String?
     var publicBaseURL: URL?
     var oauthStateFileURL: URL?
+    // 24-hour access token lifetime reduces refresh frequency. For a local-first
+    // app with tunnel access, the extended window is an acceptable tradeoff
+    // to minimize ChatGPT MCP session drops caused by token refresh failures.
     var accessTokenLifetime: TimeInterval = 86400
 }
 
@@ -770,6 +773,9 @@ final class BacktickMCPHTTPHandler {
         )
     }
 
+    // ChatGPT MCP requests originate server-side, not from a browser,
+    // so CORS origin matching is not required for ChatGPT. The origin
+    // is set for development/testing convenience.
     private func corsHeaders() -> [String: String] {
         let origin: String
         if let publicBaseURL = configuration.publicBaseURL {

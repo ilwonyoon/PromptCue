@@ -23,7 +23,7 @@ enum SettingsTab: Int, CaseIterable, Hashable {
     var sidebarIcon: SettingsSidebarIcon {
         switch self {
         case .general:
-            return .asset("BacktickSidebarMark")
+            return .system("gearshape.fill")
         case .capture:
             return .system("rectangle.dashed")
         case .stack:

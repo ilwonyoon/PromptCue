@@ -224,16 +224,6 @@ struct CaptureCardView: View {
                 .opacity(compactMode ? 0 : 1)
                 .zIndex(1)
 
-                if let ttlProgressRemaining {
-                    ttlIndicatorRow(
-                        progressRemaining: ttlProgressRemaining,
-                        remainingMinutes: ttlRemainingMinutes
-                    )
-                        .padding(.trailing, PrimitiveTokens.Space.xxxs)
-                        .padding(.bottom, PrimitiveTokens.Space.xxxs)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .zIndex(1)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)

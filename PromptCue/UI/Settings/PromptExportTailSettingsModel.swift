@@ -27,7 +27,7 @@ enum PromptExportTailPreferences {
     private static let textKey = "promptExportTail.text"
 
     static let defaultSuffixText = """
-    문제 원인/진단부터 정리하고, 해결책을 강구한 뒤, 멀티에이전트로 병렬 실행하고 마스터 에이전트가 검수해줘.
+    Start by diagnosing the root cause, devise a solution, then execute and verify the result.
     """
 
     static func load(defaults: UserDefaults = .standard) -> PromptExportTailState {

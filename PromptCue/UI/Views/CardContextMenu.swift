@@ -44,7 +44,7 @@ struct CardContextMenuTrigger: NSViewRepresentable {
 final class CardContextMenuNSView: NSView {
     var menuItems: [CardContextMenuItem] = []
 
-    override func rightMouseDown(with event: NSEvent) {
+    override func menu(for event: NSEvent) -> NSMenu? {
         let menu = NSMenu()
         for item in menuItems {
             if item.isSeparator {
@@ -86,21 +86,17 @@ final class CardContextMenuNSView: NSView {
                 menu.addItem(menuItem)
             }
         }
-        NSMenu.popUpContextMenu(menu, with: event, for: self)
+        return menu
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
         menuItems.first(where: { $0.tag == sender.tag })?.action()
     }
 
-    // Pass through hit-testing so left clicks and other gestures
-    // are handled by SwiftUI as normal.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        nil
-    }
-
-    // Only handle right-mouse events; forward everything else.
-    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        false
+        guard let event = NSApp.currentEvent, event.type == .rightMouseDown else {
+            return nil
+        }
+        return super.hitTest(point)
     }
 }

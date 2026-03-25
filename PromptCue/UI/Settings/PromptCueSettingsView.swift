@@ -545,13 +545,13 @@ struct PromptCueSettingsView: View {
                             }
 
                             if experimentalRemoteHasPendingPortChange {
-                                rowNote("Apply the local port change first. Backtick and ngrok must use the same port.")
+                                rowNote("Apply the local port change first. Backtick and the tunnel must use the same port.")
                             }
                         }
                     } actions: {
                         // Status-specific action (copy URL, reset state, retry)
                         // Tunnel actions (.launchTunnel, .installTunnel) are handled
-                        // by the dedicated ngrok button below.
+                        // by the dedicated tunnel button below.
                         if shouldShowExperimentalRemoteStatusAction,
                            let action = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation.action,
                            action != .launchTunnel, action != .installTunnel {
@@ -566,18 +566,18 @@ struct PromptCueSettingsView: View {
                             .controlSize(.small)
                         }
 
-                        // Dedicated ngrok launch / install button.
+                        // Dedicated tunnel launch / install button.
                         // Always visible when feature is enabled so user can
-                        // (re)start ngrok at any time.
+                        // (re)start the tunnel at any time.
                         if mcpConnectorSettingsModel.experimentalRemoteSettings.isEnabled {
                             if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
-                                Button("Launch ngrok") {
+                                Button(mcpConnectorSettingsModel.tunnelActionTitle(for: .launchTunnel)) {
                                     mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(.launchTunnel)
                                 }
                                 .disabled(experimentalRemoteHasPendingPortChange)
                                 .controlSize(.small)
                             } else {
-                                Button("Install & Launch ngrok") {
+                                Button(mcpConnectorSettingsModel.tunnelActionTitle(for: .installTunnel)) {
                                     mcpConnectorSettingsModel.performExperimentalRemoteStatusAction(.installTunnel)
                                 }
                                 .controlSize(.small)
@@ -589,7 +589,7 @@ struct PromptCueSettingsView: View {
                         SettingsDetailGroupRow("Tunnel URL") {
                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                                 TextField(
-                                    "https://your-ngrok-domain.ngrok-free.dev",
+                                    "https://your-tunnel-url.example.com",
                                     text: binding(
                                         get: { experimentalRemotePublicBaseURLDraft },
                                         set: {
@@ -604,7 +604,7 @@ struct PromptCueSettingsView: View {
                                     commitExperimentalRemotePublicBaseURLDraft()
                                 }
 
-                                rowNote("Paste the `https://` base URL ngrok shows for this Mac. Leave off `/mcp`.")
+                                rowNote("Paste the `https://` base URL your tunnel provides for this Mac. Leave off `/mcp`.")
 
                                 if let validationMessage = experimentalRemotePublicBaseURLValidationMessage {
                                     rowNote(validationMessage)
@@ -693,7 +693,7 @@ struct PromptCueSettingsView: View {
                                             )
                                         }
 
-                                        advancedDetailPane(label: "ngrok") {
+                                        advancedDetailPane(label: "Tunnel") {
                                             VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                                                 advancedValueBlock(
                                                     mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelCommand,
@@ -707,7 +707,7 @@ struct PromptCueSettingsView: View {
                                                 if shouldShowExperimentalRemoteTunnelActions {
                                                     HStack(spacing: PrimitiveTokens.Space.xs) {
                                                         if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
-                                                            Button("Launch ngrok") {
+                                                            Button(mcpConnectorSettingsModel.tunnelActionTitle(for: .launchTunnel)) {
                                                                 _ = mcpConnectorSettingsModel.launchExperimentalRemoteRecommendedTunnelInTerminal()
                                                             }
                                                             .disabled(experimentalRemoteHasPendingPortChange)
@@ -724,7 +724,7 @@ struct PromptCueSettingsView: View {
                                                         }
 
                                                         if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath == nil {
-                                                            Button("Install ngrok") {
+                                                            Button(mcpConnectorSettingsModel.tunnelActionTitle(for: .installTunnel)) {
                                                                 mcpConnectorSettingsModel.openExperimentalRemoteTunnelDocumentation()
                                                             }
                                                             .controlSize(.small)
@@ -734,7 +734,7 @@ struct PromptCueSettingsView: View {
 
                                                 if experimentalRemoteHasPendingPortChange {
                                                     advancedMessageBlock(
-                                                        "Apply the local port change first. Then launch ngrok so it forwards to the same port."
+                                                        "Apply the local port change first. Then launch the tunnel so it forwards to the same port."
                                                     )
                                                 }
                                             }
@@ -744,7 +744,7 @@ struct PromptCueSettingsView: View {
                                             advancedDetailPane(label: "Tunnel URL") {
                                                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xs) {
                                                     TextField(
-                                                        "https://your-ngrok-domain.ngrok-free.dev",
+                                                        "https://your-tunnel-url.example.com",
                                                         text: binding(
                                                             get: { experimentalRemotePublicBaseURLDraft },
                                                             set: {
@@ -760,7 +760,7 @@ struct PromptCueSettingsView: View {
                                                     }
 
                                                     advancedMessageBlock(
-                                                        "Paste the `https://` base URL ngrok shows for this Mac. Leave off `/mcp`."
+                                                        "Paste the `https://` base URL your tunnel provides for this Mac. Leave off `/mcp`."
                                                     )
 
                                                     if let validationMessage = experimentalRemotePublicBaseURLValidationMessage {
@@ -837,7 +837,7 @@ struct PromptCueSettingsView: View {
                                                 .frame(maxWidth: .infinity, alignment: .leading)
 
                                                 advancedMessageBlock(
-                                                    "If you change the local port, apply it before launching ngrok. Both Backtick and ngrok must use the same port."
+                                                    "If you change the local port, apply it before launching the tunnel. Both Backtick and the tunnel must use the same port."
                                                 )
                                             }
                                         }

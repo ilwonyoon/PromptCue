@@ -297,12 +297,45 @@ struct MCPConnectorClientStatus: Equatable {
     }
 }
 
+enum TunnelProvider: String, Equatable {
+    case ngrok
+    case cloudflare
+    case none
+
+    var displayName: String {
+        switch self {
+        case .ngrok: return "ngrok"
+        case .cloudflare: return "Cloudflare Tunnel"
+        case .none: return "tunnel"
+        }
+    }
+
+    var executableName: String? {
+        switch self {
+        case .ngrok: return "ngrok"
+        case .cloudflare: return "cloudflared"
+        case .none: return nil
+        }
+    }
+}
+
 struct MCPConnectorInspection: Equatable {
     let repositoryRootPath: String?
     let bundledHelperPath: String?
     let launchSpec: MCPServerLaunchSpec?
     let ngrokPath: String?
+    let cloudflaredPath: String?
     let clients: [MCPConnectorClientStatus]
+
+    var detectedTunnelProvider: TunnelProvider {
+        if cloudflaredPath != nil { return .cloudflare }
+        if ngrokPath != nil { return .ngrok }
+        return .none
+    }
+
+    var tunnelExecutablePath: String? {
+        cloudflaredPath ?? ngrokPath
+    }
 
     func status(for client: MCPConnectorClient) -> MCPConnectorClientStatus {
         guard let status = clients.first(where: { $0.client == client }) else {
@@ -397,9 +430,9 @@ enum ExperimentalMCPHTTPStatusAction: Equatable {
     var title: String {
         switch self {
         case .launchTunnel:
-            return "Launch ngrok"
+            return "Launch Tunnel"
         case .installTunnel:
-            return "Install ngrok"
+            return "Install Tunnel"
         case .copyPublicMCPURL:
             return "Copy Remote MCP URL"
         case .resetLocalState:
@@ -824,6 +857,7 @@ struct MCPConnectorInspector {
             bundledHelperPath: bundledHelperURL?.path,
             launchSpec: launchSpec,
             ngrokPath: locateExecutable(named: "ngrok"),
+            cloudflaredPath: locateExecutable(named: "cloudflared"),
             clients: MCPConnectorClient.allCases.map { client in
                 clientStatus(for: client, launchSpec: launchSpec)
             }
@@ -1366,7 +1400,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         experimentalRemotePeriodicProbeTimer?.invalidate()
     }
 
-    private static let experimentalRemoteTunnelDocumentationURL = URL(string: "https://ngrok.com/download")!
+    private static let ngrokDocumentationURL = URL(string: "https://ngrok.com/download")!
+    private static let cloudflaredDocumentationURL = URL(string: "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/")!
     private static let connectedActivityFreshnessWindow: TimeInterval = 30 * 24 * 60 * 60
     private static let relativeDateTimeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
@@ -1751,23 +1786,63 @@ final class MCPConnectorSettingsModel: ObservableObject {
         experimentalRemoteConfiguredPublicBaseURL ?? experimentalRemoteDetectedPublicBaseURL
     }
 
+    var detectedTunnelProvider: TunnelProvider {
+        inspection.detectedTunnelProvider
+    }
+
     var experimentalRemoteRecommendedTunnelPath: String? {
-        inspection.ngrokPath
+        inspection.tunnelExecutablePath
     }
 
     var experimentalRemoteRecommendedTunnelCommand: String {
-        MCPServerLaunchSpec(
-            command: experimentalRemoteRecommendedTunnelPath ?? "ngrok",
-            arguments: ["http", "\(experimentalRemoteSettings.port)"]
-        ).commandLine
+        switch detectedTunnelProvider {
+        case .ngrok:
+            return MCPServerLaunchSpec(
+                command: inspection.ngrokPath ?? "ngrok",
+                arguments: ["http", "\(experimentalRemoteSettings.port)"]
+            ).commandLine
+        case .cloudflare:
+            return MCPServerLaunchSpec(
+                command: inspection.cloudflaredPath ?? "cloudflared",
+                arguments: ["tunnel", "--url", "http://localhost:\(experimentalRemoteSettings.port)"]
+            ).commandLine
+        case .none:
+            return MCPServerLaunchSpec(
+                command: "ngrok",
+                arguments: ["http", "\(experimentalRemoteSettings.port)"]
+            ).commandLine
+        }
     }
 
     var experimentalRemoteRecommendedTunnelSummary: String {
-        if let ngrokPath = experimentalRemoteRecommendedTunnelPath {
-            return "Recommended for advanced users. ngrok is installed at \(ngrokPath). Run it against port \(experimentalRemoteSettings.port) to get a public HTTPS URL, then paste that base URL below."
+        switch detectedTunnelProvider {
+        case .ngrok:
+            return "Recommended for advanced users. ngrok is installed at \(inspection.ngrokPath ?? "ngrok"). Run it against port \(experimentalRemoteSettings.port) to get a public HTTPS URL, then paste that base URL below."
+        case .cloudflare:
+            return "Recommended for advanced users. cloudflared is installed at \(inspection.cloudflaredPath ?? "cloudflared"). Run it against port \(experimentalRemoteSettings.port) to get a public HTTPS URL, then paste that base URL below."
+        case .none:
+            return "Recommended for advanced users. Install a tunnel provider (ngrok or cloudflared), then run it against port \(experimentalRemoteSettings.port) to get a public HTTPS URL for this Mac."
         }
+    }
 
-        return "Recommended for advanced users. Install ngrok, sign in, then run `ngrok http \(experimentalRemoteSettings.port)` to get a public HTTPS URL for this Mac."
+    func tunnelActionTitle(for action: ExperimentalMCPHTTPStatusAction) -> String {
+        switch action {
+        case .launchTunnel:
+            return "Launch \(detectedTunnelProvider.displayName)"
+        case .installTunnel:
+            return "Install \(detectedTunnelProvider.displayName)"
+        default:
+            return action.title
+        }
+    }
+
+    var experimentalRemoteTunnelDocumentationURL: URL {
+        switch detectedTunnelProvider {
+        case .cloudflare:
+            return Self.cloudflaredDocumentationURL
+        case .ngrok, .none:
+            return Self.ngrokDocumentationURL
+        }
     }
 
     var experimentalRemoteOAuthStateExists: Bool {
@@ -1999,13 +2074,20 @@ final class MCPConnectorSettingsModel: ObservableObject {
     @discardableResult
     func launchExperimentalRemoteRecommendedTunnelInTerminal() -> Bool {
         let tunnelCommand = experimentalRemoteRecommendedTunnelCommand
-        // tunnelCommand is shell-safe: path is shell-escaped via MCPServerLaunchSpec.commandLine,
-        // port is UInt16 (numeric only). Using pkill -f to target only ngrok HTTP tunnels.
-        return terminalLauncher.launchInTerminal(command: "pkill -f 'ngrok http' 2>/dev/null; sleep 1; \(tunnelCommand)")
+        switch detectedTunnelProvider {
+        case .ngrok:
+            // tunnelCommand is shell-safe: path is shell-escaped via MCPServerLaunchSpec.commandLine,
+            // port is UInt16 (numeric only). Using pkill -f to target only ngrok HTTP tunnels.
+            return terminalLauncher.launchInTerminal(command: "pkill -f 'ngrok http' 2>/dev/null; sleep 1; \(tunnelCommand)")
+        case .cloudflare:
+            return terminalLauncher.launchInTerminal(command: tunnelCommand)
+        case .none:
+            return terminalLauncher.launchInTerminal(command: tunnelCommand)
+        }
     }
 
     func openExperimentalRemoteTunnelDocumentation() {
-        workspace.open(Self.experimentalRemoteTunnelDocumentationURL)
+        workspace.open(experimentalRemoteTunnelDocumentationURL)
     }
 
     @discardableResult
@@ -2142,9 +2224,16 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .launchTunnel:
             _ = launchExperimentalRemoteRecommendedTunnelInTerminal()
         case .installTunnel:
-            _ = terminalLauncher.launchInTerminal(
-                command: "brew install ngrok && ngrok http \(experimentalRemoteSettings.port)"
-            )
+            switch detectedTunnelProvider {
+            case .cloudflare:
+                _ = terminalLauncher.launchInTerminal(
+                    command: "brew install cloudflare/cloudflare/cloudflared && cloudflared tunnel --url http://localhost:\(experimentalRemoteSettings.port)"
+                )
+            case .ngrok, .none:
+                _ = terminalLauncher.launchInTerminal(
+                    command: "brew install ngrok && ngrok http \(experimentalRemoteSettings.port)"
+                )
+            }
         case .copyPublicMCPURL:
             copyExperimentalRemotePublicEndpoint()
         case .resetLocalState:
@@ -3273,7 +3362,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
         case .publicEndpointUnreachable:
             return ExperimentalMCPHTTPStatusPresentation(
                 title: "Needs attention",
-                reason: "Backtick is running locally, but the public HTTPS URL is not serving Backtick's MCP/OAuth endpoints. Restart ngrok on the same local port Backtick is using, or update the public URL below.",
+                reason: "Backtick is running locally, but the public HTTPS URL is not serving Backtick's MCP/OAuth endpoints. Restart the tunnel on the same local port Backtick is using, or update the public URL below.",
                 detail: nil,
                 tone: .warning,
                 action: experimentalRemoteRecommendedTunnelPath == nil ? .installTunnel : .launchTunnel

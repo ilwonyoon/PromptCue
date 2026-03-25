@@ -2238,26 +2238,6 @@ struct PromptCueSettingsView: View {
         return true
     }
 
-    /// The public tunnel is confirmed active: a URL is saved AND the status
-    /// presentation does not indicate a probe failure or missing URL.
-    /// When true the dedicated "Launch ngrok" button is hidden.
-    private var experimentalRemoteIsTunnelActive: Bool {
-        let presentation = mcpConnectorSettingsModel.experimentalRemoteStatusPresentation
-        // Tunnel-related actions (.launchTunnel / .installTunnel) are set by
-        // the model only when the URL is missing or the probe failed.
-        // Their absence — combined with having a public URL — means the tunnel
-        // is confirmed alive.
-        guard mcpConnectorSettingsModel.experimentalRemotePublicBaseURL != nil else {
-            return false
-        }
-        switch presentation.action {
-        case .launchTunnel, .installTunnel:
-            return false
-        default:
-            return true
-        }
-    }
-
     private var shouldShowExperimentalRemoteTunnelActions: Bool {
         if mcpConnectorSettingsModel.experimentalRemoteRecommendedTunnelPath != nil {
             return true

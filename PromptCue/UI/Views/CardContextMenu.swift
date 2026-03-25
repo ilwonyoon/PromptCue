@@ -90,11 +90,17 @@ final class CardContextMenuNSView: NSView {
     }
 
     @objc private func menuItemClicked(_ sender: NSMenuItem) {
-        menuItems.first(where: { $0.tag == sender.tag })?.action()
+        guard let action = menuItems.first(where: { $0.tag == sender.tag })?.action else { return }
+        Task { @MainActor in
+            action()
+        }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard let event = NSApp.currentEvent, event.type == .rightMouseDown else {
+        guard let event = NSApp.currentEvent,
+              event.type == .rightMouseDown
+                || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+        else {
             return nil
         }
         return super.hitTest(point)

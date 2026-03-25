@@ -3,10 +3,6 @@ import SwiftUI
 
 @MainActor
 final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegate {
-    private enum ToolbarItemIdentifier {
-        static let refresh = NSToolbarItem.Identifier("BacktickMemoryRefresh")
-    }
-
     private var window: NSWindow?
     private let model: MemoryViewerModel
     private let uiState = MemoryViewerUIState()
@@ -136,11 +132,11 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, ToolbarItemIdentifier.refresh]
+        [.flexibleSpace]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [ToolbarItemIdentifier.refresh, .flexibleSpace]
+        [.flexibleSpace]
     }
 
     func toolbar(
@@ -148,25 +144,7 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard itemIdentifier == ToolbarItemIdentifier.refresh else {
-            return nil
-        }
-
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = "Refresh"
-        item.paletteLabel = "Refresh"
-        item.toolTip = "Refresh Memory"
-        item.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh Memory")
-        item.target = self
-        item.action = #selector(refreshMemory)
-        return item
-    }
-
-    @objc
-    private func refreshMemory() {
-        model.refresh()
-        uiState.syncSelection(with: model)
-        window?.contentViewController?.view.layoutSubtreeIfNeeded()
+        nil
     }
 
     func windowWillClose(_ notification: Notification) {

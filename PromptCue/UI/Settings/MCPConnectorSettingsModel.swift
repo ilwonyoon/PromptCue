@@ -1362,6 +1362,10 @@ struct MCPConnectorInspector {
 
 @MainActor
 final class MCPConnectorSettingsModel: ObservableObject {
+    deinit {
+        experimentalRemotePeriodicProbeTimer?.invalidate()
+    }
+
     private static let experimentalRemoteTunnelDocumentationURL = URL(string: "https://ngrok.com/download")!
     private static let connectedActivityFreshnessWindow: TimeInterval = 30 * 24 * 60 * 60
     private static let relativeDateTimeFormatter: RelativeDateTimeFormatter = {
@@ -1902,6 +1906,7 @@ final class MCPConnectorSettingsModel: ObservableObject {
             updatedSettings.apiKey = Self.generateExperimentalRemoteAPIKey()
         }
         if !isEnabled {
+            stopPeriodicRemoteProbe()
             resetExperimentalRemoteDiagnostics()
             experimentalRemoteProbeIssue = nil
         }
@@ -1993,7 +1998,10 @@ final class MCPConnectorSettingsModel: ObservableObject {
 
     @discardableResult
     func launchExperimentalRemoteRecommendedTunnelInTerminal() -> Bool {
-        terminalLauncher.launchInTerminal(command: "killall ngrok 2>/dev/null; sleep 1; \(experimentalRemoteRecommendedTunnelCommand)")
+        let tunnelCommand = experimentalRemoteRecommendedTunnelCommand
+        // tunnelCommand is shell-safe: path is shell-escaped via MCPServerLaunchSpec.commandLine,
+        // port is UInt16 (numeric only). Using pkill -f to target only ngrok HTTP tunnels.
+        return terminalLauncher.launchInTerminal(command: "pkill -f 'ngrok http' 2>/dev/null; sleep 1; \(tunnelCommand)")
     }
 
     func openExperimentalRemoteTunnelDocumentation() {

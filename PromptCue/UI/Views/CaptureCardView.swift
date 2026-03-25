@@ -651,48 +651,6 @@ struct CaptureCardView: View {
     }
 
     @ViewBuilder
-    private func ttlIndicatorRow(progressRemaining: Double, remainingMinutes: Int?) -> some View {
-        HStack(alignment: .center, spacing: PrimitiveTokens.Space.xxxs) {
-            if let remainingMinutes {
-                Text("\(remainingMinutes)m")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
-                    .foregroundStyle(SemanticTokens.Text.secondary.opacity(0.72))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-
-            ttlIndicator(progressRemaining: progressRemaining)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(ttlAccessibilityLabel(remainingMinutes: remainingMinutes))
-    }
-
-    private func ttlIndicator(progressRemaining: Double) -> some View {
-        let lineWidth: CGFloat = 1.5
-        let trackColor = SemanticTokens.Border.subtle.opacity(0.9)
-        let progressColor = SemanticTokens.Text.secondary.opacity(0.88)
-
-        return ZStack {
-            Circle()
-                .stroke(trackColor, lineWidth: lineWidth)
-
-            Circle()
-                .trim(from: 0, to: max(progressRemaining, 0.02))
-                .stroke(progressColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-        }
-        .frame(width: 8, height: 8)
-    }
-
-    private func ttlAccessibilityLabel(remainingMinutes: Int?) -> String {
-        if let remainingMinutes {
-            return "Expires in \(remainingMinutes) minute\(remainingMinutes == 1 ? "" : "s")"
-        }
-
-        return "Expiration timer"
-    }
-
-    @ViewBuilder
     private func iconButton(
         systemName: String,
         foregroundColor: Color,

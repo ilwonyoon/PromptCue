@@ -57,6 +57,7 @@ enum PrimitiveTokens {
         static let compactCardPaddingHorizontal: CGFloat = 12
         static let pinnedCardWidth: CGFloat = 170
         static let copiedControlClusterSpacing: CGFloat = 16
+        static let sectionHeaderTrailingHeight: CGFloat = 22
 
         static let connectorBadge: CGFloat = 44
         static let connectorBadgeCornerRadius: CGFloat = 10

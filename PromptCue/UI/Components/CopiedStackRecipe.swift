@@ -98,4 +98,9 @@ enum CopiedStackRecipe {
     static func backPlateShadowYOffset(index: Int) -> CGFloat {
         4
     }
+
+    /// Extra top inset to compensate for upward shadow bleed from the front card.
+    /// The front card shadow(radius: 4, y: 4) bleeds ~3pt above the layout top.
+    /// Update this if backPlateShadowRadius or backPlateShadowYOffset changes.
+    static let collapsedTopShadowCompensation: CGFloat = 3
 }

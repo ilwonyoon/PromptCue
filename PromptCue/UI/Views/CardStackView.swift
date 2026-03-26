@@ -285,6 +285,7 @@ struct CardStackView: View {
             .id("copied-expanded")
         } else {
             collapsedCopiedStack(copiedCards: copiedCards)
+                .padding(.top, CopiedStackRecipe.collapsedTopShadowCompensation)
                 .id("copied-collapsed")
         }
     }
@@ -342,6 +343,7 @@ struct CardStackView: View {
             .zIndex(1)
         }
         .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
+        .opacity(isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
         .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
         .onHover { hovered in
             isCopiedStackHovered = hovered
@@ -450,6 +452,7 @@ struct CardStackView: View {
                 }
             }
         }
+        .frame(minHeight: PrimitiveTokens.Size.sectionHeaderTrailingHeight)
     }
 
     private func copiedSummaryMetrics(copiedCards: [CaptureCard]) -> StackCardOverflowPolicy.Metrics? {

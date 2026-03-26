@@ -2719,10 +2719,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
             }
 
             switch readinessState(for: client) {
-            case .connected:
-                return nil
-            case .needsRefresh:
-                return nil
+            case .connected, .needsRefresh:
+                return .runServerTest
             case .configured, .checking, .needsAttention:
                 if case .passed = verificationState(for: client) {
                     return nil
@@ -2762,10 +2760,8 @@ final class MCPConnectorSettingsModel: ObservableObject {
         }
 
         switch readinessState(for: client) {
-        case .connected:
-            return nil
-        case .needsRefresh:
-            return nil
+        case .connected, .needsRefresh:
+            return .runServerTest
         case .configured, .checking, .needsAttention:
             if case .passed = verificationState(for: client) {
                 return nil

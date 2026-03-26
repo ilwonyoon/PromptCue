@@ -38,16 +38,39 @@ public enum ExportFormatter {
     }
 
     public static func clipboardString(for cards: [CaptureCard], suffix: ExportSuffix) -> String {
+        clipboardString(for: cards, suffix: suffix, attachmentFlags: nil)
+    }
+
+    /// Build clipboard text with optional per-card `[Image]` markers.
+    /// `attachmentFlags` must match `cards` count when provided.
+    public static func clipboardString(
+        for cards: [CaptureCard],
+        suffix: ExportSuffix,
+        attachmentFlags: [Bool]?
+    ) -> String {
         if let rawStandalonePayload = rawStandalonePayload(for: cards) {
-            return rawStandalonePayload
+            let hasAttachment = attachmentFlags?.first ?? false
+            return hasAttachment ? "[Image] \(rawStandalonePayload)" : rawStandalonePayload
         }
 
-        return string(for: cards, suffix: suffix)
+        return string(for: cards, suffix: suffix, attachmentFlags: attachmentFlags)
     }
 
     public static func string(for cards: [CaptureCard], suffix: ExportSuffix) -> String {
-        let basePayload = cards
-            .map { "\u{2022} \($0.text)" }
+        string(for: cards, suffix: suffix, attachmentFlags: nil)
+    }
+
+    public static func string(
+        for cards: [CaptureCard],
+        suffix: ExportSuffix,
+        attachmentFlags: [Bool]?
+    ) -> String {
+        let basePayload = cards.enumerated()
+            .map { index, card in
+                let hasAttachment = attachmentFlags.map { index < $0.count && $0[index] } ?? false
+                let imageTag = hasAttachment ? "[Image] " : ""
+                return "\u{2022} \(imageTag)\(card.text)"
+            }
             .joined(separator: "\n")
 
         guard let normalizedSuffix = suffix.normalizedValue, basePayload.isEmpty == false else {

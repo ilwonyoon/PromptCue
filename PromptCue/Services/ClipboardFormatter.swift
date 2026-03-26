@@ -16,32 +16,44 @@ enum ClipboardFormatter {
     }
 
     static func copyToPasteboard(cards: [CaptureCard]) {
-        let value = string(for: cards)
+        let suffix = PromptExportTailPreferences.load().exportSuffix
         let pasteboard = NSPasteboard.general
 
         var types: [NSPasteboard.PasteboardType] = [.string]
-        var imageData: (tiff: Data?, png: Data?) = (nil, nil)
+        var firstImageData: (tiff: Data?, png: Data?) = (nil, nil)
 
-        if let card = cards.first,
-           let screenshotURL = ManagedScreenshotAccess.readableURL(for: card) {
+        let cardsWithURLs = cards.map { card in
+            (card: card, screenshotURL: ManagedScreenshotAccess.readableURL(for: card))
+        }
+        let attachmentFlags = cardsWithURLs.map { $0.screenshotURL != nil }
+
+        // Attach the first available image to the pasteboard
+        if let firstImageEntry = cardsWithURLs.first(where: { $0.screenshotURL != nil }),
+           let screenshotURL = firstImageEntry.screenshotURL {
             if let image = NSImage(contentsOf: screenshotURL),
                let tiff = image.tiffRepresentation {
-                imageData.tiff = tiff
+                firstImageData.tiff = tiff
                 types.append(.tiff)
             }
             if screenshotURL.pathExtension.lowercased() == "png",
                let png = try? Data(contentsOf: screenshotURL) {
-                imageData.png = png
+                firstImageData.png = png
                 types.append(.png)
             }
         }
 
+        let textValue = ExportFormatter.clipboardString(
+            for: cards,
+            suffix: suffix,
+            attachmentFlags: attachmentFlags
+        )
+
         pasteboard.declareTypes(types, owner: nil)
-        pasteboard.setString(value, forType: .string)
-        if let tiff = imageData.tiff {
+        pasteboard.setString(textValue, forType: .string)
+        if let tiff = firstImageData.tiff {
             pasteboard.setData(tiff, forType: .tiff)
         }
-        if let png = imageData.png {
+        if let png = firstImageData.png {
             pasteboard.setData(png, forType: .png)
         }
     }

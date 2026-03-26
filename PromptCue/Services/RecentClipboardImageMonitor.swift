@@ -163,10 +163,16 @@ final class RecentClipboardImageMonitor: RecentClipboardImageProviding {
 
     private func processCurrentPasteboard(changeCount: Int) {
         guard let payload = imagePayload() else {
-            clearCurrentImageCache()
-            currentImage = nil
+            if currentImage != nil {
+                // Keep the cached image alive — another app may have overwritten
+                // the pasteboard, but the capture panel still references our file.
+            }
+            // Do not clear currentImage or its cache; it will be cleaned up
+            // when consumeCurrent() or dismissCurrent() is called.
             return
         }
+
+        // New image arrived — replace the previous cache
 
         let sessionID = UUID()
         guard let cacheURL = try? cache.cacheImageData(

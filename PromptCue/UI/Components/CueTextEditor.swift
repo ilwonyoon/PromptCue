@@ -93,7 +93,7 @@ struct CueTextEditor: NSViewRepresentable {
             container?.requestScrollToSelectionOnNextMeasurement()
         }
 
-        if textView.string != text {
+        if textView.string != text, !textView.isHandlingMarkedTextComposition {
             container.applyExternalText(text, forceScrollToSelection: !text.isEmpty, forceMeasure: true)
         }
 
@@ -199,6 +199,8 @@ final class WrappingCueTextView: NSTextView {
     }
 
     override func keyDown(with event: NSEvent) {
+        let keyCode = Int(event.keyCode)
+
         if isHandlingMarkedTextComposition {
             super.keyDown(with: event)
             return
@@ -206,7 +208,7 @@ final class WrappingCueTextView: NSTextView {
 
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
-        switch Int(event.keyCode) {
+        switch keyCode {
         case Int(kVK_UpArrow):
             if onCommand?(.moveSelectionUp) == true {
                 return

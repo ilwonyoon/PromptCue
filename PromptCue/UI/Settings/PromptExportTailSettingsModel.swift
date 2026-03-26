@@ -26,7 +26,7 @@ enum PromptExportTailPreferences {
     private static let enabledKey = "promptExportTail.enabled"
     private static let textKey = "promptExportTail.text"
 
-    static let defaultSuffixText = "Start by diagnosing the root cause, devise a solution, then execute and verify the result."
+    static let defaultSuffixText = "Analyze notes above. Diagnose → fix → execute. If multiple, prioritize first. Parallelize non-conflicting tasks. Verify at end."
 
     static func load(defaults: UserDefaults = .standard) -> PromptExportTailState {
         PromptExportTailState(

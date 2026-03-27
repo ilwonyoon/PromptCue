@@ -81,11 +81,10 @@ struct LocalImageThumbnail: View {
         dark: NSColor.white.withAlphaComponent(0.006)
     )
 
-    // notificationCard border: light black@0.12, dark → subtle
-    // subtle: light black@0.08, dark separatorColor@soft
+    // Match the card surface border: light black@0.11, dark white@0.05
     private static let thumbnailBorderColor = SemanticTokens.adaptiveColor(
         light: NSColor.black.withAlphaComponent(0.12 * 0.9),
-        dark: NSColor.separatorColor.withAlphaComponent(0.65)
+        dark: NSColor.white.withAlphaComponent(0.06 * 0.82)
     )
 
     @MainActor

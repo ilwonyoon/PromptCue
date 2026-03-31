@@ -258,6 +258,7 @@ enum MCPPromptCatalog {
         - Analyze dependencies: which group must complete before another can start. For each dependency, think about the data/API flow direction — if module A produces output that module B consumes, fix A first. Example: if a classifier detects patterns and a masker acts on them, the classifier should be updated before the masker.
         - Analyze conflicts: groups that touch the same files must be sequential, not parallel.
         - Mark groups as parallel_safe when they have no dependency on each other AND no file overlap.
+        - Place independent tasks in the earliest possible phase. Only defer a task to a later phase when it has a concrete dependency or file conflict. When in doubt, check: does this task share any file with another task in this phase? If not, it belongs here.
         - Produce an ordered execution sequence with phase numbers. Groups in the same phase can run in parallel if parallel_safe.
         - List risk flags (e.g., "touches auth layer", "no tests covering this path") or write "none".
 

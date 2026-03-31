@@ -1,3 +1,5 @@
+import AppKit
+import Foundation
 import XCTest
 @testable import Prompt_Cue
 import PromptCueCore
@@ -6,19 +8,27 @@ import PromptCueCore
 final class PromptExportTailSettingsTests: XCTestCase {
     private var defaults: UserDefaults!
     private var suiteName: String!
+    private var tempDirectoryURL: URL!
 
     override func setUp() {
         super.setUp()
         suiteName = "PromptExportTailSettingsTests.\(UUID().uuidString)"
         defaults = UserDefaults(suiteName: suiteName)
+        tempDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
     }
 
     override func tearDown() {
         if let suiteName {
             defaults?.removePersistentDomain(forName: suiteName)
         }
+        if let tempDirectoryURL, FileManager.default.fileExists(atPath: tempDirectoryURL.path) {
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
+        }
         defaults = nil
         suiteName = nil
+        tempDirectoryURL = nil
         super.tearDown()
     }
 
@@ -100,5 +110,92 @@ final class PromptExportTailSettingsTests: XCTestCase {
         )
 
         XCTAssertEqual(payload, "localhost:3000/api/v1?draft=1")
+    }
+
+    func testClipboardImageDataPreservesOriginalPNGBytes() throws {
+        let pngURL = tempDirectoryURL.appendingPathComponent("clipboard-source.png")
+        let sourcePNGData = try makeTestPNGData(fill: NSColor.systemOrange)
+        try sourcePNGData.write(to: pngURL)
+
+        let imageData = ClipboardFormatter.clipboardImageData(for: pngURL)
+
+        XCTAssertNotNil(imageData.tiff)
+        XCTAssertEqual(imageData.png, sourcePNGData)
+    }
+
+    func testClipboardFormatterPlacesAttachmentPathBeforeBodyAndSuffix() throws {
+        let attachmentStore = AttachmentStore()
+        let sourcePNGURL = tempDirectoryURL.appendingPathComponent("ordered-source.png")
+        let sourcePNGData = try makeTestPNGData(fill: NSColor.systemBlue)
+        try sourcePNGData.write(to: sourcePNGURL)
+        let managedURL = try attachmentStore.importScreenshot(from: sourcePNGURL, ownerID: UUID())
+        defer {
+            try? attachmentStore.removeManagedFile(at: managedURL)
+        }
+
+        let card = CaptureCard(
+            text: "Body text",
+            createdAt: .now,
+            screenshotPath: managedURL.path
+        )
+
+        let payload = ClipboardFormatter.string(
+            for: [card],
+            suffix: ExportSuffix("Analyze notes above.")
+        )
+
+        XCTAssertEqual(
+            payload,
+            """
+            Attached image path:
+            \(managedURL.path)
+
+            • Body text
+
+            Analyze notes above.
+            """
+        )
+    }
+
+    private func makeTestPNGData(fill: NSColor) throws -> Data {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 2,
+            pixelsHigh: 2,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+
+        guard let rep else {
+            throw TestError.failedToCreateBitmapRep
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+
+        guard let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            throw TestError.failedToCreateGraphicsContext
+        }
+
+        NSGraphicsContext.current = context
+        fill.setFill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: 2, height: 2)).fill()
+
+        guard let pngData = rep.representation(using: .png, properties: [:]) else {
+            throw TestError.failedToEncodePNG
+        }
+
+        return pngData
+    }
+
+    private enum TestError: Error {
+        case failedToCreateBitmapRep
+        case failedToCreateGraphicsContext
+        case failedToEncodePNG
     }
 }

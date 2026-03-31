@@ -3,6 +3,10 @@ import Foundation
 import PromptCueCore
 
 enum ClipboardFormatter {
+    static let debugIncludeAttachmentPathsDefaultsKey = "DebugIncludeAttachmentPathsInClipboardText"
+    private static let attachmentPathSingularLabel = "Attached image path:"
+    private static let attachmentPathPluralLabel = "Attached image paths:"
+
     static func string(for cards: [CaptureCard]) -> String {
         string(for: cards, suffix: PromptExportTailPreferences.load().exportSuffix)
     }
@@ -12,48 +16,59 @@ enum ClipboardFormatter {
     }
 
     static func string(for cards: [CaptureCard], suffix: ExportSuffix) -> String {
-        ExportFormatter.clipboardString(for: cards, suffix: suffix)
+        let screenshotURLs = cards.map { ManagedScreenshotAccess.readableURL(for: $0) }
+        return clipboardTextValue(for: cards, screenshotURLs: screenshotURLs, suffix: suffix)
     }
 
     static func copyToPasteboard(cards: [CaptureCard]) {
         let suffix = PromptExportTailPreferences.load().exportSuffix
         let pasteboard = NSPasteboard.general
 
-        var types: [NSPasteboard.PasteboardType] = [.string]
-        var firstImageData: (tiff: Data?, png: Data?) = (nil, nil)
-
         let cardsWithURLs = cards.map { card in
             (card: card, screenshotURL: ManagedScreenshotAccess.readableURL(for: card))
         }
-        let attachmentFlags = cardsWithURLs.map { $0.screenshotURL != nil }
+        let firstImageData: (tiff: Data?, png: Data?)?
 
         // Attach the first available image to the pasteboard
         if let firstImageEntry = cardsWithURLs.first(where: { $0.screenshotURL != nil }),
            let screenshotURL = firstImageEntry.screenshotURL {
-            if let image = NSImage(contentsOf: screenshotURL),
-               let tiff = image.tiffRepresentation {
-                firstImageData.tiff = tiff
+            firstImageData = clipboardImageData(for: screenshotURL)
+        } else {
+            firstImageData = nil
+        }
+
+        let textValue = clipboardTextValue(
+            for: cards,
+            screenshotURLs: cardsWithURLs.map(\.screenshotURL),
+            suffix: suffix
+        )
+
+        var types: [NSPasteboard.PasteboardType] = [.string]
+        var firstImageURL: URL? = nil
+
+        if let firstImageEntry = cardsWithURLs.first(where: { $0.screenshotURL != nil }),
+           let screenshotURL = firstImageEntry.screenshotURL,
+           let firstImageData,
+           firstImageData.tiff != nil || firstImageData.png != nil {
+            firstImageURL = screenshotURL
+            types.append(.fileURL)
+            if firstImageData.tiff != nil {
                 types.append(.tiff)
             }
-            if screenshotURL.pathExtension.lowercased() == "png",
-               let png = try? Data(contentsOf: screenshotURL) {
-                firstImageData.png = png
+            if firstImageData.png != nil {
                 types.append(.png)
             }
         }
 
-        let textValue = ExportFormatter.clipboardString(
-            for: cards,
-            suffix: suffix,
-            attachmentFlags: attachmentFlags
-        )
-
         pasteboard.declareTypes(types, owner: nil)
         pasteboard.setString(textValue, forType: .string)
-        if let tiff = firstImageData.tiff {
+        if let firstImageURL {
+            pasteboard.setString(firstImageURL.absoluteString, forType: .fileURL)
+        }
+        if let tiff = firstImageData?.tiff {
             pasteboard.setData(tiff, forType: .tiff)
         }
-        if let png = firstImageData.png {
+        if let png = firstImageData?.png {
             pasteboard.setData(png, forType: .png)
         }
     }
@@ -66,5 +81,82 @@ enum ClipboardFormatter {
         let pasteboard = NSPasteboard.general
         pasteboard.declareTypes([.string], owner: nil)
         pasteboard.setString(value, forType: .string)
+    }
+
+    static func clipboardImageData(for screenshotURL: URL) -> (tiff: Data?, png: Data?) {
+        let tiffData: Data?
+        if let image = NSImage(contentsOf: screenshotURL),
+           let tiff = image.tiffRepresentation {
+            tiffData = tiff
+        } else {
+            tiffData = nil
+        }
+
+        let pngData: Data?
+        if screenshotURL.pathExtension.lowercased() == "png",
+           let sourcePNGData = try? Data(contentsOf: screenshotURL) {
+            pngData = sourcePNGData
+        } else if let tiffData,
+                  let bitmap = NSBitmapImageRep(data: tiffData),
+                  let encodedPNG = bitmap.representation(using: .png, properties: [:]) {
+            pngData = encodedPNG
+        } else {
+            pngData = nil
+        }
+
+        return (tiffData, pngData)
+    }
+
+    private static func clipboardTextValue(
+        for cards: [CaptureCard],
+        screenshotURLs: [URL?],
+        suffix: ExportSuffix
+    ) -> String {
+        let defaultClipboardText = ExportFormatter.clipboardString(for: cards, suffix: suffix)
+        guard includesAttachmentPathsInClipboardText else {
+            return defaultClipboardText
+        }
+
+        let attachmentPaths = screenshotURLs.compactMap { $0?.path }
+        guard attachmentPaths.isEmpty == false else {
+            return defaultClipboardText
+        }
+
+        let bodyText = ExportFormatter.clipboardString(for: cards, suffix: .off)
+        let label = attachmentPaths.count == 1 ? attachmentPathSingularLabel : attachmentPathPluralLabel
+        let attachmentSection = ([label] + attachmentPaths).joined(separator: "\n")
+        let sections = [attachmentSection, bodyText, normalizedSuffixText(from: suffix)]
+            .compactMap { $0 }
+            .filter { $0.isEmpty == false }
+
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static var includesAttachmentPathsInClipboardText: Bool {
+        #if DEBUG
+        if let value = UserDefaults.standard.object(forKey: debugIncludeAttachmentPathsDefaultsKey) as? Bool {
+            return value
+        }
+        return true
+        #else
+        return true
+        #endif
+    }
+
+    private static func normalizedSuffixText(from suffix: ExportSuffix) -> String? {
+        guard let rawValue = suffix.rawValue else {
+            return nil
+        }
+
+        let normalizedLineEndings = rawValue
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard normalizedLineEndings.isEmpty == false else {
+            return nil
+        }
+
+        return normalizedLineEndings
     }
 }

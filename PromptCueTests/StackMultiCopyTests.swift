@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import Prompt_Cue
@@ -7,6 +8,7 @@ import PromptCueCore
 final class StackMultiCopyTests: XCTestCase {
     private var tempDirectoryURL: URL!
     private var databaseURL: URL!
+    private var managedAttachmentStore: AttachmentStore!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -14,6 +16,7 @@ final class StackMultiCopyTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         databaseURL = tempDirectoryURL.appendingPathComponent("PromptCue.sqlite")
+        managedAttachmentStore = AttachmentStore()
     }
 
     override func tearDownWithError() throws {
@@ -23,6 +26,7 @@ final class StackMultiCopyTests: XCTestCase {
 
         tempDirectoryURL = nil
         databaseURL = nil
+        managedAttachmentStore = nil
         try super.tearDownWithError()
     }
 
@@ -155,6 +159,116 @@ final class StackMultiCopyTests: XCTestCase {
         let copiedIDs = model.cards.filter(\.isCopied).map(\.id)
         XCTAssertEqual(copiedIDs, [cards[0].id])
         XCTAssertNil(model.cards.first { $0.id == cards[1].id }?.lastCopiedAt)
+    }
+
+    func testSingleCardCopyWithManagedScreenshotWritesImageToPasteboard() throws {
+        let pasteboard = NSPasteboard.general
+        let originalItems = snapshotPasteboardItems(from: pasteboard)
+        defer {
+            restorePasteboard(pasteboard, items: originalItems)
+        }
+        let defaults = UserDefaults.standard
+        let pathDefaultsKey = ClipboardFormatter.debugIncludeAttachmentPathsDefaultsKey
+        let originalPathOverride = defaults.object(forKey: pathDefaultsKey)
+        defaults.set(true, forKey: pathDefaultsKey)
+        defer {
+            if let originalPathOverride {
+                defaults.set(originalPathOverride, forKey: pathDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: pathDefaultsKey)
+            }
+        }
+
+        let sourcePNGURL = tempDirectoryURL.appendingPathComponent("source.png")
+        try makeTestPNGData(fill: .systemOrange).write(to: sourcePNGURL)
+
+        let cardID = UUID()
+        let managedScreenshotURL = try managedAttachmentStore.importScreenshot(from: sourcePNGURL, ownerID: cardID)
+        defer {
+            try? managedAttachmentStore.removeManagedFile(at: managedScreenshotURL)
+        }
+
+        let card = CaptureCard(
+            id: cardID,
+            text: "Card with screenshot",
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            screenshotPath: managedScreenshotURL.path,
+            sortOrder: 20
+        )
+        try saveCards([card])
+
+        let model = makeModel()
+        model.reloadCards()
+
+        let payload = model.copySingleCard(card)
+        let expectedPasteboardString = ClipboardFormatter.string(for: [card])
+
+        XCTAssertEqual(payload, expectedPasteboardString)
+        XCTAssertEqual(pasteboard.string(forType: .string), expectedPasteboardString)
+        XCTAssertTrue(expectedPasteboardString.contains("Attached image path:"))
+        XCTAssertTrue(expectedPasteboardString.contains(managedScreenshotURL.path))
+        XCTAssertTrue(expectedPasteboardString.hasPrefix("Attached image path:\n\(managedScreenshotURL.path)\n\n• Card with screenshot"))
+        XCTAssertEqual(pasteboard.string(forType: .fileURL), managedScreenshotURL.absoluteString)
+        XCTAssertNotNil(pasteboard.data(forType: .png))
+        XCTAssertNotNil(pasteboard.data(forType: .tiff))
+
+        let items = pasteboard.pasteboardItems ?? []
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(Set(items[0].types), Set([.string, .fileURL, .tiff, .png]))
+        XCTAssertEqual(items[0].string(forType: .string), expectedPasteboardString)
+        XCTAssertEqual(items[0].string(forType: .fileURL), managedScreenshotURL.absoluteString)
+    }
+
+    func testSingleCardCopyIncludesAttachmentPathTextByDefaultInDebug() throws {
+        let pasteboard = NSPasteboard.general
+        let originalItems = snapshotPasteboardItems(from: pasteboard)
+        defer {
+            restorePasteboard(pasteboard, items: originalItems)
+        }
+        let defaults = UserDefaults.standard
+        let pathDefaultsKey = ClipboardFormatter.debugIncludeAttachmentPathsDefaultsKey
+        let originalPathOverride = defaults.object(forKey: pathDefaultsKey)
+        defaults.removeObject(forKey: pathDefaultsKey)
+        defer {
+            if let originalPathOverride {
+                defaults.set(originalPathOverride, forKey: pathDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: pathDefaultsKey)
+            }
+        }
+
+        let sourcePNGURL = tempDirectoryURL.appendingPathComponent("source-default.png")
+        try makeTestPNGData(fill: .systemBlue).write(to: sourcePNGURL)
+
+        let cardID = UUID()
+        let managedScreenshotURL = try managedAttachmentStore.importScreenshot(from: sourcePNGURL, ownerID: cardID)
+        defer {
+            try? managedAttachmentStore.removeManagedFile(at: managedScreenshotURL)
+        }
+
+        let card = CaptureCard(
+            id: cardID,
+            text: "Card without path fallback",
+            createdAt: Date(timeIntervalSinceReferenceDate: 210),
+            screenshotPath: managedScreenshotURL.path,
+            sortOrder: 21
+        )
+        try saveCards([card])
+
+        let model = makeModel()
+        model.reloadCards()
+
+        let payload = model.copySingleCard(card)
+
+        XCTAssertEqual(payload, "Attached image path:\n\(managedScreenshotURL.path)\n\n• Card without path fallback")
+        XCTAssertTrue(payload.contains("Attached image path:"))
+        XCTAssertEqual(pasteboard.string(forType: .string), payload)
+
+        let items = pasteboard.pasteboardItems ?? []
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(Set(items[0].types), Set([.string, .fileURL, .tiff, .png]))
+        XCTAssertEqual(items[0].string(forType: .string), payload)
+        XCTAssertEqual(items[0].string(forType: .fileURL), managedScreenshotURL.absoluteString)
     }
 
     func testSingleCardCopyDoesNotAffectOtherCards() throws {
@@ -326,6 +440,71 @@ final class StackMultiCopyTests: XCTestCase {
 
     private func saveCards(_ cards: [CaptureCard]) throws {
         try CardStore(databaseURL: databaseURL).save(cards)
+    }
+
+    private func makeTestPNGData(fill: NSColor) throws -> Data {
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 2,
+            pixelsHigh: 2,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+
+        guard let rep else {
+            throw TestError.failedToCreateBitmapRep
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+
+        guard let context = NSGraphicsContext(bitmapImageRep: rep) else {
+            throw TestError.failedToCreateGraphicsContext
+        }
+
+        NSGraphicsContext.current = context
+        fill.setFill()
+        NSBezierPath(rect: NSRect(x: 0, y: 0, width: 2, height: 2)).fill()
+
+        guard let pngData = rep.representation(using: .png, properties: [:]) else {
+            throw TestError.failedToEncodePNG
+        }
+
+        return pngData
+    }
+
+    private func snapshotPasteboardItems(from pasteboard: NSPasteboard) -> [NSPasteboardItem] {
+        (pasteboard.pasteboardItems ?? []).map { item in
+            let snapshot = NSPasteboardItem()
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    snapshot.setData(data, forType: type)
+                } else if let string = item.string(forType: type) {
+                    snapshot.setString(string, forType: type)
+                }
+            }
+            return snapshot
+        }
+    }
+
+    private func restorePasteboard(_ pasteboard: NSPasteboard, items: [NSPasteboardItem]) {
+        pasteboard.clearContents()
+        guard !items.isEmpty else {
+            return
+        }
+
+        pasteboard.writeObjects(items)
+    }
+
+    private enum TestError: Error {
+        case failedToCreateBitmapRep
+        case failedToCreateGraphicsContext
+        case failedToEncodePNG
     }
 }
 

@@ -246,14 +246,16 @@ enum MCPPromptCatalog {
 
         For each task group:
         - Group related notes that should be addressed together. Same intent but different modules should usually become separate groups.
-        - Identify files likely touched by that group.
+        - Identify files likely touched by that group. Separate into:
+          - Files to modify: existing files that need changes
+          - Files to create: new test files or new modules (if any)
         - Assign: title, intent (execute/diagnose/investigate), difficulty (easy/medium/hard).
         - List the noteIDs that belong to this group.
         - Provide verification criteria (e.g., "builds clean, unit tests pass").
         - Write a short rationale.
 
         Then:
-        - Analyze dependencies: which group must complete before another can start.
+        - Analyze dependencies: which group must complete before another can start. For each dependency, think about the data/API flow direction — if module A produces output that module B consumes, fix A first. Example: if a classifier detects patterns and a masker acts on them, the classifier should be updated before the masker.
         - Analyze conflicts: groups that touch the same files must be sequential, not parallel.
         - Mark groups as parallel_safe when they have no dependency on each other AND no file overlap.
         - Produce an ordered execution sequence with phase numbers. Groups in the same phase can run in parallel if parallel_safe.
@@ -275,7 +277,8 @@ enum MCPPromptCatalog {
         - Intent: execute
         - Difficulty: easy
         - Note IDs: [id1, id2]
-        - Files: [path/to/file.swift, ...]
+        - Files to modify: [path/to/file.swift, ...]
+        - Files to create: [path/to/NewTests.swift, ...] (or "none")
         - Verification: builds clean, unit tests pass
         - Rationale: ...
 

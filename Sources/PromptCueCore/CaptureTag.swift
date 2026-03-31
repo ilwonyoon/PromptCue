@@ -54,12 +54,51 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
 
         let normalized = body.lowercased()
         guard let firstScalar = normalized.unicodeScalars.first,
-              Self.isLeadingScalar(firstScalar),
-              normalized.unicodeScalars.dropFirst().allSatisfy(Self.isBodyScalar) else {
+              Self.isLeadingScalar(firstScalar) else {
             return nil
         }
 
-        return normalized
+        // Match the inline parser: ASCII-led tags only allow ASCII body chars,
+        // so non-ASCII letters terminate the tag (e.g. "#Bug처리" → "bug").
+        // When used as a full-string validator (rawValue input), trailing characters
+        // after the truncation point make the overall input invalid (return nil)
+        // unless all trailing chars are also non-ASCII letters (valid end-boundary
+        // characters like Korean adjacent to the tag). Only pure whitespace or
+        // punctuation trailing content causes rejection.
+        let asciiLed = Self.isASCIILeadingScalar(firstScalar)
+        let bodyScalars = normalized.unicodeScalars.dropFirst()
+
+        if asciiLed {
+            // Collect only the leading ASCII-valid body scalars, then verify that
+            // anything left over consists solely of non-ASCII letter scalars
+            // (i.e. valid adjacent-text boundary chars, not spaces or punctuation).
+            var result = String(firstScalar)
+            var trailingScalars = bodyScalars.makeIterator()
+            while let scalar = trailingScalars.next() {
+                guard Self.isASCIIBodyScalar(scalar) else {
+                    // Trailing scalar must be a non-ASCII letter (valid boundary);
+                    // otherwise the full input is malformed.
+                    guard scalar.value > 127 && CharacterSet.letters.contains(scalar) else {
+                        return nil
+                    }
+                    // Verify all remaining scalars are also non-ASCII letters.
+                    while let remaining = trailingScalars.next() {
+                        guard remaining.value > 127 && CharacterSet.letters.contains(remaining) else {
+                            return nil
+                        }
+                    }
+                    break
+                }
+                result.unicodeScalars.append(scalar)
+            }
+            return result
+        } else {
+            // Non-ASCII-led tag: all body scalars must pass the broad check.
+            guard bodyScalars.allSatisfy(Self.isBodyScalar) else {
+                return nil
+            }
+            return normalized
+        }
     }
 
     public static func deduplicatePreservingOrder(_ tags: [CaptureTag]) -> [CaptureTag] {
@@ -99,6 +138,10 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
         return []
     }
 
+    /// Returns true for any Unicode letter scalar.
+    /// This is intentionally broader than just ASCII or Hangul — it covers CJK, Latin
+    /// extended, Cyrillic, and all other script letters recognized by Unicode.
+    /// ASCII-led tags apply the narrower `isASCIIBodyScalar` rule instead (see `normalize`).
     fileprivate static func isLeadingScalar(_ scalar: UnicodeScalar) -> Bool {
         CharacterSet.letters.contains(scalar)
     }

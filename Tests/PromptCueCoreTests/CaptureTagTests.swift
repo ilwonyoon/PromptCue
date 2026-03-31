@@ -41,6 +41,41 @@ struct CaptureTagTests {
         #expect(CaptureTag(rawValue: "#ㅠㅕbug")?.name == "ㅠㅕbug")
     }
 
+    // MARK: - Edge cases
+
+    @Test
+    func normalizeAppliesASCIITruncationToASCIILedTags() {
+        // HIGH fix: normalize() must match inline parser — non-ASCII truncates an ASCII-led tag.
+        #expect(CaptureTag(rawValue: "#Bug처리")?.name == "bug")
+        #expect(CaptureTag(rawValue: "#fix한글")?.name == "fix")
+        #expect(CaptureTag(rawValue: "#abc漢字")?.name == "abc")
+    }
+
+    @Test
+    func koreanLedTagWithDigitsSuffix() {
+        // Korean-led tag: digits are valid body chars via isBodyScalar.
+        #expect(CaptureTag(rawValue: "#디자인v2")?.name == "디자인v2")
+    }
+
+    @Test
+    func cjkBeyondHangulIsAccepted() {
+        // CharacterSet.letters includes CJK unified ideographs.
+        #expect(CaptureTag(rawValue: "#漢字")?.name == "漢字")
+    }
+
+    @Test
+    func emojiAfterHashIsRejected() {
+        // Emoji scalars are not in CharacterSet.letters — should be nil.
+        #expect(CaptureTag(rawValue: "#🚀launch") == nil)
+        #expect(CaptureTag(rawValue: "#🚀") == nil)
+    }
+
+    @Test
+    func koreanTagWithHyphenIsAccepted() {
+        // Hyphen (U+002D, value 45) is a valid body scalar.
+        #expect(CaptureTag(rawValue: "#한글-태그")?.name == "한글-태그")
+    }
+
     @Test
     func extractCanonicalInlineTagsFindsInlineHashtagsAnywhere() {
         let result = CaptureTagText.extractCanonicalInlineTags(

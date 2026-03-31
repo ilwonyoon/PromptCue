@@ -100,15 +100,29 @@ public struct CaptureTag: Codable, Hashable, Sendable, Comparable {
     }
 
     fileprivate static func isLeadingScalar(_ scalar: UnicodeScalar) -> Bool {
-        (scalar.value >= 65 && scalar.value <= 90)
-            || (scalar.value >= 97 && scalar.value <= 122)
+        CharacterSet.letters.contains(scalar)
     }
 
     fileprivate static func isBodyScalar(_ scalar: UnicodeScalar) -> Bool {
-        isLeadingScalar(scalar)
+        CharacterSet.letters.contains(scalar)
+            || CharacterSet.decimalDigits.contains(scalar)
+            || scalar.value == 95
+            || scalar.value == 45
+    }
+
+    /// True for scalars that can extend a tag whose leading char was ASCII.
+    /// Non-ASCII letters terminate an ASCII-led tag so that e.g. #Bug처리 → tag is "bug", not "bug처리".
+    fileprivate static func isASCIIBodyScalar(_ scalar: UnicodeScalar) -> Bool {
+        (scalar.value >= 65 && scalar.value <= 90)
+            || (scalar.value >= 97 && scalar.value <= 122)
             || (scalar.value >= 48 && scalar.value <= 57)
             || scalar.value == 95
             || scalar.value == 45
+    }
+
+    fileprivate static func isASCIILeadingScalar(_ scalar: UnicodeScalar) -> Bool {
+        (scalar.value >= 65 && scalar.value <= 90)
+            || (scalar.value >= 97 && scalar.value <= 122)
     }
 }
 
@@ -207,10 +221,11 @@ public enum CaptureTagText {
                 continue
             }
 
+            let asciiLed = CaptureTag.isASCIILeadingScalar(leadingScalar)
             cursor += 1
             while cursor < length,
                   let scalar = unicodeScalar(in: nsText, at: cursor),
-                  CaptureTag.isBodyScalar(scalar) {
+                  asciiLed ? CaptureTag.isASCIIBodyScalar(scalar) : CaptureTag.isBodyScalar(scalar) {
                 cursor += 1
             }
 
@@ -340,10 +355,11 @@ public enum CaptureTagText {
                 break
             }
 
+            let asciiLed = CaptureTag.isASCIILeadingScalar(leadingScalar)
             cursor += 1
             while cursor < length,
                   let scalar = unicodeScalar(in: nsText, at: cursor),
-                  CaptureTag.isBodyScalar(scalar) {
+                  asciiLed ? CaptureTag.isASCIIBodyScalar(scalar) : CaptureTag.isBodyScalar(scalar) {
                 cursor += 1
             }
 
@@ -478,6 +494,12 @@ public enum CaptureTagText {
             // Keep URL fragments like "/#section" out of inline tag parsing.
             return false
         default:
+            // Non-ASCII letters (e.g. Korean, CJK) are valid boundaries even though they
+            // are also valid tag body characters — a Korean word adjacent to #Tag does not
+            // merge with the tag.
+            if scalar.value > 127 && CharacterSet.letters.contains(scalar) {
+                return true
+            }
             return !CaptureTag.isBodyScalar(scalar)
         }
     }
@@ -508,10 +530,31 @@ public enum CaptureTagText {
             return nil
         }
 
+        // Determine script of leading char to apply consistent body scalar set.
+        let asciiLed: Bool
+        if let leadingScalar = unicodeScalar(in: text, at: start) {
+            asciiLed = CaptureTag.isASCIILeadingScalar(leadingScalar)
+        } else {
+            asciiLed = false
+        }
+
+        // Re-anchor start using the correct script-aware body scalar set.
+        start = caretUTF16Offset
+        while start > 0,
+              let scalar = unicodeScalar(in: text, at: start - 1),
+              asciiLed ? CaptureTag.isASCIIBodyScalar(scalar) : CaptureTag.isBodyScalar(scalar) {
+            start -= 1
+        }
+
+        guard start > 0,
+              text.substring(with: NSRange(location: start - 1, length: 1)) == "#" else {
+            return nil
+        }
+
         var end = caretUTF16Offset
         while end < length,
               let scalar = unicodeScalar(in: text, at: end),
-              CaptureTag.isBodyScalar(scalar) {
+              asciiLed ? CaptureTag.isASCIIBodyScalar(scalar) : CaptureTag.isBodyScalar(scalar) {
             end += 1
         }
 

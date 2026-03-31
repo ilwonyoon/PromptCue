@@ -32,8 +32,13 @@ struct CaptureTagTests {
         #expect(CaptureTag(rawValue: "#123") == nil)
         #expect(CaptureTag(rawValue: "#bug fix") == nil)
         #expect(CaptureTag(rawValue: "#") == nil)
-        #expect(CaptureTag(rawValue: "#한글") == nil)
-        #expect(CaptureTag(rawValue: "#ㅠㅕbug") == nil)
+    }
+
+    @Test
+    func captureTagAcceptsKoreanTags() {
+        #expect(CaptureTag(rawValue: "#한글")?.name == "한글")
+        #expect(CaptureTag(rawValue: "#디자인")?.name == "디자인")
+        #expect(CaptureTag(rawValue: "#ㅠㅕbug")?.name == "ㅠㅕbug")
     }
 
     @Test
@@ -53,11 +58,19 @@ struct CaptureTagTests {
     @Test
     func extractCanonicalInlineTagsLeavesNonCanonicalHashtagsInText() {
         let result = CaptureTagText.extractCanonicalInlineTags(
-            in: "#123 keep this raw, and #ㅠㅕbug stays raw too"
+            in: "#123 keep this raw"
         )
 
         #expect(result.tags.isEmpty)
         #expect(result.matches.isEmpty)
+    }
+
+    @Test
+    func extractCanonicalInlineTagsHandlesKoreanTags() {
+        let text = "#디자인 작업 #한글태그 확인"
+        let result = CaptureTagText.extractCanonicalInlineTags(in: text)
+
+        #expect(result.tags.map(\.name) == ["디자인", "한글태그"])
     }
 
     @Test
@@ -173,10 +186,17 @@ struct CaptureTagTests {
     }
 
     @Test
-    func decodeJSONArrayFiltersInvalidAndMixedScriptTags() {
-        let decoded = CaptureTag.decodeJSONArray(#"["bug","ㅠㅕbug","mcp"]"#)
+    func decodeJSONArrayFiltersInvalidTags() {
+        let decoded = CaptureTag.decodeJSONArray(#"["bug","123invalid","mcp"]"#)
 
         #expect(decoded.map(\.name) == ["bug", "mcp"])
+    }
+
+    @Test
+    func decodeJSONArrayAcceptsKoreanTags() {
+        let decoded = CaptureTag.decodeJSONArray(#"["bug","ㅠㅕbug","mcp"]"#)
+
+        #expect(decoded.map(\.name) == ["bug", "ㅠㅕbug", "mcp"])
     }
 
     @Test

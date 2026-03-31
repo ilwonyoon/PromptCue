@@ -101,6 +101,47 @@ final class ContentClassifierTests: XCTestCase {
         XCTAssertEqual(result.primaryType, .secret)
     }
 
+    func testOpenAIProjKeyDetected() {
+        let key = "sk-proj-" + String(repeating: "a", count: 48)
+        let result = ContentClassifier.classify(key)
+        XCTAssertEqual(result.primaryType, .secret)
+    }
+
+    func testVercelTokenDetected() {
+        let key = "vc_" + String(repeating: "a", count: 32)
+        let result = ContentClassifier.classify(key)
+        XCTAssertEqual(result.primaryType, .secret)
+    }
+
+    func testSupabaseTokenDetected() {
+        let key = "sbp_" + String(repeating: "a", count: 32)
+        let result = ContentClassifier.classify(key)
+        XCTAssertEqual(result.primaryType, .secret)
+    }
+
+    func testNpmTokenDetected() {
+        let key = "npm_" + String(repeating: "a", count: 36)
+        let result = ContentClassifier.classify(key)
+        XCTAssertEqual(result.primaryType, .secret)
+    }
+
+    func testJWTDetected() {
+        // Realistic JWT with long header/payload/signature segments
+        let header = String(repeating: "a", count: 36)
+        let payload = String(repeating: "b", count: 80)
+        let signature = String(repeating: "c", count: 43)
+        let jwt = "eyJ\(header).\(payload).\(signature)"
+        let result = ContentClassifier.classify(jwt)
+        XCTAssertEqual(result.primaryType, .secret)
+    }
+
+    func testShortBase64SegmentsNotDetectedAsJWT() {
+        // Short segments (< 36 chars each) should not trigger JWT detection
+        let fakeJWT = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.abc"
+        let result = ContentClassifier.classify(fakeJWT)
+        XCTAssertNotEqual(result.primaryType, .secret)
+    }
+
     // MARK: - Priority
 
     func testSecretTakesPriorityOverLink() {

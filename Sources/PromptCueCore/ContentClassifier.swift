@@ -3,15 +3,30 @@ import Foundation
 public enum ContentClassifier {
     private static let secretPatterns: [NSRegularExpression] = {
         let patterns = [
+            // Anthropic
             #"sk-ant-[A-Za-z0-9_-]{10,}"#,
+            // GitHub
             #"ghp_[A-Za-z0-9]{30,}"#,
-            #"AKIA[A-Z0-9]{12,}"#,
-            #"sk-live-[A-Za-z0-9_-]{10,}"#,
-            #"sk-[A-Za-z0-9_-]{20,}"#,
-            #"xoxb-[A-Za-z0-9-]+"#,
             #"gho_[A-Za-z0-9]{30,}"#,
+            // AWS
+            #"AKIA[A-Z0-9]{12,}"#,
+            // Stripe
+            #"sk-live-[A-Za-z0-9_-]{10,}"#,
+            // OpenAI (legacy sk- and new sk-proj- prefix)
+            #"sk-proj-[A-Za-z0-9_-]{20,}"#,
+            #"sk-[A-Za-z0-9_-]{20,}"#,
+            // Slack
+            #"xoxb-[A-Za-z0-9-]+"#,
+            // GitLab
             #"glpat-[A-Za-z0-9_-]{20,}"#,
-            #"eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"#,
+            // Vercel
+            #"vc_[A-Za-z0-9]{20,}"#,
+            // Supabase
+            #"sbp_[A-Za-z0-9]{20,}"#,
+            // npm automation tokens
+            #"npm_[A-Za-z0-9]{20,}"#,
+            // JWT: header.payload.signature — require long segments to reduce false positives
+            #"eyJ[A-Za-z0-9_-]{36,}\.[A-Za-z0-9_-]{36,}\.[A-Za-z0-9_-]{20,}"#,
         ]
         return patterns.compactMap { try? NSRegularExpression(pattern: $0) }
     }()

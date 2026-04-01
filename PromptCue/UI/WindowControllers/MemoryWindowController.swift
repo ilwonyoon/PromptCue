@@ -97,9 +97,7 @@ final class MemoryWindowController: NSObject, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
         window.backgroundColor = .clear
-        // Keep the titlebar chrome clickable on first press; the content hosts
-        // custom controls inside the full-size titlebar region.
-        window.isMovableByWindowBackground = false
+        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.setFrameAutosaveName("BacktickMemoryWindow")

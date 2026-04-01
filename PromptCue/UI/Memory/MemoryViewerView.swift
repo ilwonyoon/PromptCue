@@ -83,7 +83,6 @@ struct MemoryViewerView: View {
                 .frame(minWidth: PanelMetrics.memoryDetailMinimumWidth, maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar(removing: .sidebarToggle)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             MemoryPaneColors.windowBackground
@@ -135,26 +134,14 @@ struct MemoryProjectsPaneView: View {
     @ObservedObject var uiState: MemoryViewerUIState
 
     var body: some View {
-        MemoryColumnPane(backgroundColor: MemoryPaneColors.notesSidebarBackground) {
-            MemoryProjectListPane(
-                projects: model.projects,
-                selectedProject: model.selectedProject,
-                isInteractionDisabled: uiState.isEditing,
-                documentCount: { model.summaries(for: $0).count },
-                onSelect: { model.selectedProject = $0 },
-                onDeleteProject: confirmDeleteProject
-            )
-        }
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    model.refresh()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh Memory")
-            }
-        }
+        MemoryProjectListPane(
+            projects: model.projects,
+            selectedProject: model.selectedProject,
+            isInteractionDisabled: uiState.isEditing,
+            documentCount: { model.summaries(for: $0).count },
+            onSelect: { model.selectedProject = $0 },
+            onDeleteProject: confirmDeleteProject
+        )
     }
 
     private func confirmDeleteProject(_ project: String) {
@@ -182,7 +169,7 @@ struct MemoryDocumentsPaneView: View {
     @ObservedObject var uiState: MemoryViewerUIState
 
     var body: some View {
-        MemoryFooterColumnPane(backgroundColor: MemoryPaneColors.textBackground) {
+        MemoryColumnPane(backgroundColor: MemoryPaneColors.textBackground) {
             MemoryDocumentListPane(
                 selectedProject: model.selectedProject,
                 summaries: model.summaries(for: model.selectedProject),
@@ -192,13 +179,6 @@ struct MemoryDocumentsPaneView: View {
                 onCopyDocument: copyDocument,
                 onEditDocument: startEditingDocument,
                 onDeleteDocument: deleteDocument
-            )
-        } footer: {
-            MemoryPaneFooterAction(
-                title: "New Document",
-                systemName: "plus",
-                horizontalPadding: MemoryPaneMetrics.footerHorizontalInset,
-                action: openNewDocumentSheet
             )
         }
     }
@@ -219,9 +199,6 @@ struct MemoryDocumentsPaneView: View {
         confirmDeleteSelectedDocument(model: model, uiState: uiState)
     }
 
-    private func openNewDocumentSheet() {
-        uiState.prepareNewDocumentDraft(using: model)
-    }
 }
 
 struct MemoryDetailPaneView: View {
@@ -235,13 +212,6 @@ struct MemoryDetailPaneView: View {
                 isEditing: $uiState.isEditing,
                 editorText: $uiState.editorText,
                 didCopy: $uiState.didCopy,
-                onCopy: {
-                    model.copySelectedDocument()
-                    uiState.showCopiedFeedback()
-                },
-                onStartEditing: {
-                    uiState.startEditing(with: model)
-                },
                 onCancelEditing: {
                     uiState.cancelEditing(with: model)
                 },
@@ -254,9 +224,6 @@ struct MemoryDetailPaneView: View {
                     case .failed:
                         break
                     }
-                },
-                onDeleteDocument: {
-                    confirmDeleteSelectedDocument(model: model, uiState: uiState)
                 }
             )
         }
@@ -313,31 +280,29 @@ private func presentDeletionAlert(
 }
 
 private enum MemoryPaneColors {
-    static var notesSidebarBackground: Color {
-        SemanticTokens.adaptiveColor(
-            light: NSColor(
-                srgbRed: 225.0 / 255.0,
-                green: 225.0 / 255.0,
-                blue: 224.0 / 255.0,
-                alpha: 1
-            ),
-            dark: NSColor(calibratedWhite: 0.16, alpha: 1)
-        )
-    }
-
     static let textBackground = SemanticTokens.adaptiveColor(
         light: NSColor.textBackgroundColor,
-        dark: NSColor.textBackgroundColor
+        dark: NSColor(
+            srgbRed: 31.0 / 255.0,
+            green: 31.0 / 255.0,
+            blue: 30.0 / 255.0,
+            alpha: 1
+        )
     )
 
     static let windowBackground = SemanticTokens.adaptiveColor(
         light: NSColor.windowBackgroundColor,
-        dark: NSColor.windowBackgroundColor
+        dark: NSColor(
+            srgbRed: 27.0 / 255.0,
+            green: 27.0 / 255.0,
+            blue: 26.0 / 255.0,
+            alpha: 1
+        )
     )
 
     static let separator = SemanticTokens.adaptiveColor(
         light: NSColor.separatorColor,
-        dark: NSColor.separatorColor
+        dark: NSColor.white.withAlphaComponent(0.085)
     )
 
     static let separatorSoft = separator.opacity(0.42)
@@ -461,23 +426,6 @@ private struct MemoryColumnPane<Content: View>: View {
     }
 }
 
-private struct MemoryFooterColumnPane<BodyContent: View, FooterContent: View>: View {
-    let backgroundColor: Color
-    @ViewBuilder let bodyContent: BodyContent
-    @ViewBuilder let footer: FooterContent
-
-    var body: some View {
-        MemoryColumnPane(backgroundColor: backgroundColor) {
-            VStack(spacing: 0) {
-                bodyContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-
-                footer
-            }
-        }
-    }
-}
-
 private struct MemoryPaneScrollBody<Content: View>: View {
     var horizontalPadding: CGFloat = MemoryPaneMetrics.paneScrollHorizontalInset
     var verticalPadding: CGFloat = MemoryPaneMetrics.paneScrollVerticalInset
@@ -494,56 +442,6 @@ private struct MemoryPaneScrollBody<Content: View>: View {
     }
 }
 
-private struct MemoryPaneFooterAction: View {
-    let title: String
-    let systemName: String
-    var horizontalPadding: CGFloat = 16
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: MemoryPaneMetrics.footerActionIconSpacing) {
-                Image(systemName: systemName)
-                    .font(MemoryPaneTypography.footerActionIcon)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-
-                Text(title)
-                    .font(SettingsTokens.Typography.sidebarLabel)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, horizontalPadding)
-            .frame(height: MemoryPaneMetrics.footerActionHeight, alignment: .leading)
-            .background(hoverFill)
-        }
-        .buttonStyle(.plain)
-        .background(MemoryPaneColors.textBackground)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(MemoryPaneColors.separatorSoft)
-                .frame(height: PrimitiveTokens.Stroke.subtle)
-        }
-        .onHover { isHovered = $0 }
-    }
-
-    private var hoverFill: some View {
-        RoundedRectangle(cornerRadius: PrimitiveTokens.Space.xs, style: .continuous)
-            .fill(
-                isHovered
-                    ? SemanticTokens.adaptiveColor(
-                        light: NSColor.black.withAlphaComponent(0.02),
-                        dark: NSColor.white.withAlphaComponent(0.03)
-                    )
-                    : .clear
-            )
-            .padding(MemoryPaneMetrics.footerHoverInset)
-    }
-}
-
 private struct MemoryProjectListPane: View {
     let projects: [String]
     let selectedProject: String?
@@ -556,9 +454,10 @@ private struct MemoryProjectListPane: View {
         MemoryPaneScrollBody {
             LazyVStack(spacing: PrimitiveTokens.Space.xxs) {
                 ForEach(projects, id: \.self) { project in
+                    let isSelected = project == selectedProject
                     CompactSelectableRow(
                         tone: .sidebar,
-                        isSelected: project == selectedProject,
+                        isSelected: isSelected,
                         action: {
                             guard !isInteractionDisabled else { return }
                             onSelect(project)
@@ -567,25 +466,31 @@ private struct MemoryProjectListPane: View {
                         HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.rowAccessorySpacing) {
                             Image(systemName: "folder")
                                 .font(MemoryPaneTypography.accessoryIcon)
-                                .foregroundStyle(SemanticTokens.Text.secondary)
+                                .foregroundStyle(
+                                    isSelected
+                                        ? MemoryProjectListColors.selectedTint
+                                        : SemanticTokens.Text.secondary
+                                )
 
-                            HStack(alignment: .firstTextBaseline, spacing: MemoryPaneMetrics.rowCountSpacing) {
-                                Text(project)
-                                    .font(SettingsTokens.Typography.sidebarLabel)
-                                    .foregroundStyle(SemanticTokens.Text.primary)
-                                    .lineLimit(1)
-
-                                Text("·")
-                                    .font(.caption.weight(.medium))
-                                    .foregroundStyle(SemanticTokens.Text.secondary)
-
-                                Text("\(documentCount(project))")
-                                    .font(.caption.weight(.medium))
-                                    .monospacedDigit()
-                                    .foregroundStyle(SemanticTokens.Text.secondary)
-                            }
+                            Text(project)
+                                .font(SettingsTokens.Typography.sidebarLabel)
+                                .foregroundStyle(
+                                    isSelected
+                                        ? MemoryProjectListColors.selectedTint
+                                        : SemanticTokens.Text.primary
+                                )
+                                .lineLimit(1)
 
                             Spacer(minLength: 0)
+
+                            Text("\(documentCount(project))")
+                                .font(.caption.weight(.medium))
+                                .monospacedDigit()
+                                .foregroundStyle(
+                                    isSelected
+                                        ? MemoryProjectListColors.selectedSecondaryTint
+                                        : SemanticTokens.Text.secondary
+                                )
                         }
                     }
                     .contextMenu {
@@ -598,6 +503,25 @@ private struct MemoryProjectListPane: View {
             }
         }
     }
+}
+
+private enum MemoryProjectListColors {
+    static let selectedTint = SemanticTokens.adaptiveColor(
+        light: NSColor(
+            srgbRed: 179.0 / 255.0,
+            green: 114.0 / 255.0,
+            blue: 18.0 / 255.0,
+            alpha: 1
+        ),
+        dark: NSColor(
+            srgbRed: 246.0 / 255.0,
+            green: 194.0 / 255.0,
+            blue: 84.0 / 255.0,
+            alpha: 1
+        )
+    )
+
+    static let selectedSecondaryTint = selectedTint.opacity(0.92)
 }
 
 private struct MemoryDocumentListPane: View {
@@ -833,12 +757,8 @@ private struct MemoryDetailPane: View {
     @Binding var isEditing: Bool
     @Binding var editorText: String
     @Binding var didCopy: Bool
-    @State private var isCopyHovered = false
-    let onCopy: () -> Void
-    let onStartEditing: () -> Void
     let onCancelEditing: () -> Void
     let onSaveEditing: () -> Void
-    let onDeleteDocument: () -> Void
 
     var body: some View {
         if let document {
@@ -851,15 +771,8 @@ private struct MemoryDetailPane: View {
 
                             Spacer(minLength: 0)
 
-                            HStack(spacing: 8) {
-                                StackRailControlButton(
-                                    systemName: "trash",
-                                    accessibilityLabel: "Delete document",
-                                    glyphSize: 13,
-                                    controlSize: 24,
-                                    action: onDeleteDocument
-                                )
-                                if isEditing {
+                            if isEditing {
+                                HStack(spacing: 8) {
                                     StackRailControlButton(
                                         systemName: "xmark",
                                         accessibilityLabel: "Cancel editing",
@@ -876,37 +789,9 @@ private struct MemoryDetailPane: View {
                                         action: onSaveEditing
                                     )
                                     .keyboardShortcut(.defaultAction)
-                                } else {
-                                    StackRailControlButton(
-                                        systemName: "square.and.pencil",
-                                        accessibilityLabel: "Edit document",
-                                        glyphSize: 13,
-                                        controlSize: 24,
-                                        action: onStartEditing
-                                    )
                                 }
-                                if didCopy {
-                                    Text("Copied")
-                                        .font(.caption.weight(.medium))
-                                        .foregroundStyle(SemanticTokens.Text.secondary)
-                                        .transition(.opacity)
-                                }
-
-                                Button(action: onCopy) {
-                                    Image(systemName: didCopy ? "checkmark" : isCopyHovered ? "doc.on.doc.fill" : "doc.on.doc")
-                                        .symbolRenderingMode(.monochrome)
-                                        .font(MemoryPaneTypography.footerActionIcon)
-                                        .foregroundStyle(didCopy || isCopyHovered
-                                            ? SemanticTokens.Text.primary
-                                            : SemanticTokens.Text.secondary)
-                                        .frame(width: MemoryPaneMetrics.detailCopyIconSize, height: MemoryPaneMetrics.detailCopyIconSize)
-                                        .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .onHover { isCopyHovered = $0 }
-                                .accessibilityLabel(didCopy ? "Copied document" : "Copy document")
+                                .padding(.trailing, MemoryPaneMetrics.detailHeaderActionTrailingInset - MemoryPaneMetrics.documentRowContentPadding)
                             }
-                            .padding(.trailing, MemoryPaneMetrics.detailHeaderActionTrailingInset - MemoryPaneMetrics.documentRowContentPadding)
                         }
                     }
                     .padding(.horizontal, MemoryPaneMetrics.detailHeaderChromeInset)

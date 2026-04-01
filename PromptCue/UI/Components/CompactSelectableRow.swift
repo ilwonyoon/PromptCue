@@ -64,15 +64,7 @@ struct CompactSelectableRow<Content: View>: View {
     private var baseFillColor: Color {
         switch tone {
         case .sidebar:
-            return SemanticTokens.adaptiveColor(
-                light: NSColor(
-                    srgbRed: 225.0 / 255.0,
-                    green: 225.0 / 255.0,
-                    blue: 224.0 / 255.0,
-                    alpha: 1
-                ),
-                dark: NSColor(calibratedWhite: 0.16, alpha: 1)
-            )
+            return .clear
 
         case .content:
             return CompactSelectableRowColors.contentBackground
@@ -82,16 +74,18 @@ struct CompactSelectableRow<Content: View>: View {
     private var interactionFillColor: Color {
         switch tone {
         case .sidebar:
-            return SemanticTokens.adaptiveColor(
-                light: NSColor.black.withAlphaComponent(0.05),
-                dark: NSColor.white.withAlphaComponent(0.06)
-            )
+            if isSelected {
+                return CompactSelectableRowColors.sidebarSelectionFill
+            }
+
+            return CompactSelectableRowColors.sidebarHoverFill
 
         case .content:
-            return SemanticTokens.adaptiveColor(
-                light: NSColor.black.withAlphaComponent(0.035),
-                dark: NSColor.white.withAlphaComponent(0.06)
-            )
+            if isSelected {
+                return CompactSelectableRowColors.contentSelectionFill
+            }
+
+            return CompactSelectableRowColors.contentHoverFill
         }
     }
 
@@ -124,9 +118,6 @@ struct CompactSelectableRow<Content: View>: View {
     private var borderOpacity: Double {
         switch tone {
         case .sidebar:
-            if isSelected {
-                return 0.24
-            }
             return 0
 
         case .content:
@@ -170,13 +161,48 @@ struct CompactSelectableRow<Content: View>: View {
 }
 
 private enum CompactSelectableRowColors {
+    static let sidebarSelectionFill = SemanticTokens.adaptiveColor(
+        light: NSColor(
+            srgbRed: 236.0 / 255.0,
+            green: 236.0 / 255.0,
+            blue: 234.0 / 255.0,
+            alpha: 1
+        ),
+        dark: NSColor(
+            srgbRed: 45.0 / 255.0,
+            green: 45.0 / 255.0,
+            blue: 43.0 / 255.0,
+            alpha: 1
+        )
+    )
+
+    static let sidebarHoverFill = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.045),
+        dark: NSColor.white.withAlphaComponent(0.08)
+    )
+
     static let contentBackground = SemanticTokens.adaptiveColor(
         light: NSColor.textBackgroundColor,
-        dark: NSColor.textBackgroundColor
+        dark: NSColor(
+            srgbRed: 31.0 / 255.0,
+            green: 31.0 / 255.0,
+            blue: 30.0 / 255.0,
+            alpha: 1
+        )
+    )
+
+    static let contentSelectionFill = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.06),
+        dark: NSColor.white.withAlphaComponent(0.13)
+    )
+
+    static let contentHoverFill = SemanticTokens.adaptiveColor(
+        light: NSColor.black.withAlphaComponent(0.03),
+        dark: NSColor.white.withAlphaComponent(0.065)
     )
 
     static let borderBase = SemanticTokens.adaptiveColor(
         light: NSColor.separatorColor,
-        dark: NSColor.separatorColor
+        dark: NSColor.white.withAlphaComponent(0.085)
     )
 }

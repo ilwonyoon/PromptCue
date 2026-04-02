@@ -603,6 +603,9 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
     init(rootViewBuilder: @escaping () -> Content) {
         self.rootViewBuilder = rootViewBuilder
         self.hostingController = NSHostingController(rootView: rootViewBuilder())
+        if #available(macOS 13.0, *) {
+            self.hostingController.sizingOptions = []
+        }
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -625,9 +628,11 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
 
         addChild(hostingController)
         let hostedView = hostingController.view
-        hostedView.translatesAutoresizingMaskIntoConstraints = false
+        hostedView.translatesAutoresizingMaskIntoConstraints = true
+        hostedView.autoresizingMask = [.width, .height]
         hostedView.wantsLayer = true
         hostedView.layer?.backgroundColor = NSColor.clear.cgColor
+        hostedView.frame = shellView.bounds
         shellView.addSubview(hostedView)
 
         NSLayoutConstraint.activate([
@@ -635,13 +640,14 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
             shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             shellView.topAnchor.constraint(equalTo: view.topAnchor),
             shellView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            hostedView.leadingAnchor.constraint(equalTo: shellView.leadingAnchor),
-            hostedView.trailingAnchor.constraint(equalTo: shellView.trailingAnchor),
-            hostedView.topAnchor.constraint(equalTo: shellView.topAnchor),
-            hostedView.bottomAnchor.constraint(equalTo: shellView.bottomAnchor),
         ])
 
         refreshAppearance()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        hostingController.view.frame = shellView.bounds
     }
 
     func refreshAppearance(forceRebuild: Bool = false) {

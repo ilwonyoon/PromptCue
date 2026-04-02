@@ -53,7 +53,7 @@ struct CardStackView: View {
             stagedCount: model.stagedCopiedCount
         )
 
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             Color.clear
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onBackdropTap)
@@ -100,14 +100,15 @@ struct CardStackView: View {
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
                         .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
                     }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
             .padding(.horizontal, StackLayoutMetrics.panelHorizontalInset)
             .padding(.top, PrimitiveTokens.Space.md)
             .padding(.bottom, PrimitiveTokens.Space.md)
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .onAppear {
             refreshDerivedState(
                 cards: model.cards,
@@ -640,7 +641,12 @@ private struct StackOwnedScrollView<Content: View>: NSViewRepresentable {
 }
 
 private final class StackOwnedNSScrollView: NSScrollView {
+    private let documentContainer = StackScrollDocumentView()
     private let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -656,11 +662,15 @@ private final class StackOwnedNSScrollView: NSScrollView {
         contentInsets = NSEdgeInsetsZero
         contentView.drawsBackground = false
 
+        documentContainer.wantsLayer = true
+        documentContainer.layer?.backgroundColor = NSColor.clear.cgColor
+
         hostingView.translatesAutoresizingMaskIntoConstraints = true
         hostingView.autoresizingMask = [.width]
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
-        documentView = hostingView
+        documentContainer.addSubview(hostingView)
+        documentView = documentContainer
     }
 
     @available(*, unavailable)
@@ -704,7 +714,15 @@ private final class StackOwnedNSScrollView: NSScrollView {
         hostingView.setFrameSize(NSSize(width: targetWidth, height: 1))
         hostingView.layoutSubtreeIfNeeded()
 
-        let fittingHeight = max(hostingView.fittingSize.height, contentView.bounds.height)
-        hostingView.frame = NSRect(x: 0, y: 0, width: targetWidth, height: fittingHeight)
+        let contentHeight = hostingView.fittingSize.height
+        let containerHeight = max(contentHeight, contentView.bounds.height)
+        documentContainer.frame = NSRect(x: 0, y: 0, width: targetWidth, height: containerHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: targetWidth, height: contentHeight)
+    }
+}
+
+private final class StackScrollDocumentView: NSView {
+    override var isFlipped: Bool {
+        true
     }
 }

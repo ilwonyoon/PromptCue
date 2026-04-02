@@ -190,7 +190,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         warmOrderFrontIfNeeded(panel)
     }
 
-    func close(commitDeferredCopies: Bool = true) {
+    func close(commitDeferredCopies: Bool = true, animated: Bool = true) {
         if commitDeferredCopies, model.hasStagedCopiedCards {
             model.commitDeferredCopies()
         } else {
@@ -211,6 +211,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         isVisible = false
         removeDismissMonitors()
+
+        guard animated else {
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            panel.setFrame(offscreenPanelFrame(for: panel.frame.size), display: false)
+            isAnimatingClose = false
+            return
+        }
+
         isAnimatingClose = true
 
         NSAnimationContext.runAnimationGroup { context in
@@ -220,7 +229,16 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         } completionHandler: { [weak self, weak panel] in
             panel?.orderOut(nil)
             panel?.alphaValue = 1
-            self?.isAnimatingClose = false
+            Task { @MainActor [weak self] in
+                self?.isAnimatingClose = false
+            }
+        }
+    }
+
+    private func dismissAfterCopy(_ action: @escaping () -> Void) {
+        close(commitDeferredCopies: false, animated: false)
+        DispatchQueue.main.async {
+            action()
         }
     }
 
@@ -325,8 +343,8 @@ final class StackPanelController: NSObject, NSWindowDelegate {
                 onBackdropTap: { [weak self] in
                     self?.close()
                 },
-                onDismissAfterCopy: { [weak self] in
-                    self?.close(commitDeferredCopies: false)
+                onDismissAfterCopy: { [weak self] action in
+                    self?.dismissAfterCopy(action)
                 },
                 onEditCard: { [weak self] card in
                     self?.onEditCard(card)
@@ -656,12 +674,10 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
         lastAppearanceSignature = appearanceSignature
         shellView.refreshAppearance()
 
-        // Rebuild the SwiftUI view hierarchy whenever the effective
-        // appearance actually changed, OR when the caller detected a
-        // change that our local signature comparison missed (e.g. the
-        // panel was offscreen and effectiveAppearance lagged behind).
+        // Keep the SwiftUI tree stable across appearance changes. The stack
+        // content uses adaptive colors at draw time, so replacing the root
+        // view here only resets local UI state and causes visible churn.
         if didChangeAppearance || forceRebuild {
-            hostingController.rootView = rootViewBuilder()
             hostingController.view.layer?.contents = nil
             hostingController.view.needsLayout = true
             hostingController.view.layoutSubtreeIfNeeded()

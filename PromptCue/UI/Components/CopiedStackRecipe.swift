@@ -46,15 +46,21 @@ enum CopiedStackRecipe {
         StackLayoutMetrics.copiedBackPlateLeadingInset(for: index)
     }
 
-    static let headerTextColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.74),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78)
-    )
+    static func headerTextColor(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.labelColor.withAlphaComponent(0.74),
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
+            appearance: appearance
+        )
+    }
 
-    static let previewTextColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.78),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.62)
-    )
+    static func previewTextColor(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.labelColor.withAlphaComponent(0.78),
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.62),
+            appearance: appearance
+        )
+    }
 
     // Returns the full border color (base × per-index opacity baked in)
     // so callers no longer need to combine a base token with a separate opacity.

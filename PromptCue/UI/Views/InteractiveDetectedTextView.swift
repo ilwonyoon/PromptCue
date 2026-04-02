@@ -11,7 +11,6 @@ struct InteractiveDetectedTextView: View {
     }
 
     private let styledText: StyledText
-    private let baseColor: Color
     let multilineLineLimit: Int?
 
     init(
@@ -24,19 +23,17 @@ struct InteractiveDetectedTextView: View {
         styledText = Self.styledText(
             text: text,
             classification: classification,
+            baseColor: baseColor,
             highlightedRanges: highlightedRanges
         )
-        self.baseColor = baseColor
         self.multilineLineLimit = multilineLineLimit
     }
 
     init(
         styledText: StyledText,
-        baseColor: Color,
         multilineLineLimit: Int? = nil
     ) {
         self.styledText = styledText
-        self.baseColor = baseColor
         self.multilineLineLimit = multilineLineLimit
     }
 
@@ -53,7 +50,6 @@ struct InteractiveDetectedTextView: View {
 
     var body: some View {
         Text(styledText.renderedText)
-            .foregroundStyle(baseColor)
             .lineLimit(styledText.displayConfiguration.prefersSingleLine ? 1 : multilineLineLimit)
             .truncationMode(styledText.displayConfiguration.swiftUITruncationMode)
             .multilineTextAlignment(.leading)
@@ -69,12 +65,14 @@ struct InteractiveDetectedTextView: View {
     static func styledText(
         text: String,
         classification: ContentClassification,
+        baseColor: Color,
         highlightedRanges: [NSRange] = []
     ) -> StyledText {
         let displayConfiguration = displayConfiguration(text: text, classification: classification)
         let displayText = displayConfiguration.text
         var renderedText = AttributedString(displayText)
         renderedText.font = PrimitiveTokens.Typography.body
+        renderedText.foregroundColor = baseColor
 
         let measurementText = NSMutableAttributedString(
             string: displayText,

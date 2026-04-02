@@ -39,11 +39,11 @@ enum SemanticTokens {
         )
         static let cardFill = Color(nsColor: .controlBackgroundColor).opacity(PrimitiveTokens.Opacity.surface)
         static let notificationCardFill = adaptiveColor(
-            light: NSColor.windowBackgroundColor.withAlphaComponent(0.97),
+            light: NSColor.white.withAlphaComponent(0.93),
             dark: NSColor(calibratedWhite: 0.14, alpha: 0.94)
         )
         static let notificationCardEmphasizedFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.992),
+            light: NSColor.windowBackgroundColor.withAlphaComponent(0.97),
             dark: NSColor(calibratedWhite: 0.12, alpha: 0.97)
         )
         static let notificationCardBackdrop = adaptiveColor(
@@ -51,7 +51,7 @@ enum SemanticTokens {
             dark: NSColor.white.withAlphaComponent(0.006)
         )
         static let notificationCardHoverFill = adaptiveColor(
-            light: NSColor.white.withAlphaComponent(0.05),
+            light: NSColor.white.withAlphaComponent(0.01),
             dark: NSColor.black.withAlphaComponent(0.04)
         )
         static let notificationStackPlateBase = adaptiveColor(
@@ -183,17 +183,44 @@ enum SemanticTokens {
     static func adaptiveColor(light: NSColor, dark: NSColor) -> Color {
         Color(
             nsColor: NSColor(name: nil) { appearance in
-                let bestMatch = appearance.bestMatch(
-                    from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]
-                )
-
-                switch bestMatch {
-                case .darkAqua, .vibrantDark:
-                    return dark
-                default:
-                    return light
-                }
+                resolvedAdaptiveNSColor(light: light, dark: dark, appearance: appearance)
             }
         )
+    }
+
+    static func resolvedAdaptiveColor(
+        light: NSColor,
+        dark: NSColor,
+        appearance: NSAppearance? = NSApp.effectiveAppearance
+    ) -> Color {
+        Color(nsColor: resolvedAdaptiveNSColor(light: light, dark: dark, appearance: appearance))
+    }
+
+    static func resolvedAdaptiveNSColor(
+        light: NSColor,
+        dark: NSColor,
+        appearance: NSAppearance? = NSApp.effectiveAppearance
+    ) -> NSColor {
+        let bestMatch = appearance?.bestMatch(
+            from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight]
+        )
+
+        let selectedColor: NSColor
+        switch bestMatch {
+        case .darkAqua, .vibrantDark:
+            selectedColor = dark
+        default:
+            selectedColor = light
+        }
+
+        guard let appearance else {
+            return selectedColor
+        }
+
+        var resolvedColor = selectedColor
+        appearance.performAsCurrentDrawingAppearance {
+            resolvedColor = selectedColor.usingColorSpace(.deviceRGB) ?? selectedColor
+        }
+        return resolvedColor
     }
 }

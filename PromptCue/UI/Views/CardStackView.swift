@@ -2,6 +2,33 @@ import AppKit
 import PromptCueCore
 import SwiftUI
 
+@MainActor
+final class CardStackViewState: ObservableObject {
+    @Published var isCopiedStackExpanded =
+        ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
+    @Published private(set) var expandedCardIDs = Set<CaptureCard.ID>()
+    @Published var isCopiedStackHovered = false
+    @Published var isConfirmingCopiedDelete = false
+    @Published var isCmdPressed = false
+    @Published private(set) var inheritedAppearance: NSAppearance? = NSApp.effectiveAppearance
+    @Published private(set) var appearanceEpoch: UInt64 = 0
+
+    func toggleExpansion(for cardID: CaptureCard.ID) {
+        var nextExpandedIDs = expandedCardIDs
+        if nextExpandedIDs.contains(cardID) {
+            nextExpandedIDs.remove(cardID)
+        } else {
+            nextExpandedIDs.insert(cardID)
+        }
+        expandedCardIDs = nextExpandedIDs
+    }
+
+    func applyInheritedAppearance(_ appearance: NSAppearance?) {
+        inheritedAppearance = appearance
+        appearanceEpoch &+= 1
+    }
+}
+
 struct CardStackView: View {
     private enum CardRowNamespace: String {
         case active
@@ -10,27 +37,25 @@ struct CardStackView: View {
     }
 
     @ObservedObject var model: AppModel
+    @ObservedObject var viewState: CardStackViewState
     let onBackdropTap: () -> Void
     let onDismissAfterCopy: (@escaping () -> Void) -> Void
     let onEditCard: (CaptureCard) -> Void
     let onDeleteCard: (CaptureCard) -> Void
     private let ttlTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
-    @State private var isCopiedStackExpanded = ProcessInfo.processInfo.environment["PROMPTCUE_EXPAND_COPIED_STACK_ON_START"] == "1"
-    @State private var expandedCardIDs = Set<CaptureCard.ID>()
-    @State private var isCopiedStackHovered = false
-    @State private var isConfirmingCopiedDelete = false
-    @State private var isCmdPressed = false
     @State private var flagsMonitor: Any?
     @State private var ttlNow = Date()
 
     init(
         model: AppModel,
+        viewState: CardStackViewState,
         onBackdropTap: @escaping () -> Void = {},
         onDismissAfterCopy: @escaping (@escaping () -> Void) -> Void = { action in action() },
         onEditCard: @escaping (CaptureCard) -> Void,
         onDeleteCard: @escaping (CaptureCard) -> Void
     ) {
         self.model = model
+        self.viewState = viewState
         self.onBackdropTap = onBackdropTap
         self.onDismissAfterCopy = onDismissAfterCopy
         self.onEditCard = onEditCard
@@ -43,7 +68,7 @@ struct CardStackView: View {
         let classificationCache = Self.buildClassificationCache(
             for: Self.classificationRelevantCards(
                 sections: allSections,
-                isCopiedStackExpanded: isCopiedStackExpanded
+                isCopiedStackExpanded: viewState.isCopiedStackExpanded
             )
         )
         let railState = StackRailState(
@@ -65,8 +90,8 @@ struct CardStackView: View {
                     let pinnedCards = allSections.active.filter(\.isPinned)
                     let unpinnedCards = allSections.active.filter { !$0.isPinned }
 
-                    ScrollView(.vertical, showsIndicators: false) {
-                        LazyVStack(spacing: 0) {
+                    StackOwnedScrollView {
+                        VStack(spacing: 0) {
                             header(railState: railState)
 
                             if !pinnedCards.isEmpty {
@@ -79,7 +104,7 @@ struct CardStackView: View {
                             }
 
                             if !unpinnedCards.isEmpty {
-                                LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                                VStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
                                     ForEach(unpinnedCards) { card in
                                         cardRow(
                                             for: card,
@@ -94,7 +119,7 @@ struct CardStackView: View {
                             if !allSections.copied.isEmpty {
                                 copiedSectionHeader(
                                     copiedCards: allSections.copied,
-                                    isExpanded: isCopiedStackExpanded,
+                                    isExpanded: viewState.isCopiedStackExpanded,
                                     isCollapsible: true
                                 )
                                 .padding(.top, PrimitiveTokens.Space.md)
@@ -110,8 +135,6 @@ struct CardStackView: View {
                         .padding(.vertical, PrimitiveTokens.Space.xxxs)
                         .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
                     }
-                    .scrollIndicators(.hidden)
-                    .background(StackScrollIndicatorHider())
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
@@ -123,7 +146,7 @@ struct CardStackView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         .onAppear {
             flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { event in
-                isCmdPressed = event.modifierFlags.contains(.command)
+                viewState.isCmdPressed = event.modifierFlags.contains(.command)
                 return event
             }
         }
@@ -144,8 +167,8 @@ struct CardStackView: View {
             StackSectionHeader(title: "\(railState.stagedCount) Copied")
         } else {
             StackSectionHeader(title: railState.headerTitle) {
-                CmdIndicatorButton(isActive: isCmdPressed) {
-                    isCmdPressed.toggle()
+                CmdIndicatorButton(isActive: viewState.isCmdPressed) {
+                    viewState.isCmdPressed.toggle()
                 }
             }
         }
@@ -201,6 +224,7 @@ struct CardStackView: View {
             isRecentlyCopied: false,
             selectionMode: selectionMode,
             isExpanded: false,
+            inheritedAppearance: viewState.inheritedAppearance,
             onCopy: {
                 onDismissAfterCopy {
                     _ = model.copySingleCard(card)
@@ -254,7 +278,8 @@ struct CardStackView: View {
                 selectionMode: selectionMode,
                 ttlProgressRemaining: ttlProgress,
                 ttlRemainingMinutes: ttlMinutes,
-                isExpanded: expandedCardIDs.contains(card.id),
+                isExpanded: viewState.expandedCardIDs.contains(card.id),
+                inheritedAppearance: viewState.inheritedAppearance,
                 onCopy: {
                     onDismissAfterCopy {
                         _ = model.copySingleCard(card)
@@ -286,8 +311,8 @@ struct CardStackView: View {
                 }
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .id(rowIdentity(for: card, namespace: namespace))
+            }
+            .id(rowIdentity(for: card, namespace: namespace))
     }
 
     @ViewBuilder
@@ -297,8 +322,8 @@ struct CardStackView: View {
         classificationCache: [CaptureCard.ID: ContentClassification],
         stagedCopiedCardIDSet: Set<CaptureCard.ID>
     ) -> some View {
-        if forceExpanded || isCopiedStackExpanded {
-            LazyVStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+        if forceExpanded || viewState.isCopiedStackExpanded {
+            VStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
                 ForEach(copiedCards) { card in
                     cardRow(
                         for: card,
@@ -308,11 +333,11 @@ struct CardStackView: View {
                     )
                 }
             }
-            .id("copied-expanded")
+            .id("copied-expanded-\(viewState.appearanceEpoch)")
         } else {
             collapsedCopiedStack(copiedCards: copiedCards, classificationCache: classificationCache)
                 .padding(.top, CopiedStackRecipe.collapsedTopShadowCompensation)
-                .id("copied-collapsed")
+                .id("copied-collapsed-\(viewState.appearanceEpoch)")
         }
     }
 
@@ -338,7 +363,7 @@ struct CardStackView: View {
                     .zIndex(Double(-index))
             }
 
-            StackNotificationCardSurface(isEmphasized: isCopiedStackHovered) {
+            StackNotificationCardSurface(isEmphasized: viewState.isCopiedStackHovered) {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
                     if let card = copiedCards.first {
                         let classification = resolveClassification(for: card, classificationCache: classificationCache)
@@ -368,7 +393,7 @@ struct CardStackView: View {
             }
             .frame(height: collapsedCopiedCardHeight)
             .shadow(
-                color: isCopiedStackHovered ? .clear : CopiedStackRecipe.backPlateShadowColor(index: 1),
+                color: viewState.isCopiedStackHovered ? .clear : CopiedStackRecipe.backPlateShadowColor(index: 1),
                 radius: CopiedStackRecipe.backPlateShadowRadius(index: 1),
                 x: PrimitiveTokens.Shadow.zeroX,
                 y: CopiedStackRecipe.backPlateShadowYOffset(index: 1)
@@ -376,13 +401,14 @@ struct CardStackView: View {
             .zIndex(1)
         }
         .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
-        .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: isCopiedStackHovered)
+        .opacity(viewState.isCopiedStackHovered ? 1 : PrimitiveTokens.Opacity.copiedCard)
+        .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: viewState.isCopiedStackHovered)
         .onHover { hovered in
-            isCopiedStackHovered = hovered
+            viewState.isCopiedStackHovered = hovered
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            isCopiedStackExpanded = true
+            viewState.isCopiedStackExpanded = true
         }
         .accessibilityLabel("Copied prompts, \(copiedCards.count) items")
         .accessibilityHint("Tap to expand")
@@ -423,11 +449,11 @@ struct CardStackView: View {
     }
 
     private var copiedPreviewTextColor: Color {
-        CopiedStackRecipe.previewTextColor
+        CopiedStackRecipe.previewTextColor(appearance: viewState.inheritedAppearance)
     }
 
     private var copiedHeaderTextColor: Color {
-        CopiedStackRecipe.headerTextColor
+        CopiedStackRecipe.headerTextColor(appearance: viewState.inheritedAppearance)
     }
 
     private func copiedControlCluster(
@@ -437,9 +463,9 @@ struct CardStackView: View {
     ) -> some View {
         HStack(spacing: PrimitiveTokens.Size.copiedControlClusterSpacing) {
             HStack(spacing: PrimitiveTokens.Space.xs) {
-                if isConfirmingCopiedDelete {
+                if viewState.isConfirmingCopiedDelete {
                     Button {
-                        isConfirmingCopiedDelete = false
+                        viewState.isConfirmingCopiedDelete = false
                     } label: {
                         Text("Cancel")
                             .font(.system(size: 13, weight: .medium))
@@ -450,7 +476,7 @@ struct CardStackView: View {
 
                     Button {
                         model.deleteOffstageCards()
-                        isConfirmingCopiedDelete = false
+                        viewState.isConfirmingCopiedDelete = false
                     } label: {
                         Text("Delete all")
                             .font(.system(size: 13, weight: .medium))
@@ -460,7 +486,7 @@ struct CardStackView: View {
                     .buttonStyle(.plain)
                 } else if !copiedCards.isEmpty {
                     Button {
-                        isConfirmingCopiedDelete = true
+                        viewState.isConfirmingCopiedDelete = true
                     } label: {
                         Text("Delete all")
                             .font(.system(size: 13, weight: .medium))
@@ -480,8 +506,8 @@ struct CardStackView: View {
                     isActive: isExpanded,
                     rotationDegrees: isExpanded ? 180 : 0
                 ) {
-                    isCopiedStackExpanded.toggle()
-                    isConfirmingCopiedDelete = false
+                    viewState.isCopiedStackExpanded.toggle()
+                    viewState.isConfirmingCopiedDelete = false
                 }
             }
         }
@@ -499,6 +525,7 @@ struct CardStackView: View {
         let styledText = InteractiveDetectedTextView.styledText(
             text: firstCopiedCard.visibleInlineText,
             classification: resolveClassification(for: firstCopiedCard, classificationCache: classificationCache),
+            baseColor: copiedPreviewTextColor,
             highlightedRanges: firstCopiedCard.visibleInlineTagRanges
         )
 
@@ -546,11 +573,7 @@ struct CardStackView: View {
 
     private func toggleExpansion(for card: CaptureCard) {
         withAnimation(.easeOut(duration: PrimitiveTokens.Motion.standard)) {
-            if expandedCardIDs.contains(card.id) {
-                expandedCardIDs.remove(card.id)
-            } else {
-                expandedCardIDs.insert(card.id)
-            }
+            viewState.toggleExpansion(for: card.id)
         }
     }
 
@@ -562,7 +585,7 @@ struct CardStackView: View {
     }
 
     private func rowIdentity(for card: CaptureCard, namespace: CardRowNamespace) -> String {
-        "\(namespace.rawValue)-\(card.id.uuidString)"
+        "\(namespace.rawValue)-\(card.id.uuidString)-\(viewState.appearanceEpoch)"
     }
 
     private static func buildClassificationCache(for cards: [CaptureCard]) -> [CaptureCard.ID: ContentClassification] {
@@ -654,71 +677,119 @@ private struct CardSections {
     }
 }
 
-private struct StackScrollIndicatorHider: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView(frame: .zero)
-        configure(from: view)
-        return view
+private struct StackOwnedScrollView<Content: View>: NSViewRepresentable {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        configure(from: nsView)
+    func makeNSView(context: Context) -> StackOwnedNSScrollView {
+        let scrollView = StackOwnedNSScrollView()
+        scrollView.update(rootView: AnyView(content))
+        return scrollView
     }
 
-    private func configure(from view: NSView) {
-        DispatchQueue.main.async {
-            guard let scrollView = findScrollView(from: view) else {
-                return
-            }
+    func updateNSView(_ nsView: StackOwnedNSScrollView, context: Context) {
+        nsView.update(rootView: AnyView(content))
+    }
+}
 
-            scrollView.hasVerticalScroller = false
-            scrollView.hasHorizontalScroller = false
-            scrollView.autohidesScrollers = true
-            scrollView.scrollerStyle = .overlay
-            scrollView.verticalScroller?.alphaValue = 0
-            scrollView.horizontalScroller?.alphaValue = 0
-        }
+private final class StackOwnedNSScrollView: NSScrollView {
+    private let documentContainer = StackScrollDocumentView()
+    private let hostingView = StackContentHostingView(rootView: AnyView(EmptyView()))
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
     }
 
-    private func findScrollView(from view: NSView) -> NSScrollView? {
-        if let enclosing = view.enclosingScrollView {
-            return enclosing
-        }
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
 
-        var ancestor = view.superview
-        while let current = ancestor {
-            if let scrollView = current as? NSScrollView {
-                return scrollView
-            }
-            ancestor = current.superview
-        }
+        drawsBackground = false
+        borderType = .noBorder
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        scrollerStyle = .overlay
+        automaticallyAdjustsContentInsets = false
+        verticalScroller = nil
+        horizontalScroller = nil
+        contentInsets = NSEdgeInsetsZero
+        contentView.drawsBackground = false
+        contentView.automaticallyAdjustsContentInsets = false
 
-        guard let rootView = view.window?.contentView ?? topmostAncestor(of: view) else {
-            return nil
-        }
+        documentContainer.wantsLayer = true
+        documentContainer.layer?.backgroundColor = NSColor.clear.cgColor
 
-        return firstScrollView(in: rootView)
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
+        hostingView.autoresizingMask = [.width]
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        documentContainer.addSubview(hostingView)
+        documentView = documentContainer
     }
 
-    private func topmostAncestor(of view: NSView) -> NSView? {
-        var current: NSView? = view
-        while let superview = current?.superview {
-            current = superview
-        }
-        return current
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
-    private func firstScrollView(in view: NSView) -> NSScrollView? {
-        if let scrollView = view as? NSScrollView {
-            return scrollView
+    override func layout() {
+        super.layout()
+        layoutDocumentView()
+    }
+
+    override func tile() {
+        super.tile()
+        configureScrollers()
+    }
+
+    func update(rootView: AnyView) {
+        hostingView.rootView = AnyView(rootView.ignoresSafeArea(.container, edges: .top))
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        configureScrollers()
+        layoutDocumentView()
+    }
+
+    private func configureScrollers() {
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        scrollerStyle = .overlay
+        verticalScroller = nil
+        horizontalScroller = nil
+    }
+
+    private func layoutDocumentView() {
+        let targetWidth = contentView.bounds.width
+        guard targetWidth > 0 else {
+            return
         }
 
-        for subview in view.subviews {
-            if let scrollView = firstScrollView(in: subview) {
-                return scrollView
-            }
-        }
+        hostingView.setFrameSize(NSSize(width: targetWidth, height: 1))
+        hostingView.layoutSubtreeIfNeeded()
 
-        return nil
+        let contentHeight = hostingView.fittingSize.height
+        let containerHeight = max(contentHeight, contentView.bounds.height)
+        documentContainer.frame = NSRect(x: 0, y: 0, width: targetWidth, height: containerHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: targetWidth, height: contentHeight)
+    }
+}
+
+private final class StackScrollDocumentView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+}
+
+private final class StackContentHostingView: NSHostingView<AnyView> {
+    override var safeAreaInsets: NSEdgeInsets {
+        NSEdgeInsetsZero
+    }
+
+    override var safeAreaRect: NSRect {
+        bounds
     }
 }

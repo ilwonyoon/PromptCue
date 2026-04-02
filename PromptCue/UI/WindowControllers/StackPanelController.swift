@@ -64,6 +64,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private let model: AppModel
     private let onEditCard: (CaptureCard) -> Void
+    private let stackViewState = CardStackViewState()
     private var panel: StackPanel?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -114,13 +115,17 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
         PerformanceTrace.markStackOpenPhase("panel_ready")
 
-        // If the system theme changed while the panel was hidden,
-        // AppKit may not have propagated the new effective appearance
-        // to our offscreen views, so viewDidChangeEffectiveAppearance
-        // never fired.  Flush the pending refresh now, before we
-        // composite the first visible frame.
-        if pendingAppearanceRefresh {
-            refreshForInheritedAppearanceChange()
+        let needsPostShowAppearanceRefresh = pendingAppearanceRefresh
+        if needsPostShowAppearanceRefresh {
+            // Hidden prewarmed panels often still report their old
+            // effectiveAppearance until after they re-enter the window
+            // hierarchy. Clear local overrides now, then perform the
+            // actual content refresh on the next run loop after the
+            // panel is visible so stack text bakes against the live
+            // system appearance instead of the stale hidden-panel one.
+            panel.appearance = nil
+            panel.contentView?.appearance = nil
+            panel.contentViewController?.view.appearance = nil
         }
 
         primePanelLayout(panel)
@@ -155,6 +160,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         isVisible = true
         installDismissMonitors()
         PerformanceTrace.markStackOpenPhase("dismiss_monitors_installed")
+
+        if needsPostShowAppearanceRefresh {
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshForInheritedAppearanceChange()
+            }
+        }
 
         guard presentationMode.animatesAlpha || presentationMode.animatesFrame else {
             return
@@ -337,23 +348,29 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = StackPanelContentViewController(rootViewBuilder: { [self] in
-            CardStackView(
-                model: self.model,
-                onBackdropTap: { [weak self] in
-                    self?.close()
-                },
-                onDismissAfterCopy: { [weak self] action in
-                    self?.dismissAfterCopy(action)
-                },
-                onEditCard: { [weak self] card in
-                    self?.onEditCard(card)
-                },
-                onDeleteCard: { [weak self] card in
-                    self?.model.delete(card: card)
-                }
-            )
-        })
+        panel.contentViewController = StackPanelContentViewController(
+            rootViewBuilder: { [self] in
+                CardStackView(
+                    model: self.model,
+                    viewState: self.stackViewState,
+                    onBackdropTap: { [weak self] in
+                        self?.close()
+                    },
+                    onDismissAfterCopy: { [weak self] action in
+                        self?.dismissAfterCopy(action)
+                    },
+                    onEditCard: { [weak self] card in
+                        self?.onEditCard(card)
+                    },
+                    onDeleteCard: { [weak self] card in
+                        self?.model.delete(card: card)
+                    }
+                )
+            },
+            onAppearanceChanged: { [weak self] appearance in
+                self?.stackViewState.applyInheritedAppearance(appearance)
+            }
+        )
         PerformanceTrace.markStackOpenPhase("panel_content_built")
 
         self.panel = panel
@@ -615,15 +632,18 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 private final class StackPanelContentViewController<Content: View>: NSViewController {
     private let shellView = StackPanelShellView()
     private let rootViewBuilder: () -> Content
+    private let onAppearanceChanged: (NSAppearance?) -> Void
     private let hostingController: NSHostingController<Content>
     private var lastAppearanceSignature: String?
+    private var pendingContentRebuildWorkItem: DispatchWorkItem?
 
-    init(rootViewBuilder: @escaping () -> Content) {
+    init(
+        rootViewBuilder: @escaping () -> Content,
+        onAppearanceChanged: @escaping (NSAppearance?) -> Void = { _ in }
+    ) {
         self.rootViewBuilder = rootViewBuilder
-        self.hostingController = NSHostingController(rootView: rootViewBuilder())
-        if #available(macOS 13.0, *) {
-            self.hostingController.sizingOptions = []
-        }
+        self.onAppearanceChanged = onAppearanceChanged
+        self.hostingController = Self.makeHostingController(rootViewBuilder: rootViewBuilder)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -674,17 +694,44 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
         lastAppearanceSignature = appearanceSignature
         shellView.refreshAppearance()
 
-        // Keep the SwiftUI tree stable across appearance changes. The stack
-        // content uses adaptive colors at draw time, so replacing the root
-        // view here only resets local UI state and causes visible churn.
-        if didChangeAppearance || forceRebuild {
-            hostingController.view.layer?.contents = nil
-            hostingController.view.needsLayout = true
-            hostingController.view.layoutSubtreeIfNeeded()
+        // Keep the shell host stable, but fully recreate the SwiftUI content
+        // subtree when the effective appearance changes. Stack card text
+        // currently bakes appearance-dependent foreground colors into
+        // attributed text, so row-level invalidation alone can leave stale
+        // light/dark rasters behind on idle cards.
+        pendingContentRebuildWorkItem?.cancel()
+        pendingContentRebuildWorkItem = nil
+
+        if forceRebuild {
+            rebuildContent()
+        } else if didChangeAppearance {
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.rebuildContent()
+            }
+            pendingContentRebuildWorkItem = workItem
+            DispatchQueue.main.async(execute: workItem)
         }
         view.needsDisplay = true
         shellView.needsDisplay = true
         hostingController.view.needsDisplay = true
+    }
+
+    private func rebuildContent() {
+        pendingContentRebuildWorkItem = nil
+        onAppearanceChanged(view.window?.effectiveAppearance ?? view.effectiveAppearance)
+        hostingController.rootView = rootViewBuilder()
+        hostingController.view.layer?.contents = nil
+        hostingController.view.needsLayout = true
+        hostingController.view.layoutSubtreeIfNeeded()
+        hostingController.view.displayIfNeeded()
+    }
+
+    private static func makeHostingController(rootViewBuilder: @escaping () -> Content) -> NSHostingController<Content> {
+        let hostingController = NSHostingController(rootView: rootViewBuilder())
+        if #available(macOS 13.0, *) {
+            hostingController.sizingOptions = []
+        }
+        return hostingController
     }
 
     private static func appearanceSignature(for appearance: NSAppearance?) -> String {
@@ -852,7 +899,6 @@ private final class StackPanelShellView: NSView {
                 ? PanelBackdropFamily.stackShellTopHighlightDark
                 : PanelBackdropFamily.stackShellTopHighlightLight
         ).cgColor
-
         let tintOpacity = usesDarkAppearance
             ? PanelBackdropFamily.stackShellTintOpacityDark
             : PanelBackdropFamily.stackShellTintOpacityLight
@@ -897,7 +943,6 @@ private final class StackPanelShellView: NSView {
         gradientLayer.cornerRadius = radius
         borderLayer.frame = boundsRect
         borderLayer.path = fullPath
-
         let topRect = CGRect(
             x: 0,
             y: max(0, boundsRect.height - PrimitiveTokens.Space.lg),

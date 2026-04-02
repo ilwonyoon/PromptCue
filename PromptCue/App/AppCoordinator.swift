@@ -411,20 +411,6 @@ final class AppCoordinator: AppLifecycleCoordinating {
     }
 
     private func refreshForInheritedAppearanceChange() {
-        NSApp.appearance = nil
-        NSApp.windows.forEach { window in
-            window.appearance = nil
-            window.contentView?.appearance = nil
-            window.contentViewController?.view.appearance = nil
-            window.invalidateShadow()
-            window.contentView?.needsDisplay = true
-            window.contentViewController?.view.layer?.contents = nil
-            window.contentViewController?.view.needsLayout = true
-            window.contentViewController?.view.layoutSubtreeIfNeeded()
-            window.contentViewController?.view.needsDisplay = true
-            window.contentView?.subviews.forEach { $0.needsDisplay = true }
-        }
-
         statusItem?.button?.appearance = nil
         statusItem?.button?.image?.isTemplate = true
         statusItem?.button?.needsDisplay = true

@@ -143,6 +143,7 @@
 		D3E0A4FB416F1388131D8320 /* PromptExportTailSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699C75609B52C164D9294CE8 /* PromptExportTailSettingsModel.swift */; };
 		D70CA12B7EE92B8021E7A589 /* ShowcaseGlassChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB7F40074E71FB405239B55 /* ShowcaseGlassChrome.swift */; };
 		D89222A2A16923B28CA23834 /* CapturePanelRuntimeViewControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C343F2CAC571F12332D46BBA /* CapturePanelRuntimeViewControllerTests.swift */; };
+		D93765A7AF80144689C45EAD /* StackLayoutMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2DDFD0A761683202C0F70CE /* StackLayoutMetrics.swift */; };
 		DC5C46E09CEBDB96D95D74A1 /* SettingsStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D41B26BBDE9A18011C918F /* SettingsStatusBadge.swift */; };
 		DD789D6A554599FD7839FD00 /* InteractiveDetectedTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */; };
 		E024FD72C5A42EFA5CF14781 /* ScreenshotSettingsModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF700E9269F6C42DCAEBEE49 /* ScreenshotSettingsModelTests.swift */; };
@@ -304,6 +305,7 @@
 		ADC602C76285308D6221EEE0 /* SettingsDetailGroupRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDetailGroupRow.swift; sourceTree = "<group>"; };
 		AF5F4A66F919D40B8FC899E0 /* MemoryViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewerView.swift; sourceTree = "<group>"; };
 		AFAA232E52F9294A3D654DBA /* SettingsFormRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFormRow.swift; sourceTree = "<group>"; };
+		B2DDFD0A761683202C0F70CE /* StackLayoutMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackLayoutMetrics.swift; sourceTree = "<group>"; };
 		B7725BE080119E0BE4B98883 /* AppDelegateCloudSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateCloudSyncTests.swift; sourceTree = "<group>"; };
 		B78DEA144347458FDC5E9000 /* StackMultiCopyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackMultiCopyTests.swift; sourceTree = "<group>"; };
 		B7B8EBE8CB1E47CE88B03A88 /* CaptureInlineTagSuggestionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureInlineTagSuggestionView.swift; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 				25E52C65D0F3F5887CBAB797 /* PrimitiveTokens.swift */,
 				538FD2D12C938EEE09CB144D /* PromptCueShadowModifiers.swift */,
 				3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */,
+				B2DDFD0A761683202C0F70CE /* StackLayoutMetrics.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -1036,6 +1039,7 @@
 				C2037D02EFBA614AD4B58AEB /* StackCardOverflowPolicy.swift in Sources */,
 				728981EB371701B1ED485DA5 /* StackExecutionService.swift in Sources */,
 				B6681D6C97863696A22128FE /* StackGroupService.swift in Sources */,
+				D93765A7AF80144689C45EAD /* StackLayoutMetrics.swift in Sources */,
 				4F8E583C541684B32D830234 /* StackNotificationCardChromeRecipe.swift in Sources */,
 				48BC05C40A0A6AE034840FD1 /* StackNotificationCardSurface.swift in Sources */,
 				630633C63EAE3E6932494C35 /* StackPanelBackdrop.swift in Sources */,

@@ -53,27 +53,27 @@ enum PanelBackdropFamily {
     }
 
     static var stackShellFillLight: NSColor {
-        NSColor(calibratedWhite: 0.69, alpha: 0.000)
+        NSColor.white.withAlphaComponent(0.32)
     }
 
     static var stackShellFillDark: NSColor {
-        NSColor(calibratedWhite: 0.90, alpha: 0.25)
+        NSColor.white.withAlphaComponent(0.12)
     }
 
     static var stackShellStrokeLight: NSColor {
-        NSColor.black.withAlphaComponent(0.000)
+        NSColor.black.withAlphaComponent(0.08)
     }
 
     static var stackShellStrokeDark: NSColor {
-        NSColor.white.withAlphaComponent(0.000)
+        NSColor.white.withAlphaComponent(0.035)
     }
 
     static var stackShellTopHighlightLight: NSColor {
-        NSColor.white.withAlphaComponent(0.34)
+        NSColor.clear
     }
 
     static var stackShellTopHighlightDark: NSColor {
-        NSColor.white.withAlphaComponent(0.31)
+        NSColor.clear
     }
 
     static var stackShellGradientTopLight: NSColor {
@@ -93,26 +93,26 @@ enum PanelBackdropFamily {
     }
 
     static var stackShellMaterialLight: NSVisualEffectView.Material {
-        .sidebar
+        .underWindowBackground
     }
 
     static var stackShellMaterialDark: NSVisualEffectView.Material {
-        .sidebar
+        .underWindowBackground
     }
 
     static var stackShellBlurOpacityLight: Double {
-        0.94
+        1.0
     }
 
     static var stackShellBlurOpacityDark: Double {
-        0.98
+        1.0
     }
 
     static var stackShellTintOpacityLight: Double {
-        0.31
+        1.0
     }
 
     static var stackShellTintOpacityDark: Double {
-        0.0
+        1.0
     }
 }

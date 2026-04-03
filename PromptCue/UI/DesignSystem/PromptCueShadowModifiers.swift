@@ -43,15 +43,6 @@ extension View {
         )
     }
 
-    func promptCueNotificationCardShadow() -> some View {
-        shadow(
-            color: SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft),
-            radius: PrimitiveTokens.Shadow.notificationCardBlur,
-            x: PrimitiveTokens.Shadow.zeroX,
-            y: PrimitiveTokens.Shadow.notificationCardY
-        )
-    }
-
     func promptCueFloatingControlShadow() -> some View {
         shadow(
             color: SemanticTokens.Shadow.color,

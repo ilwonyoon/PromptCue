@@ -10,12 +10,12 @@ import SwiftUI
 // @Environment(\.colorScheme) propagation.
 enum StackNotificationCardChromeRecipe {
     static let chromeOverlay = SemanticTokens.adaptiveColor(
-        light: NSColor.white.withAlphaComponent(0.10),
-        dark: NSColor.white.withAlphaComponent(0.015)
+        light: .clear,
+        dark: .clear
     )
 
     static let topHighlight = SemanticTokens.adaptiveColor(
-        light: NSColor.white.withAlphaComponent(0.52 * 0.28),
-        dark: NSColor.white.withAlphaComponent(0.44 * 0.08)
+        light: .clear,
+        dark: .clear
     )
 }

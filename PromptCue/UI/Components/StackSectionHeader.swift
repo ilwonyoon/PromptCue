@@ -33,9 +33,9 @@ struct StackSectionHeader<Trailing: View>: View {
 
             trailing
         }
-        .padding(.leading, PrimitiveTokens.Space.xs)
-        .padding(.trailing, PrimitiveTokens.Space.xs)
+        .padding(.leading, StackLayoutMetrics.sectionLeadingInset)
+        .padding(.trailing, StackLayoutMetrics.sectionTrailingInset)
         .padding(.vertical, PrimitiveTokens.Space.sm)
-        .frame(width: PanelMetrics.stackCardColumnWidth, alignment: .leading)
+        .frame(width: StackLayoutMetrics.columnWidth, alignment: .leading)
     }
 }

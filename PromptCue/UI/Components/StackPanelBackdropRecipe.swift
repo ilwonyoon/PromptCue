@@ -8,10 +8,7 @@ enum StackPanelBackdropRecipe {
     static let defaultGrayscaleBias = 0.0
 
     private static var cardColumnLeadingRatio: Double {
-        let panelWidth = Double(PanelMetrics.stackPanelWidth)
-        let leadingInset = Double(PrimitiveTokens.Space.sm)
-        let cardLeadingEdge = panelWidth - leadingInset - Double(PanelMetrics.stackCardColumnWidth)
-        return min(0.4, max(0.1, cardLeadingEdge / panelWidth))
+        StackLayoutMetrics.cardColumnLeadingRatio()
     }
 
     static func normalizedDensity(_ densityScale: Double) -> Double {

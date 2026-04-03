@@ -1,13 +1,10 @@
-import AppKit
 import SwiftUI
 
 // Backtick copied-stack recipe.
 // Owns the collapsed copied-section plate math so CardStackView can compose it
 // without carrying local opacity and shade decisions inline.
-//
-// All colors are adaptive — they resolve at draw time via NSColor's
-// appearance callback, eliminating dependence on SwiftUI's
-// @Environment(\.colorScheme) propagation.
+// Only owns collapsed copied-stack geometry and depth. The visible front card
+// should use the same surface treatment as a normal stack card.
 enum CopiedStackRecipe {
     static let frontToMiddleGap: CGFloat = PrimitiveTokens.Space.sm
     static let middleToBackGap: CGFloat = 8
@@ -42,40 +39,14 @@ enum CopiedStackRecipe {
         PrimitiveTokens.Radius.md
     }
 
-    static func collapsedHorizontalInset(for index: Int) -> CGFloat {
-        switch index {
-        case 1:
-            return PrimitiveTokens.Space.sm
-        case 2:
-            return PrimitiveTokens.Space.xl
-        default:
-            return PrimitiveTokens.Space.xl + (CGFloat(index - 2) * PrimitiveTokens.Space.sm)
-        }
+    static func collapsedLeadingInset(for index: Int) -> CGFloat {
+        StackLayoutMetrics.copiedBackPlateLeadingInset(for: index)
     }
 
-    static let headerTextColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.74),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78)
-    )
-
-    static let previewTextColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.78),
-        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.62)
-    )
-
-    // Returns the full border color (base × per-index opacity baked in)
-    // so callers no longer need to combine a base token with a separate opacity.
     static func backPlateBorder(index: Int) -> Color {
-        let opacity: Double
-        switch index {
-        case 1: opacity = 0.32
-        case 2: opacity = 0.24
-        default: opacity = 0.20
-        }
-        return SemanticTokens.Border.notificationCard.opacity(opacity)
+        SemanticTokens.Border.notificationCard
     }
 
-    // Returns the full fill color (base × per-index opacity baked in).
     static func backPlateFill(index: Int) -> Color {
         SemanticTokens.Surface.notificationCardFill
     }
@@ -85,18 +56,32 @@ enum CopiedStackRecipe {
     }
 
     static func backPlateShadowColor(index: Int) -> Color {
-        SemanticTokens.adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.12),
-            dark: NSColor.black.withAlphaComponent(0.12)
-        )
+        switch index {
+        case 1:
+            return SemanticTokens.adaptiveColor(
+                light: .black.withAlphaComponent(0.12),
+                dark: .black.withAlphaComponent(0.18)
+            )
+        default:
+            return SemanticTokens.adaptiveColor(
+                light: .black.withAlphaComponent(0.08),
+                dark: .black.withAlphaComponent(0.12)
+            )
+        }
     }
 
     static func backPlateShadowRadius(index: Int) -> CGFloat {
-        4
+        switch index {
+        case 1: return 8
+        default: return 6
+        }
     }
 
     static func backPlateShadowYOffset(index: Int) -> CGFloat {
-        4
+        switch index {
+        case 1: return 6
+        default: return 4
+        }
     }
 
     /// Extra top inset to compensate for upward shadow bleed from the front card.

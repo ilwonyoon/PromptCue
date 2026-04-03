@@ -26,11 +26,11 @@ enum SettingsSemanticTokens {
             dark: NSColor.white.withAlphaComponent(0.085)
         )
         static let contentBackground = adaptiveColor(
-            light: NSColor(srgbRed: 237.0 / 255.0, green: 237.0 / 255.0, blue: 236.0 / 255.0, alpha: 1.0),
-            dark: NSColor(srgbRed: 43.0 / 255.0, green: 43.0 / 255.0, blue: 41.0 / 255.0, alpha: 1.0)
+            light: NSColor.textBackgroundColor,
+            dark: NSColor(srgbRed: 31.0 / 255.0, green: 31.0 / 255.0, blue: 30.0 / 255.0, alpha: 1.0)
         )
         static let formGroupFill = adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.03),
+            light: NSColor.black.withAlphaComponent(0.018),
             dark: NSColor.white.withAlphaComponent(0.05)
         )
         static let inlinePanelFill = adaptiveColor(

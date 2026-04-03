@@ -1332,7 +1332,7 @@ final class BacktickMCPServerTests: XCTestCase {
         await fulfillment(of: [expectation], timeout: 2)
     }
 
-    func testCreateNoteRejectsMixedScriptTags() async throws {
+    func testCreateNoteAcceptsMixedScriptTags() async throws {
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
@@ -1343,14 +1343,15 @@ final class BacktickMCPServerTests: XCTestCase {
             params: [
                 "name": "create_note",
                 "arguments": [
-                    "text": "Should fail",
+                    "text": "Should succeed",
                     "tags": ["bug", "ㅠㅕbug"],
                 ],
             ]
         )
-        let payload = try toolErrorPayload(from: response)
+        let note = try notePayload(from: response)
 
-        XCTAssertEqual(payload["error"] as? String, "tags must contain valid tag names")
+        XCTAssertEqual(note["text"] as? String, "Should succeed")
+        XCTAssertEqual(note["tags"] as? [String], ["bug", "ㅠㅕbug"])
     }
 
     func testClassifyNotesGroupsByRepository() async throws {

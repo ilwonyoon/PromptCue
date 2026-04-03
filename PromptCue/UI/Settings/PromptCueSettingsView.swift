@@ -167,58 +167,28 @@ struct PromptCueSettingsView: View {
     }
 
     private var settingsSidebar: some View {
-        ZStack {
-            settingsSidebarBackground
-                .ignoresSafeArea()
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: SettingsTokens.Layout.sidebarItemSpacing) {
-                    ForEach(SettingsTab.allCases, id: \.self) { tab in
-                        SettingsSidebarItem(
-                            title: tab.title,
-                            icon: tab.sidebarIcon,
-                            iconFill: tab.sidebarIconColor,
-                            isSelected: tab == navigationModel.selectedTab,
-                            usesManualSelection: true
-                        ) {
-                            if let onSelectTab {
-                                onSelectTab(tab)
-                            } else {
-                                navigationModel.selectedTab = tab
-                            }
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: SettingsTokens.Layout.sidebarItemSpacing) {
+                ForEach(SettingsTab.allCases, id: \.self) { tab in
+                    SettingsSidebarItem(
+                        title: tab.title,
+                        icon: tab.sidebarIcon,
+                        iconFill: tab.sidebarIconColor,
+                        isSelected: tab == navigationModel.selectedTab,
+                        usesManualSelection: true
+                    ) {
+                        if let onSelectTab {
+                            onSelectTab(tab)
+                        } else {
+                            navigationModel.selectedTab = tab
                         }
                     }
-
-                    Spacer(minLength: 0)
                 }
-                .padding(.horizontal, SettingsTokens.Layout.sidebarHorizontalPadding)
-                .padding(.vertical, SettingsTokens.Layout.sidebarVerticalPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                Spacer(minLength: 0)
             }
-        }
-    }
-
-    private var settingsSidebarBackground: some View {
-        ZStack {
-            SettingsSemanticTokens.Surface.sidebarBackground
-
-            LinearGradient(
-                colors: [
-                    SettingsSemanticTokens.Surface.sidebarBackgroundTopTint,
-                    Color.clear
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            LinearGradient(
-                colors: [
-                    Color.clear,
-                    SettingsSemanticTokens.Surface.sidebarBackgroundBottomShade
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            .padding(.horizontal, SettingsTokens.Layout.sidebarHorizontalPadding)
+            .padding(.vertical, SettingsTokens.Layout.sidebarVerticalPadding)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 

@@ -42,6 +42,7 @@ struct CaptureCardView: View {
     let ttlProgressRemaining: Double?
     let ttlRemainingMinutes: Int?
     let isExpanded: Bool
+    let inheritedAppearance: NSAppearance?
     let onCopy: () -> Void
     let onEdit: () -> Void
     let onCopyRaw: () -> Void
@@ -68,6 +69,7 @@ struct CaptureCardView: View {
             isSelected: isSelected,
             isRecentlyCopied: isRecentlyCopied,
             selectionMode: selectionMode,
+            appearance: inheritedAppearance,
             isCardHovered: isCardHoveredState,
             isCopyHovered: isCopyHovered,
             isDeleteHovered: isDeleteHovered,
@@ -84,6 +86,7 @@ struct CaptureCardView: View {
         ttlProgressRemaining: Double? = nil,
         ttlRemainingMinutes: Int? = nil,
         isExpanded: Bool,
+        inheritedAppearance: NSAppearance? = NSApp.effectiveAppearance,
         onCopy: @escaping () -> Void,
         onEdit: @escaping () -> Void = {},
         onCopyRaw: @escaping () -> Void = {},
@@ -103,6 +106,7 @@ struct CaptureCardView: View {
         self.ttlProgressRemaining = ttlProgressRemaining
         self.ttlRemainingMinutes = ttlRemainingMinutes
         self.isExpanded = isExpanded
+        self.inheritedAppearance = inheritedAppearance
         self.onCopy = onCopy
         self.onEdit = onEdit
         self.onCopyRaw = onCopyRaw
@@ -138,15 +142,15 @@ struct CaptureCardView: View {
             contentPadding: compactMode
                 ? EdgeInsets(
                     top: PrimitiveTokens.Size.compactCardPadding,
-                    leading: PrimitiveTokens.Size.compactCardPaddingHorizontal,
+                    leading: StackLayoutMetrics.compactCardHorizontalInset,
                     bottom: PrimitiveTokens.Size.compactCardPadding,
-                    trailing: PrimitiveTokens.Size.compactCardPaddingHorizontal
+                    trailing: StackLayoutMetrics.compactCardHorizontalInset
                 )
                 : EdgeInsets(
-                    top: PrimitiveTokens.Size.notificationCardPadding,
-                    leading: PrimitiveTokens.Size.notificationCardPadding,
-                    bottom: PrimitiveTokens.Size.notificationCardPadding,
-                    trailing: PrimitiveTokens.Size.notificationCardPadding
+                    top: StackLayoutMetrics.cardContentInset,
+                    leading: StackLayoutMetrics.cardContentInset,
+                    bottom: StackLayoutMetrics.cardContentInset,
+                    trailing: StackLayoutMetrics.cardContentInset
                 ),
             cornerRadius: compactMode ? PrimitiveTokens.Radius.compactCard : PrimitiveTokens.Radius.md
         ) {
@@ -158,37 +162,40 @@ struct CaptureCardView: View {
                             height: PrimitiveTokens.Size.notificationThumbnailHeight,
                             accessPolicy: .managedAttachmentOnly
                         )
-                        .opacity(card.isCopied ? PrimitiveTokens.Opacity.soft : 1)
                     }
 
-                    if compactMode {
-                        Text(card.text)
-                            .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
-                            .foregroundStyle(SemanticTokens.Text.primary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        let textView = InteractiveDetectedTextView(styledText: styledText)
-                            .frame(
-                                height: displayConfiguration.prefersSingleLine
-                                    ? nil
-                                    : visibleTextHeight(for: overflowMetrics),
-                                alignment: .top
-                            )
-
-                        if overflowMetrics.overflowsAtRest || isExpanded {
-                            textView.clipped()
+                    VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
+                        if compactMode {
+                            Text(card.text)
+                                .font(.system(size: PrimitiveTokens.FontSize.meta, weight: .medium))
+                                .foregroundStyle(SemanticTokens.Text.primary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         } else {
-                            textView
+                            let textView = InteractiveDetectedTextView(
+                                styledText: styledText
+                            )
+                                .frame(
+                                    height: displayConfiguration.prefersSingleLine
+                                        ? nil
+                                        : visibleTextHeight(for: overflowMetrics),
+                                    alignment: .top
+                                )
+
+                            if overflowMetrics.overflowsAtRest || isExpanded {
+                                textView.clipped()
+                            } else {
+                                textView
+                            }
+                        }
+
+                        if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
+                            overflowAffordance(metrics: overflowMetrics)
+                                .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
                         }
                     }
-
-                    if !compactMode && !displayConfiguration.prefersSingleLine && overflowMetrics.overflowsAtRest {
-                        overflowAffordance(metrics: overflowMetrics)
-                            .padding(.top, StackCardOverflowPolicy.affordanceTopSpacing)
-                    }
-
+                    .padding(.leading, compactMode ? 0 : StackLayoutMetrics.activeCardBodyLeadingReserve)
                 }
                 .padding(.trailing, compactMode ? 0 : actionColumnReservedWidth)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -514,15 +521,15 @@ struct CaptureCardView: View {
     }
 
     private var actionColumnWidth: CGFloat {
-        PrimitiveTokens.Space.xl
+        StackLayoutMetrics.actionColumnWidth
     }
 
     private var actionColumnReservedWidth: CGFloat {
-        actionColumnWidth + PrimitiveTokens.Space.sm
+        StackLayoutMetrics.actionColumnReservedWidth
     }
 
     private var textContentWidth: CGFloat {
-        StackCardOverflowPolicy.cardTextWidth
+        StackLayoutMetrics.cardTextWidth
     }
 
     private func visibleTextHeight(for metrics: StackCardOverflowPolicy.Metrics) -> CGFloat? {
@@ -686,36 +693,48 @@ private struct CaptureCardActionStyle {
 
     // Adaptive tokens — resolve at draw time via NSColor, independent of
     // SwiftUI's @Environment(\.colorScheme) propagation timing.
-    private static let copiedBodyColor = SemanticTokens.adaptiveColor(
-        light: NSColor.labelColor.withAlphaComponent(0.42),
-        dark: NSColor.white.withAlphaComponent(0.35)
-    )
-    private static let defaultPrimaryIconColor = SemanticTokens.adaptiveColor(
-        light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
-        dark: NSColor.white.withAlphaComponent(0.50)
-    )
-    private static let copiedDeleteIconColor = SemanticTokens.adaptiveColor(
-        light: NSColor.secondaryLabelColor.withAlphaComponent(0.62),
-        dark: NSColor.white.withAlphaComponent(0.35)
-    )
-    private static let defaultDeleteIconColor = SemanticTokens.adaptiveColor(
-        light: NSColor.secondaryLabelColor.withAlphaComponent(0.76),
-        dark: NSColor.white.withAlphaComponent(0.45)
-    )
-    private static let screenshotPrimaryIconBg = SemanticTokens.adaptiveColor(
-        light: NSColor.black.withAlphaComponent(0.02 * 0.72),
-        dark: NSColor.white.withAlphaComponent(0.006 * 0.54)
-    )
-    private static let screenshotDeleteIconBg = SemanticTokens.adaptiveColor(
-        light: NSColor.black.withAlphaComponent(0.02 * 0.60),
-        dark: NSColor.white.withAlphaComponent(0.006 * 0.46)
-    )
+    private static func restingBodyColor(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.labelColor.withAlphaComponent(0.74),
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
+            appearance: appearance
+        )
+    }
+    private static func defaultPrimaryIconColor(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
+            dark: NSColor.white.withAlphaComponent(0.50),
+            appearance: appearance
+        )
+    }
+    private static func defaultDeleteIconColor(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.secondaryLabelColor.withAlphaComponent(0.76),
+            dark: NSColor.white.withAlphaComponent(0.45),
+            appearance: appearance
+        )
+    }
+    private static func screenshotPrimaryIconBg(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.black.withAlphaComponent(0.02 * 0.72),
+            dark: NSColor.white.withAlphaComponent(0.006 * 0.54),
+            appearance: appearance
+        )
+    }
+    private static func screenshotDeleteIconBg(appearance: NSAppearance?) -> Color {
+        SemanticTokens.resolvedAdaptiveColor(
+            light: NSColor.black.withAlphaComponent(0.02 * 0.60),
+            dark: NSColor.white.withAlphaComponent(0.006 * 0.46),
+            appearance: appearance
+        )
+    }
 
     static func resolve(
         card: CaptureCard,
         isSelected: Bool,
         isRecentlyCopied: Bool,
         selectionMode: Bool,
+        appearance: NSAppearance?,
         isCardHovered: Bool,
         isCopyHovered: Bool,
         isDeleteHovered: Bool,
@@ -727,10 +746,8 @@ private struct CaptureCardActionStyle {
         let bodyColor: Color
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             bodyColor = SemanticTokens.Text.primary
-        } else if isRecentlyCopied || card.isCopied {
-            bodyColor = copiedBodyColor
         } else {
-            bodyColor = SemanticTokens.Text.primary
+            bodyColor = restingBodyColor(appearance: appearance)
         }
 
         let primaryIconColor: Color
@@ -745,7 +762,7 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             primaryIconColor = SemanticTokens.Text.primary
         } else {
-            primaryIconColor = defaultPrimaryIconColor
+            primaryIconColor = defaultPrimaryIconColor(appearance: appearance)
         }
 
         let primaryIconSystemName: String
@@ -764,10 +781,8 @@ private struct CaptureCardActionStyle {
         let deleteIconColor: Color
         if isDeleteHovered {
             deleteIconColor = SemanticTokens.Text.primary
-        } else if card.isCopied {
-            deleteIconColor = copiedDeleteIconColor
         } else {
-            deleteIconColor = defaultDeleteIconColor
+            deleteIconColor = defaultDeleteIconColor(appearance: appearance)
         }
 
         let primaryIconBackground: Color
@@ -782,7 +797,7 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             primaryIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         } else if usesPersistentActionBackdrop {
-            primaryIconBackground = screenshotPrimaryIconBg
+            primaryIconBackground = screenshotPrimaryIconBg(appearance: appearance)
         } else {
             primaryIconBackground = .clear
         }
@@ -791,7 +806,7 @@ private struct CaptureCardActionStyle {
         if isDeleteHovered {
             deleteIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
         } else if usesPersistentActionBackdrop {
-            deleteIconBackground = screenshotDeleteIconBg
+            deleteIconBackground = screenshotDeleteIconBg(appearance: appearance)
         } else {
             deleteIconBackground = .clear
         }

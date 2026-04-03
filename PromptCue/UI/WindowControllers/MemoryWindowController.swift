@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegate {
+final class MemoryWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private let model: MemoryViewerModel
     private let uiState = MemoryViewerUIState()
@@ -87,18 +87,17 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
 
         let window = NSWindow(
             contentRect: frame,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
 
         window.title = "Backtick Memory"
         window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = false
-        window.toolbarStyle = .unifiedCompact
-        window.titlebarSeparatorStyle = .line
-        window.toolbar = makeToolbar()
-        window.backgroundColor = .windowBackgroundColor
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.backgroundColor = .clear
+        window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.setFrameAutosaveName("BacktickMemoryWindow")
@@ -116,35 +115,11 @@ final class MemoryWindowController: NSObject, NSWindowDelegate, NSToolbarDelegat
         return window
     }
 
-    private func makeToolbar() -> NSToolbar {
-        let toolbar = NSToolbar(identifier: "BacktickMemoryToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconOnly
-        toolbar.allowsUserCustomization = false
-        return toolbar
-    }
-
     private func present(_ window: NSWindow) {
         NSApp.activate(ignoringOtherApps: true)
         window.orderFrontRegardless()
         window.makeKeyAndOrderFront(nil)
         window.makeMain()
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace]
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace]
-    }
-
-    func toolbar(
-        _ toolbar: NSToolbar,
-        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        nil
     }
 
     func windowWillClose(_ notification: Notification) {

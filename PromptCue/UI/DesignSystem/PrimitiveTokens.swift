@@ -114,12 +114,6 @@ enum PrimitiveTokens {
         static let captureKeyY: CGFloat = 12
         static let glassBlur: CGFloat = 10
         static let glassY: CGFloat = 2
-        static let notificationAmbientBlur: CGFloat = 20
-        static let notificationAmbientY: CGFloat = 10
-        static let notificationKeyBlur: CGFloat = 9
-        static let notificationKeyY: CGFloat = 3
-        static let notificationCardBlur: CGFloat = 10
-        static let notificationCardY: CGFloat = 4
         static let panelBlur: CGFloat = 10
         static let panelY: CGFloat = 2
         static let panelAmbientBlur: CGFloat = 28

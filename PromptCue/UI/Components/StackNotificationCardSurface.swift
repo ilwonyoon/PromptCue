@@ -14,10 +14,10 @@ struct StackNotificationCardSurface<Content: View>: View {
         isSelected: Bool = false,
         isEmphasized: Bool = false,
         contentPadding: EdgeInsets = EdgeInsets(
-            top: PrimitiveTokens.Size.notificationCardPadding,
-            leading: PrimitiveTokens.Size.notificationCardPadding,
-            bottom: PrimitiveTokens.Size.notificationCardPadding,
-            trailing: PrimitiveTokens.Size.notificationCardPadding
+            top: StackLayoutMetrics.cardContentInset,
+            leading: StackLayoutMetrics.cardContentInset,
+            bottom: StackLayoutMetrics.cardContentInset,
+            trailing: StackLayoutMetrics.cardContentInset
         ),
         cornerRadius: CGFloat = PrimitiveTokens.Radius.md,
         @ViewBuilder content: () -> Content
@@ -30,45 +30,15 @@ struct StackNotificationCardSurface<Content: View>: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-
-        let cardBody = content
-            .padding(contentPadding)
-            .background {
-                shape
-                    .fill(backgroundFill)
-                    .overlay {
-                        shape.fill(StackNotificationCardChromeRecipe.chromeOverlay)
-                    }
-                    .overlay {
-                        shape.fill(SemanticTokens.Surface.notificationCardHoverFill)
-                            .opacity(isEmphasized ? 1 : 0)
-                    }
-                    .overlay(alignment: .top) {
-                        TopEdgeStrokeOverlay(
-                            shape: shape,
-                            color: StackNotificationCardChromeRecipe.topHighlight,
-                            lineWidth: PrimitiveTokens.Stroke.subtle,
-                            frameHeight: PrimitiveTokens.Space.sm,
-                            maskHeight: PrimitiveTokens.Space.sm
-                        )
-                        .opacity(showsElevatedChrome ? 1 : 0)
-                    }
-            }
-            .overlay {
-                shape
-                    .stroke(borderColor, lineWidth: isSelected ? 2.0 : PrimitiveTokens.Stroke.subtle)
-            }
-            .clipShape(shape)
-
-        cardBody.shadow(
-            color: showsElevatedChrome
-                ? SemanticTokens.Shadow.color.opacity(PrimitiveTokens.Opacity.soft)
-                : .clear,
-            radius: PrimitiveTokens.Shadow.notificationCardBlur,
-            x: PrimitiveTokens.Shadow.zeroX,
-            y: PrimitiveTokens.Shadow.notificationCardY
-        )
+        CardSurface(
+            backgroundFill: backgroundFill,
+            borderColor: borderColor,
+            borderLineWidth: isSelected ? 2.0 : PrimitiveTokens.Stroke.subtle,
+            contentPadding: contentPadding,
+            cornerRadius: cornerRadius
+        ) {
+            content
+        }
     }
 
     private var backgroundFill: Color {
@@ -84,10 +54,7 @@ struct StackNotificationCardSurface<Content: View>: View {
     }
 
     private var defaultBorderColor: Color {
-        SemanticTokens.adaptiveColor(
-            light: NSColor.black.withAlphaComponent(0.12 * 0.92),
-            dark: NSColor.white.withAlphaComponent(0.06 * 0.82)
-        )
+        SemanticTokens.Border.subtle
     }
 
     private var borderColor: Color {
@@ -103,9 +70,5 @@ struct StackNotificationCardSurface<Content: View>: View {
         }
 
         return defaultBorderColor
-    }
-
-    private var showsElevatedChrome: Bool {
-        isSelected || isEmphasized
     }
 }

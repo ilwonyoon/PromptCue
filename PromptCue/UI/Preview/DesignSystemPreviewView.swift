@@ -154,6 +154,7 @@ struct DesignSystemPreviewView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxl) {
+                    stackHarnessSection
                     hero
                     componentInventorySection
                     glassSection
@@ -238,6 +239,20 @@ struct DesignSystemPreviewView: View {
                 }
                 .frame(width: DesignSystemPreviewTokens.headerPreviewWidth, alignment: .leading)
             }
+        }
+    }
+
+    private var stackHarnessSection: some View {
+        sectionBlock(
+            title: "Stack Harness",
+            subtitle: "Real stack-card surface inside the stack-owned vertical scroll host. Use this to visually verify shadow bleed and clipping before touching the live stack panel."
+        ) {
+            StackCardHarnessView()
+                .frame(
+                    width: PanelMetrics.stackPanelWidth,
+                    height: 420,
+                    alignment: .top
+                )
         }
     }
 
@@ -771,6 +786,161 @@ private struct TokenPill: View {
                 .font(PrimitiveTokens.Typography.chip)
                 .foregroundStyle(SemanticTokens.Text.primary)
         }
+    }
+}
+
+@MainActor
+private struct StackCardHarnessView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let cards: [CaptureCard] = [
+        CaptureCard(
+            text: "#backtick image path가 image pathurl + text인데 export가 이미지가 있으면 [#image]만 뜬다. 이거 이슈확인해서 고쳐줄래?",
+            createdAt: .now.addingTimeInterval(-90)
+        ),
+        CaptureCard(
+            text: "지금 보니까 유튜브 시간 정확하게 맞춰놓은게 또 회귀해서 정확하지 않은 시간으로 바뀌었네 진단해",
+            createdAt: .now.addingTimeInterval(-600)
+        ),
+        CaptureCard(
+            text: "이 앱에서 가장 중요한 유료 모델이 루틴 하나 이상은 유료인데 루틴이 하나만 생성되었을 때 하단에 루틴을 더 유도하는 문구 및 루틴 생성 유도를 하는게 필요하다.",
+            createdAt: .now.addingTimeInterval(-1200)
+        ),
+    ]
+
+    var body: some View {
+        StackHarnessScrollView {
+            VStack(spacing: PrimitiveTokens.Size.cardStackSpacing) {
+                ForEach(cards) { card in
+                    CaptureCardView(
+                        card: card,
+                        isSelected: false,
+                        selectionMode: false,
+                        isExpanded: false,
+                        inheritedAppearance: harnessAppearance,
+                        onCopy: {},
+                        onToggleSelection: {},
+                        onToggleExpansion: {},
+                        onDelete: {}
+                    )
+                    .frame(width: StackLayoutMetrics.columnWidth, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+            }
+            .padding(.vertical, PrimitiveTokens.Space.xxxs)
+            .frame(maxWidth: .infinity, alignment: .top)
+        }
+    }
+
+    private var harnessAppearance: NSAppearance? {
+        switch colorScheme {
+        case .dark:
+            return NSAppearance(named: .darkAqua) ?? NSApp.effectiveAppearance
+        default:
+            return NSAppearance(named: .aqua) ?? NSApp.effectiveAppearance
+        }
+    }
+}
+
+private struct StackHarnessScrollView<Content: View>: NSViewRepresentable {
+    private let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeNSView(context: Context) -> StackHarnessNSScrollView {
+        let scrollView = StackHarnessNSScrollView()
+        scrollView.update(rootView: AnyView(content))
+        return scrollView
+    }
+
+    func updateNSView(_ nsView: StackHarnessNSScrollView, context: Context) {
+        nsView.update(rootView: AnyView(content))
+    }
+}
+
+private final class StackHarnessNSScrollView: NSScrollView {
+    private let documentContainer = StackHarnessDocumentView()
+    private let hostingView = StackHarnessHostingView(rootView: AnyView(EmptyView()))
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+
+        drawsBackground = false
+        borderType = .noBorder
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        scrollerStyle = .overlay
+        automaticallyAdjustsContentInsets = false
+        verticalScroller = nil
+        horizontalScroller = nil
+        contentInsets = NSEdgeInsetsZero
+        contentView.drawsBackground = false
+        contentView.automaticallyAdjustsContentInsets = false
+
+        documentContainer.wantsLayer = true
+        documentContainer.layer?.backgroundColor = NSColor.clear.cgColor
+
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
+        hostingView.autoresizingMask = [.width]
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        documentContainer.addSubview(hostingView)
+        documentView = documentContainer
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layout() {
+        super.layout()
+        layoutDocumentView()
+    }
+
+    func update(rootView: AnyView) {
+        hostingView.rootView = AnyView(rootView.ignoresSafeArea(.container, edges: .top))
+        hostingView.needsLayout = true
+        hostingView.layoutSubtreeIfNeeded()
+        layoutDocumentView()
+    }
+
+    private func layoutDocumentView() {
+        let targetWidth = contentView.bounds.width
+        guard targetWidth > 0 else {
+            return
+        }
+
+        hostingView.setFrameSize(NSSize(width: targetWidth, height: 1))
+        hostingView.layoutSubtreeIfNeeded()
+
+        let contentHeight = hostingView.fittingSize.height
+        let containerHeight = max(contentHeight, contentView.bounds.height)
+        documentContainer.frame = NSRect(x: 0, y: 0, width: targetWidth, height: containerHeight)
+        hostingView.frame = NSRect(x: 0, y: 0, width: targetWidth, height: contentHeight)
+    }
+}
+
+private final class StackHarnessDocumentView: NSView {
+    override var isFlipped: Bool {
+        true
+    }
+}
+
+private final class StackHarnessHostingView: NSHostingView<AnyView> {
+    override var safeAreaInsets: NSEdgeInsets {
+        NSEdgeInsetsZero
+    }
+
+    override var safeAreaRect: NSRect {
+        bounds
     }
 }
 

@@ -64,6 +64,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private let model: AppModel
     private let onEditCard: (CaptureCard) -> Void
+    private let stackViewState = CardStackViewState()
     private var panel: StackPanel?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
@@ -81,6 +82,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         PresentationMode(
             environmentValue: ProcessInfo.processInfo.environment["PROMPTCUE_TRACE_STACK_PRESENTATION_MODE"]
         )
+    }
+
+    private var isQACaptureWindowMode: Bool {
+        ProcessInfo.processInfo.environment["PROMPTCUE_STACK_QA_WINDOW"] == "1"
     }
 
     init(
@@ -114,13 +119,17 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         }
         PerformanceTrace.markStackOpenPhase("panel_ready")
 
-        // If the system theme changed while the panel was hidden,
-        // AppKit may not have propagated the new effective appearance
-        // to our offscreen views, so viewDidChangeEffectiveAppearance
-        // never fired.  Flush the pending refresh now, before we
-        // composite the first visible frame.
-        if pendingAppearanceRefresh {
-            refreshForInheritedAppearanceChange()
+        let needsPostShowAppearanceRefresh = pendingAppearanceRefresh
+        if needsPostShowAppearanceRefresh {
+            // Hidden prewarmed panels often still report their old
+            // effectiveAppearance until after they re-enter the window
+            // hierarchy. Clear local overrides now, then perform the
+            // actual content refresh on the next run loop after the
+            // panel is visible so stack text bakes against the live
+            // system appearance instead of the stale hidden-panel one.
+            panel.appearance = nil
+            panel.contentView?.appearance = nil
+            panel.contentViewController?.view.appearance = nil
         }
 
         primePanelLayout(panel)
@@ -156,6 +165,12 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         installDismissMonitors()
         PerformanceTrace.markStackOpenPhase("dismiss_monitors_installed")
 
+        if needsPostShowAppearanceRefresh {
+            DispatchQueue.main.async { [weak self] in
+                self?.refreshForInheritedAppearanceChange()
+            }
+        }
+
         guard presentationMode.animatesAlpha || presentationMode.animatesFrame else {
             return
         }
@@ -190,7 +205,7 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         warmOrderFrontIfNeeded(panel)
     }
 
-    func close(commitDeferredCopies: Bool = true) {
+    func close(commitDeferredCopies: Bool = true, animated: Bool = true) {
         if commitDeferredCopies, model.hasStagedCopiedCards {
             model.commitDeferredCopies()
         } else {
@@ -211,6 +226,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
         isVisible = false
         removeDismissMonitors()
+
+        guard animated else {
+            panel.orderOut(nil)
+            panel.alphaValue = 1
+            panel.setFrame(offscreenPanelFrame(for: panel.frame.size), display: false)
+            isAnimatingClose = false
+            return
+        }
+
         isAnimatingClose = true
 
         NSAnimationContext.runAnimationGroup { context in
@@ -220,7 +244,16 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         } completionHandler: { [weak self, weak panel] in
             panel?.orderOut(nil)
             panel?.alphaValue = 1
-            self?.isAnimatingClose = false
+            Task { @MainActor [weak self] in
+                self?.isAnimatingClose = false
+            }
+        }
+    }
+
+    private func dismissAfterCopy(_ action: @escaping () -> Void) {
+        close(commitDeferredCopies: false, animated: false)
+        DispatchQueue.main.async {
+            action()
         }
     }
 
@@ -258,6 +291,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        if isQACaptureWindowMode {
+            return
+        }
         guard !hasVisibleAuxiliaryPresentation() else {
             return
         }
@@ -292,21 +328,27 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func makePanel() -> StackPanel {
         let initialFrame = offscreenPanelFrame(for: NSSize(width: PanelMetrics.stackPanelWidth, height: 0))
+        let styleMask: NSWindow.StyleMask = isQACaptureWindowMode
+            ? [.titled, .closable, .resizable, .fullSizeContentView]
+            : [.nonactivatingPanel, .fullSizeContentView, .resizable]
         let panel = StackPanel(
             contentRect: initialFrame,
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .resizable],
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
 
         panel.delegate = self
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.title = isQACaptureWindowMode ? "Backtick Stack QA" : ""
+        panel.titleVisibility = isQACaptureWindowMode ? .visible : .hidden
+        panel.titlebarAppearsTransparent = !isQACaptureWindowMode
+        panel.isFloatingPanel = !isQACaptureWindowMode
+        panel.level = isQACaptureWindowMode ? .normal : .floating
+        panel.collectionBehavior = isQACaptureWindowMode
+            ? [.fullScreenAuxiliary]
+            : [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = !isQACaptureWindowMode
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -315,26 +357,33 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.minSize = NSSize(width: PanelMetrics.stackPanelWidth, height: PanelMetrics.stackPanelMinimumHeight)
+        panel.maxSize = NSSize(width: PanelMetrics.stackPanelWidth, height: .greatestFiniteMagnitude)
         panel.onCancel = { [weak self] in
             self?.close()
         }
-        panel.contentViewController = StackPanelContentViewController(rootViewBuilder: { [self] in
-            CardStackView(
-                model: self.model,
-                onBackdropTap: { [weak self] in
-                    self?.close()
-                },
-                onDismissAfterCopy: { [weak self] in
-                    self?.close(commitDeferredCopies: false)
-                },
-                onEditCard: { [weak self] card in
-                    self?.onEditCard(card)
-                },
-                onDeleteCard: { [weak self] card in
-                    self?.model.delete(card: card)
-                }
-            )
-        })
+        panel.contentViewController = StackPanelContentViewController(
+            rootViewBuilder: { [self] in
+                CardStackView(
+                    model: self.model,
+                    viewState: self.stackViewState,
+                    onBackdropTap: { [weak self] in
+                        self?.close()
+                    },
+                    onDismissAfterCopy: { [weak self] action in
+                        self?.dismissAfterCopy(action)
+                    },
+                    onEditCard: { [weak self] card in
+                        self?.onEditCard(card)
+                    },
+                    onDeleteCard: { [weak self] card in
+                        self?.model.delete(card: card)
+                    }
+                )
+            },
+            onAppearanceChanged: { [weak self] appearance in
+                self?.stackViewState.applyInheritedAppearance(appearance)
+            }
+        )
         PerformanceTrace.markStackOpenPhase("panel_content_built")
 
         self.panel = panel
@@ -370,8 +419,17 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func onscreenPanelFrame(for size: NSSize? = nil) -> NSRect {
         let visibleFrame = screenVisibleFrame()
-        let width = max(size?.width ?? PanelMetrics.stackPanelWidth, PanelMetrics.stackPanelWidth)
+        let width = PanelMetrics.stackPanelWidth
         let height = visibleFrame.height
+
+        if isQACaptureWindowMode {
+            return NSRect(
+                x: visibleFrame.midX - (width / 2),
+                y: visibleFrame.minY,
+                width: width,
+                height: height
+            )
+        }
 
         return NSRect(
             x: visibleFrame.maxX - width,
@@ -382,12 +440,17 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     private func offscreenPanelFrame(for size: NSSize) -> NSRect {
+        if isQACaptureWindowMode {
+            return onscreenPanelFrame(for: size)
+        }
+
         let visibleFrame = screenVisibleFrame()
+        let width = PanelMetrics.stackPanelWidth
 
         return NSRect(
             x: visibleFrame.maxX,
             y: visibleFrame.minY,
-            width: size.width,
+            width: width,
             height: visibleFrame.height
         )
     }
@@ -595,12 +658,18 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 private final class StackPanelContentViewController<Content: View>: NSViewController {
     private let shellView = StackPanelShellView()
     private let rootViewBuilder: () -> Content
+    private let onAppearanceChanged: (NSAppearance?) -> Void
     private let hostingController: NSHostingController<Content>
     private var lastAppearanceSignature: String?
+    private var pendingContentRebuildWorkItem: DispatchWorkItem?
 
-    init(rootViewBuilder: @escaping () -> Content) {
+    init(
+        rootViewBuilder: @escaping () -> Content,
+        onAppearanceChanged: @escaping (NSAppearance?) -> Void = { _ in }
+    ) {
         self.rootViewBuilder = rootViewBuilder
-        self.hostingController = NSHostingController(rootView: rootViewBuilder())
+        self.onAppearanceChanged = onAppearanceChanged
+        self.hostingController = Self.makeHostingController(rootViewBuilder: rootViewBuilder)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -623,9 +692,11 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
 
         addChild(hostingController)
         let hostedView = hostingController.view
-        hostedView.translatesAutoresizingMaskIntoConstraints = false
+        hostedView.translatesAutoresizingMaskIntoConstraints = true
+        hostedView.autoresizingMask = [.width, .height]
         hostedView.wantsLayer = true
         hostedView.layer?.backgroundColor = NSColor.clear.cgColor
+        hostedView.frame = shellView.bounds
         shellView.addSubview(hostedView)
 
         NSLayoutConstraint.activate([
@@ -633,34 +704,57 @@ private final class StackPanelContentViewController<Content: View>: NSViewContro
             shellView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             shellView.topAnchor.constraint(equalTo: view.topAnchor),
             shellView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            hostedView.leadingAnchor.constraint(equalTo: shellView.leadingAnchor),
-            hostedView.trailingAnchor.constraint(equalTo: shellView.trailingAnchor),
-            hostedView.topAnchor.constraint(equalTo: shellView.topAnchor),
-            hostedView.bottomAnchor.constraint(equalTo: shellView.bottomAnchor),
         ])
 
         refreshAppearance()
     }
 
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        hostingController.view.frame = shellView.bounds
+    }
+
     func refreshAppearance(forceRebuild: Bool = false) {
-        let appearanceSignature = Self.appearanceSignature(for: view.window?.effectiveAppearance ?? view.effectiveAppearance)
+        let effectiveAppearance = view.window?.effectiveAppearance ?? view.effectiveAppearance
+        let appearanceSignature = Self.appearanceSignature(for: effectiveAppearance)
         let didChangeAppearance = lastAppearanceSignature != nil && lastAppearanceSignature != appearanceSignature
         lastAppearanceSignature = appearanceSignature
         shellView.refreshAppearance()
+        onAppearanceChanged(effectiveAppearance)
 
-        // Rebuild the SwiftUI view hierarchy whenever the effective
-        // appearance actually changed, OR when the caller detected a
-        // change that our local signature comparison missed (e.g. the
-        // panel was offscreen and effectiveAppearance lagged behind).
-        if didChangeAppearance || forceRebuild {
-            hostingController.rootView = rootViewBuilder()
-            hostingController.view.layer?.contents = nil
-            hostingController.view.needsLayout = true
-            hostingController.view.layoutSubtreeIfNeeded()
+        // Keep the shell host stable, but fully recreate the SwiftUI content
+        // subtree when the effective appearance changes. Stack card text
+        // currently bakes appearance-dependent foreground colors into
+        // attributed text, so row-level invalidation alone can leave stale
+        // light/dark rasters behind on idle cards.
+        pendingContentRebuildWorkItem?.cancel()
+        pendingContentRebuildWorkItem = nil
+
+        if forceRebuild {
+            rebuildContent()
+        } else if didChangeAppearance {
+            rebuildContent()
         }
         view.needsDisplay = true
         shellView.needsDisplay = true
         hostingController.view.needsDisplay = true
+    }
+
+    private func rebuildContent() {
+        pendingContentRebuildWorkItem = nil
+        hostingController.rootView = rootViewBuilder()
+        hostingController.view.layer?.contents = nil
+        hostingController.view.needsLayout = true
+        hostingController.view.layoutSubtreeIfNeeded()
+        hostingController.view.displayIfNeeded()
+    }
+
+    private static func makeHostingController(rootViewBuilder: @escaping () -> Content) -> NSHostingController<Content> {
+        let hostingController = NSHostingController(rootView: rootViewBuilder())
+        if #available(macOS 13.0, *) {
+            hostingController.sizingOptions = []
+        }
+        return hostingController
     }
 
     private static func appearanceSignature(for appearance: NSAppearance?) -> String {
@@ -684,6 +778,17 @@ private final class StackPanelShellView: NSView {
     private let gradientLayer = CAGradientLayer()
     private let borderLayer = CAShapeLayer()
     private let topHighlightLayer = CAShapeLayer()
+    private let glassHostingView: NSHostingView<AnyView>? = {
+        guard #available(macOS 26.0, *) else {
+            return nil
+        }
+
+        let hostingView = NSHostingView(rootView: AnyView(EmptyView()))
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.wantsLayer = true
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        return hostingView
+    }()
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -711,9 +816,12 @@ private final class StackPanelShellView: NSView {
         overlayView.layer?.addSublayer(topHighlightLayer)
 
         addSubview(effectView)
+        if let glassHostingView {
+            addSubview(glassHostingView)
+        }
         addSubview(overlayView)
 
-        NSLayoutConstraint.activate([
+        var constraints = [
             effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
             effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
             effectView.topAnchor.constraint(equalTo: topAnchor),
@@ -722,7 +830,18 @@ private final class StackPanelShellView: NSView {
             overlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
             overlayView.topAnchor.constraint(equalTo: topAnchor),
             overlayView.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
+        ]
+
+        if let glassHostingView {
+            constraints.append(contentsOf: [
+                glassHostingView.leadingAnchor.constraint(equalTo: leadingAnchor),
+                glassHostingView.trailingAnchor.constraint(equalTo: trailingAnchor),
+                glassHostingView.topAnchor.constraint(equalTo: topAnchor),
+                glassHostingView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+        }
+
+        NSLayoutConstraint.activate(constraints)
 
         updateAppearance()
     }
@@ -750,6 +869,34 @@ private final class StackPanelShellView: NSView {
     private func updateAppearance() {
         let usesDarkAppearance = effectiveAppearance.bestMatch(from: [.darkAqua, .vibrantDark, .aqua, .vibrantLight])
             .map { $0 == .darkAqua || $0 == .vibrantDark } ?? false
+
+        layer?.shadowColor = (
+            usesDarkAppearance
+                ? NSColor.black.withAlphaComponent(PrimitiveTokens.Opacity.faint)
+                : NSColor.black.withAlphaComponent(0.10)
+        ).cgColor
+        layer?.shadowOpacity = 1
+        layer?.shadowRadius = PrimitiveTokens.Shadow.panelBlur
+        layer?.shadowOffset = CGSize(width: PrimitiveTokens.Shadow.zeroX, height: -PrimitiveTokens.Shadow.panelY)
+
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *), let glassHostingView {
+            effectView.isHidden = true
+            overlayView.isHidden = true
+            glassHostingView.isHidden = false
+            glassHostingView.rootView = AnyView(
+                StackPanelLiquidGlassBackground(
+                    usesDarkAppearance: usesDarkAppearance,
+                    cornerRadius: PrimitiveTokens.Radius.lg
+                )
+            )
+            return
+        }
+#endif
+
+        effectView.isHidden = false
+        overlayView.isHidden = false
+        glassHostingView?.isHidden = true
 
         effectView.blendingMode = .behindWindow
         effectView.material = usesDarkAppearance
@@ -786,7 +933,6 @@ private final class StackPanelShellView: NSView {
                 ? PanelBackdropFamily.stackShellTopHighlightDark
                 : PanelBackdropFamily.stackShellTopHighlightLight
         ).cgColor
-
         let tintOpacity = usesDarkAppearance
             ? PanelBackdropFamily.stackShellTintOpacityDark
             : PanelBackdropFamily.stackShellTintOpacityLight
@@ -831,7 +977,6 @@ private final class StackPanelShellView: NSView {
         gradientLayer.cornerRadius = radius
         borderLayer.frame = boundsRect
         borderLayer.path = fullPath
-
         let topRect = CGRect(
             x: 0,
             y: max(0, boundsRect.height - PrimitiveTokens.Space.lg),
@@ -850,6 +995,39 @@ private final class StackPanelShellView: NSView {
         layer.backgroundColor = NSColor.clear.cgColor
     }
 }
+
+#if compiler(>=6.2)
+@available(macOS 26.0, *)
+private struct StackPanelLiquidGlassBackground: View {
+    let usesDarkAppearance: Bool
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        Color.clear
+            .glassEffect(.regular, in: shape)
+            .overlay {
+                shape
+                    .fill(
+                        usesDarkAppearance
+                            ? Color.white.opacity(0.12)
+                            : Color.white.opacity(0.32)
+                    )
+            }
+            .overlay {
+                shape
+                    .stroke(
+                        usesDarkAppearance
+                            ? Color.white.opacity(0.035)
+                            : Color.black.opacity(0.08),
+                        lineWidth: PrimitiveTokens.Stroke.subtle
+                    )
+            }
+            .clipShape(shape)
+    }
+}
+#endif
 
 private final class StackPanel: NSPanel {
     var onCancel: (() -> Void)?

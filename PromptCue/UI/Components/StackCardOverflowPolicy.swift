@@ -35,14 +35,9 @@ enum StackCardOverflowPolicy {
     static let restingOverflowToleranceLines = 1
     static let textBottomBreathingRoom: CGFloat = PrimitiveTokens.Space.sm
     static let affordanceTopSpacing: CGFloat = PrimitiveTokens.Space.xs
-    static let actionColumnReservedWidth = PrimitiveTokens.Space.xl + PrimitiveTokens.Space.sm
-    static let cardTextWidth =
-        PanelMetrics.stackCardColumnWidth
-        - (PrimitiveTokens.Size.notificationCardPadding * 2)
-        - actionColumnReservedWidth
-    static let collapsedCopiedSummaryTextWidth =
-        PanelMetrics.stackCardColumnWidth
-        - (PrimitiveTokens.Size.notificationCardPadding * 2)
+    static let actionColumnReservedWidth = StackLayoutMetrics.actionColumnReservedWidth
+    static let cardTextWidth = StackLayoutMetrics.cardTextWidth
+    static let collapsedCopiedSummaryTextWidth = StackLayoutMetrics.collapsedCopiedSummaryTextWidth
 
     private static let bodyFont = NSFont.systemFont(ofSize: PrimitiveTokens.FontSize.body)
     private static let bodyLineSpacing = PrimitiveTokens.Space.xxxs

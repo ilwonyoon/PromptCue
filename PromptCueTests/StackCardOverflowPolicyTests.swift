@@ -3,10 +3,7 @@ import XCTest
 @testable import Prompt_Cue
 
 final class StackCardOverflowPolicyTests: XCTestCase {
-    private let stackCardTextWidth: CGFloat =
-        PanelMetrics.stackCardColumnWidth
-        - (PrimitiveTokens.Size.notificationCardPadding * 2)
-        - (PrimitiveTokens.Space.xl + PrimitiveTokens.Space.sm)
+    private let stackCardTextWidth: CGFloat = StackLayoutMetrics.cardTextWidth
 
     func testShortTextDoesNotOverflowAtRest() {
         let metrics = StackCardOverflowPolicy.metrics(for: "Short cue", availableWidth: stackCardTextWidth)
@@ -51,7 +48,7 @@ final class StackCardOverflowPolicyTests: XCTestCase {
 
         let metrics = StackCardOverflowPolicy.metrics(
             for: text,
-            availableWidth: PanelMetrics.stackCardColumnWidth - (PrimitiveTokens.Size.notificationCardPadding * 2)
+            availableWidth: StackLayoutMetrics.collapsedCopiedSummaryTextWidth
         )
 
         XCTAssertGreaterThan(metrics.hiddenCollapsedCopiedLineCount, 0)
@@ -74,7 +71,6 @@ final class StackCardOverflowPolicyTests: XCTestCase {
         let styledText = InteractiveDetectedTextView.styledText(
             text: text,
             classification: .plain,
-            baseColor: .primary,
             highlightedRanges: [firstTagRange]
         )
 

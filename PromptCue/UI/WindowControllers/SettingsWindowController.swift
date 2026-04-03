@@ -62,6 +62,12 @@ enum SettingsTab: Int, CaseIterable, Hashable {
 
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
+    private struct ScreenshotFolderReadinessPrompt {
+        let title: String
+        let message: String
+        let confirmTitle: String
+    }
+
     private var window: NSWindow?
     private let screenshotSettingsModel: ScreenshotSettingsModel
     private let launchAtLoginSettingsModel: LaunchAtLoginSettingsModel
@@ -99,6 +105,63 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.makeMain()
         NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func promptForScreenshotFolderReadiness(completion: @escaping (Bool) -> Void) {
+        let window = window ?? makeWindow()
+        if navigationModel.selectedTab != .capture {
+            navigationModel.selectedTab = .capture
+        }
+        refreshModels()
+        window.orderFrontRegardless()
+        window.makeKeyAndOrderFront(nil)
+        window.makeMain()
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        NSApp.activate(ignoringOtherApps: true)
+
+        let requirement = screenshotSettingsModel.captureReadinessRequirement
+        guard requirement != .none else {
+            completion(true)
+            return
+        }
+
+        let prompt = screenshotFolderReadinessPrompt(for: requirement)
+        presentScreenshotFolderReadinessPrompt(prompt, on: window) { [weak self] didConfirm in
+            guard let self else {
+                completion(false)
+                return
+            }
+            guard didConfirm else {
+                completion(false)
+                return
+            }
+
+            switch requirement {
+            case .none:
+                completion(true)
+            case .chooseFolder:
+                self.screenshotSettingsModel.chooseFolder(
+                    message: "Choose the folder Backtick should watch for recent screenshots before capture opens.",
+                    attachedTo: window,
+                    completion: completion
+                )
+            case .reconnect:
+                self.screenshotSettingsModel.chooseFolder(
+                    message: "Backtick needs you to approve your screenshot folder again before capture can auto-attach screenshots.",
+                    attachedTo: window,
+                    completion: completion
+                )
+            case .chooseCurrentSystemFolder:
+                let currentSystemDirectoryURL = ScreenshotDirectoryResolver.resolvedSystemScreenshotDirectory()
+                let currentSystemPath = self.screenshotSettingsModel.suggestedSystemPath ?? "the current macOS screenshot folder"
+                self.screenshotSettingsModel.chooseFolder(
+                    message: "macOS is currently saving screenshots to \(currentSystemPath). Choose that folder to keep auto-attach working.",
+                    initialDirectoryURL: currentSystemDirectoryURL,
+                    attachedTo: window,
+                    completion: completion
+                )
+            }
+        }
     }
 
     func refreshForInheritedAppearanceChange() {
@@ -162,6 +225,55 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         self.window = window
         return window
+    }
+
+    private func screenshotFolderReadinessPrompt(
+        for requirement: ScreenshotSettingsModel.CaptureReadinessRequirement
+    ) -> ScreenshotFolderReadinessPrompt {
+        switch requirement {
+        case .none:
+            return ScreenshotFolderReadinessPrompt(
+                title: "",
+                message: "",
+                confirmTitle: ""
+            )
+        case .chooseFolder:
+            return ScreenshotFolderReadinessPrompt(
+                title: "Choose a Screenshot Folder",
+                message: "Backtick needs access to the folder where macOS saves screenshots before Capture can open.",
+                confirmTitle: "Choose Folder…"
+            )
+        case .reconnect:
+            return ScreenshotFolderReadinessPrompt(
+                title: "Reconnect Screenshot Folder",
+                message: "Backtick remembers your screenshot folder, but macOS needs you to approve it again before Capture can auto-attach screenshots.",
+                confirmTitle: "Reconnect…"
+            )
+        case .chooseCurrentSystemFolder:
+            let currentSystemPath = screenshotSettingsModel.suggestedSystemPath ?? "the current macOS screenshot folder"
+            return ScreenshotFolderReadinessPrompt(
+                title: "Use Current Screenshot Folder",
+                message: "macOS is currently saving screenshots to \(currentSystemPath). Backtick needs you to choose that folder before Capture can open.",
+                confirmTitle: "Use Current Folder…"
+            )
+        }
+    }
+
+    private func presentScreenshotFolderReadinessPrompt(
+        _ prompt: ScreenshotFolderReadinessPrompt,
+        on window: NSWindow,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.icon = NSApp.applicationIconImage
+        alert.messageText = prompt.title
+        alert.informativeText = prompt.message
+        alert.addButton(withTitle: prompt.confirmTitle)
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { response in
+            completion(response == .alertFirstButtonReturn)
+        }
     }
 
     private func makeRootView() -> PromptCueSettingsView {

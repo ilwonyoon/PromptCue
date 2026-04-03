@@ -337,6 +337,16 @@ final class AppCoordinator: AppLifecycleCoordinating {
     }
 
     private func showCapturePanel() {
+        screenshotSettingsModel.refresh()
+        guard screenshotSettingsModel.captureReadinessRequirement == .none else {
+            settingsWindowController.promptForScreenshotFolderReadiness { [weak self] didResolve in
+                guard didResolve else {
+                    return
+                }
+                self?.showCapturePanel()
+            }
+            return
+        }
         pendingStackToggleTask?.cancel()
         pendingStackToggleTask = nil
         if !capturePanelController.isPresented, PerformanceTrace.shouldMeasureCaptureOpen {

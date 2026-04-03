@@ -3,6 +3,13 @@ import Foundation
 
 @MainActor
 final class ScreenshotSettingsModel: ObservableObject {
+    enum CaptureReadinessRequirement: Equatable {
+        case none
+        case chooseFolder
+        case reconnect
+        case chooseCurrentSystemFolder
+    }
+
     @Published private(set) var accessState: ScreenshotFolderAccessState = .notConfigured
 
     private let accessStateProvider: () -> ScreenshotFolderAccessState
@@ -33,14 +40,57 @@ final class ScreenshotSettingsModel: ObservableObject {
         return url.standardizedFileURL != currentSystemDirectoryURL.standardizedFileURL
     }
 
+    var captureReadinessRequirement: CaptureReadinessRequirement {
+        if currentSystemFolderMismatch {
+            return .chooseCurrentSystemFolder
+        }
+
+        switch accessState {
+        case .connected:
+            return .none
+        case .notConfigured:
+            return .chooseFolder
+        case .needsReconnect:
+            return .reconnect
+        }
+    }
+
     func refresh() {
         accessState = accessStateProvider()
     }
 
     @discardableResult
+    func ensureReadyForCapture() -> Bool {
+        refresh()
+
+        let requirement = captureReadinessRequirement
+        guard requirement != .none else {
+            return true
+        }
+
+        switch requirement {
+        case .none:
+            return true
+        case .chooseFolder:
+            _ = chooseFolder(
+                message: "Choose the folder Backtick should watch for recent screenshots before capture opens."
+            )
+        case .reconnect:
+            reconnectFolder()
+        case .chooseCurrentSystemFolder:
+            chooseCurrentSystemFolder()
+        }
+
+        refresh()
+        return captureReadinessRequirement == .none
+    }
+
+    @discardableResult
     func chooseFolder(
         message: String = "Choose the folder Backtick should watch for recent screenshots.",
-        initialDirectoryURL: URL? = nil
+        initialDirectoryURL: URL? = nil,
+        attachedTo window: NSWindow? = nil,
+        completion: ((Bool) -> Void)? = nil
     ) -> Bool {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -52,18 +102,20 @@ final class ScreenshotSettingsModel: ObservableObject {
         panel.directoryURL = initialDirectoryURL ?? ScreenshotDirectoryResolver.selectionSeedURL()
 
         NSApp.activate(ignoringOtherApps: true)
-        let response = panel.runModal()
-        guard response == .OK, let url = panel.url else {
-            return false
-        }
+        if let window {
+            panel.beginSheetModal(for: window) { [weak self] response in
+                guard let self else {
+                    completion?(false)
+                    return
+                }
 
-        do {
-            try ScreenshotDirectoryResolver.saveAuthorizedDirectory(url)
-            refresh()
-            return true
-        } catch {
-            NSApp.presentError(error)
+                let didChoose = self.handleFolderChoiceResponse(response, from: panel)
+                completion?(didChoose)
+            }
             return false
+        } else {
+            let response = panel.runModal()
+            return handleFolderChoiceResponse(response, from: panel)
         }
     }
 
@@ -100,5 +152,20 @@ final class ScreenshotSettingsModel: ObservableObject {
         _ = chooseFolder(
             message: "Select your screenshot folder once to enable automatic screenshot attach. You can change this later in Settings."
         )
+    }
+
+    private func handleFolderChoiceResponse(_ response: NSApplication.ModalResponse, from panel: NSOpenPanel) -> Bool {
+        guard response == .OK, let url = panel.url else {
+            return false
+        }
+
+        do {
+            try ScreenshotDirectoryResolver.saveAuthorizedDirectory(url)
+            refresh()
+            return true
+        } catch {
+            NSApp.presentError(error)
+            return false
+        }
     }
 }

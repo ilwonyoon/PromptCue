@@ -533,6 +533,7 @@ private struct MemoryChromeControlButton: View {
     @State private var isHovered = false
 
     var body: some View {
+#if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             MemoryTahoeChromeControlButton(
                 chromeLabel: chromeLabel,
@@ -559,6 +560,25 @@ private struct MemoryChromeControlButton: View {
             .onHover { isHovered = $0 }
             .accessibilityLabel(accessibilityLabel)
         }
+#else
+        Button(action: action) {
+            chromeLabel
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .frame(width: MemoryPaneMetrics.chromeControlSize, height: MemoryPaneMetrics.chromeControlSize)
+        .background(
+            Circle()
+                .fill(
+                    isHovered
+                        ? SemanticTokens.Text.secondary.opacity(0.18)
+                        : SemanticTokens.Text.secondary.opacity(0.12)
+                )
+        )
+        .offset(y: MemoryPaneMetrics.chromeButtonOpticalYOffset)
+        .onHover { isHovered = $0 }
+        .accessibilityLabel(accessibilityLabel)
+#endif
     }
 
     private var chromeLabel: some View {
@@ -576,6 +596,7 @@ private struct MemoryChromeControlButton: View {
     }
 }
 
+#if compiler(>=6.2)
 @available(macOS 26.0, *)
 private struct MemoryTahoeChromeControlButton<Label: View>: View {
     let chromeLabel: Label
@@ -600,6 +621,7 @@ private struct MemoryTahoeChromeControlButton<Label: View>: View {
         .accessibilityLabel(accessibilityLabel)
     }
 }
+#endif
 
 private struct MemoryColumnPane<Content: View>: View {
     let backgroundColor: Color
@@ -829,6 +851,7 @@ private struct MemoryDocumentsHeader: View {
                 HStack {
                     Spacer(minLength: 0)
 
+#if compiler(>=6.2)
                     if #available(macOS 26.0, *) {
                         MemoryTahoeGlassEffectContainer {
                             MemoryChromeControlButton(
@@ -844,6 +867,13 @@ private struct MemoryDocumentsHeader: View {
                             action: onCreateDocument
                         )
                     }
+#else
+                    MemoryChromeControlButton(
+                        systemName: "plus",
+                        accessibilityLabel: "New document",
+                        action: onCreateDocument
+                    )
+#endif
                 }
 
                 MemoryDocumentsHeaderTextBlock(title: title, subtitle: subtitle)
@@ -1096,6 +1126,7 @@ private struct MemoryDetailPane: View {
 
     @ViewBuilder
     private func actionCluster<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+#if compiler(>=6.2)
         if #available(macOS 26.0, *) {
             MemoryTahoeGlassEffectContainer {
                 HStack(spacing: 8) {
@@ -1107,9 +1138,15 @@ private struct MemoryDetailPane: View {
                 content()
             }
         }
+#else
+        HStack(spacing: 8) {
+            content()
+        }
+#endif
     }
 }
 
+#if compiler(>=6.2)
 @available(macOS 26.0, *)
 private struct MemoryTahoeGlassEffectContainer<Content: View>: View {
     @ViewBuilder let content: Content
@@ -1124,6 +1161,7 @@ private struct MemoryTahoeGlassEffectContainer<Content: View>: View {
         }
     }
 }
+#endif
 
 private struct MemoryDetailHeaderTextBlock: View {
     let document: ProjectDocument

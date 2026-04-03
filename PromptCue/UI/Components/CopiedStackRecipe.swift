@@ -39,12 +39,18 @@ enum CopiedStackRecipe {
         PrimitiveTokens.Radius.md
     }
 
-    static func collapsedLeadingInset(for index: Int) -> CGFloat {
+    // Total horizontal inset applied symmetrically so scaled back plates stay
+    // centered under the visible front card instead of keeping the trailing
+    // edge fixed.
+    static func collapsedHorizontalInset(for index: Int) -> CGFloat {
         StackLayoutMetrics.copiedBackPlateLeadingInset(for: index)
     }
 
     static func backPlateBorder(index: Int) -> Color {
-        SemanticTokens.Border.notificationCard
+        SemanticTokens.adaptiveColor(
+            light: NSColor.black.withAlphaComponent(0.045),
+            dark: NSColor.white.withAlphaComponent(0.024)
+        )
     }
 
     static func backPlateFill(index: Int) -> Color {

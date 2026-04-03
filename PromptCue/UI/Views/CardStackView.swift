@@ -345,7 +345,14 @@ struct CardStackView: View {
             .id("copied-expanded-\(viewState.appearanceEpoch)")
         } else {
             stackColumnContent {
-                collapsedCopiedStack(copiedCards: copiedCards, classificationCache: classificationCache)
+                CollapsedCopiedStackView(
+                    copiedCards: copiedCards,
+                    classificationCache: classificationCache,
+                    inheritedAppearance: viewState.inheritedAppearance,
+                    isHovered: $viewState.isCopiedStackHovered
+                ) {
+                    viewState.isCopiedStackExpanded = true
+                }
             }
                 .padding(.top, CopiedStackRecipe.collapsedTopShadowCompensation)
                 .id("copied-collapsed-\(viewState.appearanceEpoch)")
@@ -361,102 +368,6 @@ struct CardStackView: View {
             )
         }
         .accessibilityLabel("Copied section, \(copiedCards.count) prompts")
-    }
-
-    private func collapsedCopiedStack(
-        copiedCards: [CaptureCard],
-        classificationCache: [CaptureCard.ID: ContentClassification]
-    ) -> some View {
-        ZStack(alignment: .topTrailing) {
-            ForEach(collapsedBackPlateIndices(for: copiedCards), id: \.self) { index in
-                stackedBackPlate(index: index)
-                    .offset(y: CopiedStackRecipe.collapsedVerticalOffset(for: index))
-                    .zIndex(Double(-index))
-            }
-
-            StackNotificationCardSurface(isEmphasized: viewState.isCopiedStackHovered) {
-                VStack(alignment: .leading, spacing: PrimitiveTokens.Space.xxs) {
-                    if let card = copiedCards.first {
-                        let classification = resolveClassification(for: card, classificationCache: classificationCache)
-                        let visibleInlineText = card.visibleInlineText
-                        InteractiveDetectedTextView(
-                            text: visibleInlineText,
-                            classification: classification,
-                            baseColor: collapsedCopiedFrontTextColor,
-                            highlightedRanges: card.visibleInlineTagRanges,
-                            multilineLineLimit: StackCardOverflowPolicy.collapsedCopiedLineLimit
-                        )
-                    }
-
-                    if let footer = collapsedCopiedFooterText(
-                        copiedCards: copiedCards,
-                        classificationCache: classificationCache
-                    ) {
-                        Text(footer)
-                            .font(PrimitiveTokens.Typography.meta)
-                            .foregroundStyle(SemanticTokens.Text.secondary)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.leading, StackLayoutMetrics.activeCardBodyLeadingReserve)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            }
-            .frame(height: collapsedCopiedCardHeight)
-            .zIndex(1)
-        }
-        .padding(.bottom, collapsedBackPlateBottomPadding(copiedCards: copiedCards))
-        .animation(.easeOut(duration: PrimitiveTokens.Motion.hoverQuick), value: viewState.isCopiedStackHovered)
-        .onHover { hovered in
-            viewState.isCopiedStackHovered = hovered
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            viewState.isCopiedStackExpanded = true
-        }
-        .accessibilityLabel("Copied prompts, \(copiedCards.count) items")
-        .accessibilityHint("Tap to expand")
-    }
-
-    private func collapsedBackPlateIndices(for copiedCards: [CaptureCard]) -> [Int] {
-        CopiedStackRecipe.collapsedBackPlateIndices(for: copiedCards.count)
-    }
-
-    private func stackedBackPlate(index: Int) -> some View {
-        RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
-            .fill(CopiedStackRecipe.backPlateFill(index: index))
-            .overlay {
-                RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
-                    .fill(CopiedStackRecipe.backPlateShade(index: index))
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: CopiedStackRecipe.backPlateCornerRadius(for: index), style: .continuous)
-                    .stroke(CopiedStackRecipe.backPlateBorder(index: index))
-            }
-            .frame(height: collapsedCopiedCardHeight)
-            .padding(.leading, CopiedStackRecipe.collapsedLeadingInset(for: index))
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .promptCueDepthShadow(
-                color: CopiedStackRecipe.backPlateShadowColor(index: index),
-                radius: CopiedStackRecipe.backPlateShadowRadius(index: index),
-                y: CopiedStackRecipe.backPlateShadowYOffset(index: index)
-            )
-    }
-
-    private func collapsedBackPlateBottomPadding(copiedCards: [CaptureCard]) -> CGFloat {
-        CopiedStackRecipe.collapsedBottomPadding(for: collapsedBackPlateIndices(for: copiedCards))
-    }
-
-    private var collapsedCopiedCardHeight: CGFloat {
-        PrimitiveTokens.Size.notificationStackPlateHeight
-    }
-
-    private var collapsedCopiedFrontTextColor: Color {
-        SemanticTokens.resolvedAdaptiveColor(
-            light: NSColor.labelColor.withAlphaComponent(0.74),
-            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
-            appearance: viewState.inheritedAppearance
-        )
     }
 
     private func copiedControlCluster(
@@ -515,63 +426,6 @@ struct CardStackView: View {
             }
         }
         .frame(minHeight: PrimitiveTokens.Size.sectionHeaderTrailingHeight)
-    }
-
-    private func copiedSummaryMetrics(
-        copiedCards: [CaptureCard],
-        classificationCache: [CaptureCard.ID: ContentClassification]
-    ) -> StackCardOverflowPolicy.Metrics? {
-        guard let firstCopiedCard = copiedCards.first else {
-            return nil
-        }
-
-        let styledText = InteractiveDetectedTextView.styledText(
-            text: firstCopiedCard.visibleInlineText,
-            classification: resolveClassification(for: firstCopiedCard, classificationCache: classificationCache),
-            baseColor: collapsedCopiedFrontTextColor,
-            highlightedRanges: firstCopiedCard.visibleInlineTagRanges
-        )
-
-        return StackCardOverflowPolicy.metrics(
-            for: styledText.measurementText,
-            cacheIdentity: firstCopiedCard.id,
-            layoutVariant: styledText.displayConfiguration.layoutVariant,
-            styleSignature: styledText.cacheSignature,
-            availableWidth: collapsedCopiedSummaryTextWidth
-        )
-    }
-
-    private func collapsedCopiedFooterText(
-        copiedCards: [CaptureCard],
-        classificationCache: [CaptureCard.ID: ContentClassification]
-    ) -> String? {
-        var segments: [String] = []
-
-        if let copiedSummaryMetrics = copiedSummaryMetrics(
-            copiedCards: copiedCards,
-            classificationCache: classificationCache
-        ),
-           copiedSummaryMetrics.hiddenCollapsedCopiedLineCount > 0 {
-            segments.append(
-                StackCardOverflowPolicy.overflowLabel(
-                    hiddenLineCount: copiedSummaryMetrics.hiddenCollapsedCopiedLineCount
-                )
-            )
-        }
-
-        if copiedCards.count > 1 {
-            segments.append("+\(copiedCards.count - 1) more")
-        }
-
-        guard !segments.isEmpty else {
-            return nil
-        }
-
-        return segments.joined(separator: " · ")
-    }
-
-    private var collapsedCopiedSummaryTextWidth: CGFloat {
-        StackCardOverflowPolicy.collapsedCopiedSummaryTextWidth
     }
 
     private func toggleExpansion(for card: CaptureCard) {

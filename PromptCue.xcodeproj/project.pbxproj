@@ -131,6 +131,7 @@
 		C2037D02EFBA614AD4B58AEB /* StackCardOverflowPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10947BDEFD2C412BCD880069 /* StackCardOverflowPolicy.swift */; };
 		C2407D1A540A57F74B8CD8A2 /* DesignSystemWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */; };
 		C33CB0CB8D6163E8E29C9390 /* DesignSystemPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE47CEE43805033948881E6 /* DesignSystemPreviewView.swift */; };
+		C4732D8D0CE2691C85530E4E /* CollapsedCopiedStackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A81FF53CA9615E6A79D5E3A /* CollapsedCopiedStackView.swift */; };
 		C576CD54C72BC95C985D11F0 /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 481F197240A0E2EE1CEC2FFF /* LaunchAtLoginService.swift */; };
 		C5C57DB0B35DACB9E8A166B8 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 73CC45527540F4E64392E1C7 /* PrivacyInfo.xcprivacy */; };
 		C9538C306DEACC4C17E87EAA /* ScreenshotAttachmentPersistencePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B25821259664D4A43B71610 /* ScreenshotAttachmentPersistencePolicy.swift */; };
@@ -196,6 +197,7 @@
 		099BDB0F79FA0540944E383F /* SettingsSidebarIconTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSidebarIconTile.swift; sourceTree = "<group>"; };
 		09A461FEECE4CB884E435CC0 /* CardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardStore.swift; sourceTree = "<group>"; };
 		0A375A280E139D2C4C63F586 /* PromptCueShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCueShortcuts.swift; sourceTree = "<group>"; };
+		0A81FF53CA9615E6A79D5E3A /* CollapsedCopiedStackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollapsedCopiedStackView.swift; sourceTree = "<group>"; };
 		0C6A4BBE1B576F24724DF2B3 /* MemoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryWindowController.swift; sourceTree = "<group>"; };
 		0DA754E495B637178A614D3C /* CaptureCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCardView.swift; sourceTree = "<group>"; };
 		0E42D900064EA79ABFF67858 /* ClipboardFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardFormatter.swift; sourceTree = "<group>"; };
@@ -665,6 +667,7 @@
 				57A7183C8DD5C8731C131B9B /* CaptureComposerView.swift */,
 				BE8300F6EAA56EBDEBD02EEA /* CardContextMenu.swift */,
 				45B066AAC1F6859743A3CD47 /* CardStackView.swift */,
+				0A81FF53CA9615E6A79D5E3A /* CollapsedCopiedStackView.swift */,
 				CEEE5AA85944AC8E4A3630EB /* InteractiveDetectedTextView.swift */,
 				EA97F3D13BA392CBAF2BDCF8 /* LocalImageThumbnail.swift */,
 			);
@@ -974,6 +977,7 @@
 				38F03C44188BD6D5398400C8 /* CloudSyncControlling.swift in Sources */,
 				E6815A9F153933127DE1163E /* CloudSyncEngine.swift in Sources */,
 				27CAB09D5BA59322FBD7770B /* CloudSyncSettingsModel.swift in Sources */,
+				C4732D8D0CE2691C85530E4E /* CollapsedCopiedStackView.swift in Sources */,
 				0CE1B97EF609A3F951261F3B /* CompactSelectableRow.swift in Sources */,
 				3F945B7C91C8B004AC72F207 /* ConnectorClientBadge.swift in Sources */,
 				0902195B84CD5FC12B925979 /* CopiedStackRecipe.swift in Sources */,

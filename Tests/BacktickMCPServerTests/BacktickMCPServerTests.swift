@@ -71,6 +71,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(
             tools.compactMap { $0["name"] as? String },
             [
+                exposedToolName("status"),
                 exposedToolName("list_notes"),
                 exposedToolName("get_note"),
                 exposedToolName("create_note"),
@@ -115,14 +116,38 @@ final class BacktickMCPServerTests: XCTestCase {
         )
         let getStartedAnnotations = try XCTUnwrap(getStartedTool["annotations"] as? [String: Any])
         XCTAssertEqual(getStartedAnnotations["readOnlyHint"] as? Bool, true)
+        let statusTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("status") })
+        )
+        let statusAnnotations = try XCTUnwrap(statusTool["annotations"] as? [String: Any])
+        XCTAssertEqual(statusAnnotations["readOnlyHint"] as? Bool, true)
         let properties = try XCTUnwrap(inputSchema["properties"] as? [String: Any])
         XCTAssertNotNil(properties["userIntent"])
         XCTAssertNotNil(properties["preferredTopic"])
         XCTAssertNotNil(properties["maxProposals"])
 
-        let getStartedResponse = try await sendRequest(
+        let statusResponse = try await sendRequest(
             session: session,
             id: 3,
+            method: "tools/call",
+            params: [
+                "name": "status",
+                "arguments": [:],
+            ]
+        )
+        let statusPayload = try toolPayload(from: statusResponse)
+        XCTAssertEqual(statusPayload["product"] as? String, "Backtick")
+        let serverPayload = try XCTUnwrap(statusPayload["server"] as? [String: Any])
+        XCTAssertEqual(serverPayload["version"] as? String, "0.2.0")
+        XCTAssertEqual(serverPayload["surfaceVersion"] as? String, "2026-04-03.1")
+        let surfacePayload = try XCTUnwrap(statusPayload["surface"] as? [String: Any])
+        XCTAssertEqual(surfacePayload["toolCount"] as? Int, 17)
+        XCTAssertEqual(surfacePayload["promptCount"] as? Int, 6)
+        XCTAssertTrue((surfacePayload["toolNames"] as? [String] ?? []).contains(exposedToolName("status")))
+
+        let getStartedResponse = try await sendRequest(
+            session: session,
+            id: 4,
             method: "tools/call",
             params: [
                 "name": "get_started",
@@ -133,6 +158,9 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertNotNil(getStartedPayload["welcome"] as? String)
         let getStartedTools = try XCTUnwrap(getStartedPayload["tools"] as? [[String: Any]])
         XCTAssertTrue(
+            getStartedTools.contains(where: { ($0["name"] as? String) == exposedToolName("status") })
+        )
+        XCTAssertTrue(
             getStartedTools.contains(where: { ($0["name"] as? String) == exposedToolName("list_saved_items") })
         )
         XCTAssertTrue((getStartedPayload["tryIt"] as? String ?? "").contains("What do I have in Backtick?"))
@@ -141,7 +169,7 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertNotNil(capabilities["prompts"])
         XCTAssertNotNil(capabilities["resources"])
 
-        let resourcesResponse = try await sendRequest(session: session, id: 4, method: "resources/list")
+        let resourcesResponse = try await sendRequest(session: session, id: 5, method: "resources/list")
         let resourcesResult = try XCTUnwrap(resourcesResponse["result"] as? [String: Any])
         let resources = try XCTUnwrap(resourcesResult["resources"] as? [Any])
         XCTAssertTrue(resources.isEmpty)

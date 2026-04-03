@@ -3,6 +3,7 @@ import PromptCueCore
 
 enum BacktickMCPToolNaming {
     static let canonicalNames = [
+        "status",
         "list_notes",
         "get_note",
         "create_note",
@@ -23,6 +24,7 @@ enum BacktickMCPToolNaming {
 
     private static let brandedPrefix = "backtick_"
     private static let exposedNamesByCanonical = [
+        "status": "backtick_status",
         "list_notes": "backtick_list_notes",
         "get_note": "backtick_get_note",
         "create_note": "backtick_create_note",
@@ -125,6 +127,7 @@ final class BacktickMCPServerSession {
     private static let serverName = "backtick-stack-mcp"
     private static let serverTitle = "Backtick Stack MCP"
     private static let serverVersion = "0.2.0"
+    private static let surfaceVersion = "2026-04-03.1"
     private static let iso8601Formatter = makeDateFormatter()
 
     init(
@@ -431,6 +434,9 @@ final class BacktickMCPServerSession {
             let value: Any
             let mutatesStack: Bool
             switch name {
+            case "status":
+                mutatesStack = false
+                value = status()
             case "list_notes":
                 mutatesStack = false
                 value = try listNotes(arguments: arguments)
@@ -493,6 +499,53 @@ final class BacktickMCPServerSession {
         } catch {
             return toolErrorResult(error.localizedDescription)
         }
+    }
+
+    private func status() -> [String: Any] {
+        let helperURL = Bundle.main.executableURL ?? URL(fileURLWithPath: launchCommand ?? CommandLine.arguments[0])
+        let appBundleURL = inferredAppBundleURL(from: helperURL)
+        let appBundle = appBundleURL.flatMap(Bundle.init(url:))
+        let appVersion = appBundle?
+            .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let appBuild = appBundle?
+            .object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        return [
+            "product": "Backtick",
+            "server": [
+                "name": Self.serverName,
+                "title": Self.serverTitle,
+                "version": Self.serverVersion,
+                "surfaceVersion": Self.surfaceVersion,
+            ],
+            "app": [
+                "path": appBundleURL?.path as Any? ?? NSNull(),
+                "version": appVersion as Any? ?? NSNull(),
+                "build": appBuild as Any? ?? NSNull(),
+            ],
+            "helper": [
+                "path": helperURL.path,
+                "launchCommand": launchCommand as Any? ?? NSNull(),
+                "launchArguments": launchArguments,
+            ],
+            "surface": [
+                "toolCount": MCPToolCatalog.all.count,
+                "promptCount": MCPPromptCatalog.all.count,
+                "toolNames": MCPToolCatalog.all.map { BacktickMCPToolNaming.exposedName($0.name) },
+                "promptNames": MCPPromptCatalog.all.map(\.name),
+            ],
+        ]
+    }
+
+    private func inferredAppBundleURL(from helperURL: URL) -> URL? {
+        let standardizedURL = helperURL.standardizedFileURL
+        let helperDirectory = standardizedURL.deletingLastPathComponent()
+        let contentsDirectory = helperDirectory.deletingLastPathComponent()
+        let appBundleURL = contentsDirectory.deletingLastPathComponent()
+        guard appBundleURL.pathExtension == "app" else {
+            return nil
+        }
+        return appBundleURL
     }
 
     private func listNotes(arguments: [String: Any]) throws -> [String: Any] {
@@ -652,6 +705,7 @@ final class BacktickMCPServerSession {
                 "Copied": "Notes you've already used. They move to the Copied section so your active stack stays clean.",
             ],
             "tools": [
+                ["name": BacktickMCPToolNaming.exposedName("status"), "use": "Report the current Backtick MCP app version, build, helper path, and tool surface version so you can verify a client is on the latest connector surface."],
                 ["name": BacktickMCPToolNaming.exposedName("list_saved_items"), "use": "Start here for generic Backtick inventory requests. For ChatGPT and Claude app clients, show Memory first. For CLI clients like Claude Code or Codex, show Stack first. Then clarify whether the user wants Memory, Stack, or both if it is still ambiguous."],
                 ["name": BacktickMCPToolNaming.exposedName("list_notes"), "use": "See all your notes grouped by pinned, active, and copied."],
                 ["name": BacktickMCPToolNaming.exposedName("create_note"), "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],

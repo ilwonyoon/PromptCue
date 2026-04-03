@@ -293,6 +293,13 @@ enum MCPToolCatalog {
 
     // MARK: - Utility tools
 
+    static let status = MCPToolDefinition(
+        name: "status",
+        description: "Report the current Backtick MCP app version, build, helper path, and tool/prompt surface version so clients can verify they are on the latest connector surface.",
+        annotations: MCPToolAnnotations(readOnlyHint: true),
+        inputSchema: MCPInputSchema(properties: [])
+    )
+
     static let getStarted = MCPToolDefinition(
         name: "get_started",
         description: "Introduction to Backtick. Call this when the user first connects or asks what Backtick can do. Returns a guide explaining all available tools and example usage.",
@@ -420,6 +427,7 @@ enum MCPToolCatalog {
     // MARK: - Full catalog
 
     static let all: [MCPToolDefinition] = [
+        status,
         listNotes,
         getNote,
         createNote,

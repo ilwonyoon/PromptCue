@@ -158,6 +158,7 @@ struct MCPServerLaunchSpec: Equatable {
 
 enum BacktickMCPToolSurface {
     static let canonicalNames = [
+        "status",
         "list_notes",
         "get_note",
         "create_note",
@@ -167,6 +168,7 @@ enum BacktickMCPToolSurface {
         "classify_notes",
         "group_notes",
         "get_started",
+        "list_saved_items",
         "list_documents",
         "recall_document",
         "propose_document_saves",
@@ -176,6 +178,7 @@ enum BacktickMCPToolSurface {
     ]
 
     private static let exposedNamesByCanonical = [
+        "status": "backtick_status",
         "list_notes": "backtick_list_notes",
         "get_note": "backtick_get_note",
         "create_note": "backtick_create_note",
@@ -185,6 +188,7 @@ enum BacktickMCPToolSurface {
         "classify_notes": "backtick_classify_notes",
         "group_notes": "backtick_group_notes",
         "get_started": "backtick_get_started",
+        "list_saved_items": "backtick_list_saved_items",
         "list_documents": "backtick_list_docs",
         "recall_document": "backtick_recall_doc",
         "propose_document_saves": "backtick_propose_save",

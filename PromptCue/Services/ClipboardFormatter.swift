@@ -24,7 +24,6 @@ enum ClipboardFormatter {
         let suffix = PromptExportTailPreferences.load().exportSuffix
         let screenshotURLs = cards.map { ManagedScreenshotAccess.readableURL(for: $0) }
         let textValue = clipboardTextValue(for: cards, screenshotURLs: screenshotURLs, suffix: suffix)
-
         copyStringToPasteboard(textValue)
     }
 

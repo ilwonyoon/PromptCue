@@ -157,6 +157,52 @@ final class PromptExportTailSettingsTests: XCTestCase {
         )
     }
 
+    func testClipboardFormatterPlacesAttachmentPathBeforeBodyAndSuffixWhenDebugFallbackEnabled() throws {
+        let defaults = UserDefaults.standard
+        let pathDefaultsKey = ClipboardFormatter.debugIncludeAttachmentPathsDefaultsKey
+        let originalPathOverride = defaults.object(forKey: pathDefaultsKey)
+        defaults.set(true, forKey: pathDefaultsKey)
+        defer {
+            if let originalPathOverride {
+                defaults.set(originalPathOverride, forKey: pathDefaultsKey)
+            } else {
+                defaults.removeObject(forKey: pathDefaultsKey)
+            }
+        }
+
+        let attachmentStore = AttachmentStore()
+        let sourcePNGURL = tempDirectoryURL.appendingPathComponent("ordered-source-debug.png")
+        let sourcePNGData = try makeTestPNGData(fill: NSColor.systemBlue)
+        try sourcePNGData.write(to: sourcePNGURL)
+        let managedURL = try attachmentStore.importScreenshot(from: sourcePNGURL, ownerID: UUID())
+        defer {
+            try? attachmentStore.removeManagedFile(at: managedURL)
+        }
+
+        let card = CaptureCard(
+            text: "Body text",
+            createdAt: .now,
+            screenshotPath: managedURL.path
+        )
+
+        let payload = ClipboardFormatter.string(
+            for: [card],
+            suffix: ExportSuffix("Analyze notes above.")
+        )
+
+        XCTAssertEqual(
+            payload,
+            """
+            Attached image path:
+            \(managedURL.path)
+
+            • Body text
+
+            Analyze notes above.
+            """
+        )
+    }
+
     private func makeTestPNGData(fill: NSColor) throws -> Data {
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,

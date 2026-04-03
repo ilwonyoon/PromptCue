@@ -207,7 +207,11 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), expectedPasteboardString)
         XCTAssertTrue(expectedPasteboardString.contains("Attached image path:"))
         XCTAssertTrue(expectedPasteboardString.contains(managedScreenshotURL.path))
-        XCTAssertTrue(expectedPasteboardString.hasPrefix("Attached image path:\n\(managedScreenshotURL.path)\n\n• Card with screenshot"))
+        XCTAssertTrue(
+            expectedPasteboardString.hasPrefix(
+                "Attached image path:\n\(managedScreenshotURL.path)\n\n• Card with screenshot"
+            )
+        )
         XCTAssertNil(pasteboard.string(forType: .fileURL))
         XCTAssertNil(pasteboard.data(forType: .png))
         XCTAssertNil(pasteboard.data(forType: .tiff))
@@ -262,6 +266,9 @@ final class StackMultiCopyTests: XCTestCase {
         XCTAssertEqual(payload, "Attached image path:\n\(managedScreenshotURL.path)\n\n• Card without path fallback")
         XCTAssertTrue(payload.contains("Attached image path:"))
         XCTAssertEqual(pasteboard.string(forType: .string), payload)
+        XCTAssertNil(pasteboard.string(forType: .fileURL))
+        XCTAssertNil(pasteboard.data(forType: .png))
+        XCTAssertNil(pasteboard.data(forType: .tiff))
 
         let items = pasteboard.pasteboardItems ?? []
         XCTAssertEqual(items.count, 1)

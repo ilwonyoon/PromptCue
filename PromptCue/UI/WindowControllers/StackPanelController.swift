@@ -84,6 +84,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         )
     }
 
+    private var isQACaptureWindowMode: Bool {
+        ProcessInfo.processInfo.environment["PROMPTCUE_STACK_QA_WINDOW"] == "1"
+    }
+
     init(
         model: AppModel,
         onEditCard: @escaping (CaptureCard) -> Void = { _ in }
@@ -287,6 +291,9 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        if isQACaptureWindowMode {
+            return
+        }
         guard !hasVisibleAuxiliaryPresentation() else {
             return
         }
@@ -321,21 +328,27 @@ final class StackPanelController: NSObject, NSWindowDelegate {
 
     private func makePanel() -> StackPanel {
         let initialFrame = offscreenPanelFrame(for: NSSize(width: PanelMetrics.stackPanelWidth, height: 0))
+        let styleMask: NSWindow.StyleMask = isQACaptureWindowMode
+            ? [.titled, .closable, .resizable, .fullSizeContentView]
+            : [.nonactivatingPanel, .fullSizeContentView, .resizable]
         let panel = StackPanel(
             contentRect: initialFrame,
-            styleMask: [.nonactivatingPanel, .fullSizeContentView, .resizable],
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
 
         panel.delegate = self
-        panel.titleVisibility = .hidden
-        panel.titlebarAppearsTransparent = true
-        panel.isFloatingPanel = true
-        panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.title = isQACaptureWindowMode ? "Backtick Stack QA" : ""
+        panel.titleVisibility = isQACaptureWindowMode ? .visible : .hidden
+        panel.titlebarAppearsTransparent = !isQACaptureWindowMode
+        panel.isFloatingPanel = !isQACaptureWindowMode
+        panel.level = isQACaptureWindowMode ? .normal : .floating
+        panel.collectionBehavior = isQACaptureWindowMode
+            ? [.fullScreenAuxiliary]
+            : [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.isMovableByWindowBackground = false
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = !isQACaptureWindowMode
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -409,6 +422,15 @@ final class StackPanelController: NSObject, NSWindowDelegate {
         let width = PanelMetrics.stackPanelWidth
         let height = visibleFrame.height
 
+        if isQACaptureWindowMode {
+            return NSRect(
+                x: visibleFrame.midX - (width / 2),
+                y: visibleFrame.minY,
+                width: width,
+                height: height
+            )
+        }
+
         return NSRect(
             x: visibleFrame.maxX - width,
             y: visibleFrame.minY,
@@ -418,6 +440,10 @@ final class StackPanelController: NSObject, NSWindowDelegate {
     }
 
     private func offscreenPanelFrame(for size: NSSize) -> NSRect {
+        if isQACaptureWindowMode {
+            return onscreenPanelFrame(for: size)
+        }
+
         let visibleFrame = screenVisibleFrame()
         let width = PanelMetrics.stackPanelWidth
 

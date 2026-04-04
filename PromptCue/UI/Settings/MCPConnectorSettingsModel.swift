@@ -159,6 +159,7 @@ struct MCPServerLaunchSpec: Equatable {
 enum BacktickMCPToolSurface {
     static let canonicalNames = [
         "status",
+        "workflow",
         "list_notes",
         "get_note",
         "create_note",
@@ -167,7 +168,6 @@ enum BacktickMCPToolSurface {
         "mark_notes_executed",
         "classify_notes",
         "group_notes",
-        "get_started",
         "list_saved_items",
         "list_documents",
         "recall_document",
@@ -179,6 +179,7 @@ enum BacktickMCPToolSurface {
 
     private static let exposedNamesByCanonical = [
         "status": "backtick_status",
+        "workflow": "backtick_workflow",
         "list_notes": "backtick_list_notes",
         "get_note": "backtick_get_note",
         "create_note": "backtick_create_note",
@@ -187,7 +188,6 @@ enum BacktickMCPToolSurface {
         "mark_notes_executed": "backtick_complete_notes",
         "classify_notes": "backtick_classify_notes",
         "group_notes": "backtick_group_notes",
-        "get_started": "backtick_get_started",
         "list_saved_items": "backtick_list_saved_items",
         "list_documents": "backtick_list_docs",
         "recall_document": "backtick_recall_doc",
@@ -212,7 +212,7 @@ enum BacktickMCPToolSurface {
         exposedName(for: "mark_notes_executed"),
     ]
 
-    static let verificationToolName = exposedName(for: "get_started")
+    static let verificationToolName = exposedName(for: "status")
 
     static func isLegacyAlias(_ toolName: String) -> Bool {
         canonicalNames.contains(toolName) || oldBrandedAliases.contains(toolName)

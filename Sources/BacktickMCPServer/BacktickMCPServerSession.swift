@@ -4,6 +4,7 @@ import PromptCueCore
 enum BacktickMCPToolNaming {
     static let canonicalNames = [
         "status",
+        "workflow",
         "list_notes",
         "get_note",
         "create_note",
@@ -12,7 +13,6 @@ enum BacktickMCPToolNaming {
         "mark_notes_executed",
         "classify_notes",
         "group_notes",
-        "get_started",
         "list_saved_items",
         "list_documents",
         "recall_document",
@@ -25,6 +25,7 @@ enum BacktickMCPToolNaming {
     private static let brandedPrefix = "backtick_"
     private static let exposedNamesByCanonical = [
         "status": "backtick_status",
+        "workflow": "backtick_workflow",
         "list_notes": "backtick_list_notes",
         "get_note": "backtick_get_note",
         "create_note": "backtick_create_note",
@@ -33,7 +34,6 @@ enum BacktickMCPToolNaming {
         "mark_notes_executed": "backtick_complete_notes",
         "classify_notes": "backtick_classify_notes",
         "group_notes": "backtick_group_notes",
-        "get_started": "backtick_get_started",
         "list_saved_items": "backtick_list_saved_items",
         "list_documents": "backtick_list_docs",
         "recall_document": "backtick_recall_doc",
@@ -127,7 +127,7 @@ final class BacktickMCPServerSession {
     private static let serverName = "backtick-stack-mcp"
     private static let serverTitle = "Backtick Stack MCP"
     private static let serverVersion = "0.2.0"
-    private static let surfaceVersion = "2026-04-03.1"
+    private static let surfaceVersion = "2026-04-03.3"
     private static let iso8601Formatter = makeDateFormatter()
 
     init(
@@ -292,7 +292,16 @@ final class BacktickMCPServerSession {
             return successResponse(id: id, result: promptsList())
 
         case "prompts/get":
-            return promptsGet(id: id, params: params)
+            let response = promptsGet(id: id, params: params)
+            if response["error"] == nil,
+               let promptName = params["name"] as? String,
+               !promptName.isEmpty {
+                recordSuccessfulPromptCall(
+                    promptName: promptName,
+                    activityContext: activityContext
+                )
+            }
+            return response
 
         case "tools/call":
             guard let toolName = params["name"] as? String, !toolName.isEmpty else {
@@ -374,11 +383,33 @@ final class BacktickMCPServerSession {
         )
     }
 
+    private func recordSuccessfulPromptCall(
+        promptName: String,
+        activityContext: BacktickMCPConnectionContext
+    ) {
+        connectionActivityStore.recordSuccessfulPromptCall(
+            context: activityContext,
+            clientName: clientName,
+            clientVersion: clientVersion,
+            sessionID: nil,
+            promptName: promptName,
+            configuredClientID: configuredClientID,
+            launchCommand: launchCommand,
+            launchArguments: launchArguments
+        )
+    }
+
     private func serverInstructions() -> String {
         BacktickMCPToolNaming.brandToolReferences(in: """
         Backtick is project memory shared across AI tools. It is separate from any built-in assistant memory.
 
         When speaking to the user, refer to this memory as Backtick, or 백틱 in Korean conversations. Do not call it generic memory when asking whether to save or recall something.
+
+        Execution routing:
+        1. If the user asks to execute, implement, fix, or "load Backtick notes and do the work" (for example: "백틱 노트 불러와서 실행해줘", "이거 해줘", "implement this", "fix this"), call workflow before using any Backtick note or document tool.
+        2. If the client exposes MCP prompts cleanly, it may also fetch the workflow prompt. Treat the workflow tool or prompt as the source of truth for execute-style routing.
+        3. Do not start execute-style requests with list_saved_items, list_notes, classify_notes, or get_note until you have first loaded workflow guidance.
+        4. If the workflow tool or prompt is unavailable, say that you are falling back to a reduced tool-first path and continue cautiously.
 
         Recall behavior:
         1. For generic requests like "Backtick notes", "load my notes", or "what do I have in Backtick", call list_saved_items first.
@@ -437,6 +468,9 @@ final class BacktickMCPServerSession {
             case "status":
                 mutatesStack = false
                 value = status()
+            case "workflow":
+                mutatesStack = false
+                value = workflowGuide()
             case "list_notes":
                 mutatesStack = false
                 value = try listNotes(arguments: arguments)
@@ -461,9 +495,6 @@ final class BacktickMCPServerSession {
             case "group_notes":
                 mutatesStack = true
                 value = try groupNotes(arguments: arguments)
-            case "get_started":
-                mutatesStack = false
-                value = getStartedGuide()
             case "list_saved_items":
                 mutatesStack = false
                 value = try listSavedItems(arguments: arguments)
@@ -689,49 +720,6 @@ final class BacktickMCPServerSession {
             "archivedCount": result.archivedNotes.count,
             "archivedNotes": result.archivedNotes.map(noteDictionary),
             "copyEvents": result.copyEvents.map(copyEventDictionary),
-        ]
-    }
-
-    private func getStartedGuide() -> [String: Any] {
-        let noteCount = (try? readService.listNotes(scope: .all).count) ?? 0
-        let documentCount = (try? documentStore.list(project: nil).count) ?? 0
-
-        return [
-            "welcome": "Backtick keeps your reviewed Memory documents and Stack capture cards available across AI tools.",
-            "concepts": [
-                "Memory": "Your durable reviewed documents. App clients usually lead with Memory, while CLI clients usually lead with Stack unless the user clearly asked for saved context.",
-                "Stack": "Your prompt queue. Capture ideas, tasks, and context. Notes auto-expire after 8 hours unless pinned.",
-                "Pinned": "Permanent prompts that never expire. Pin your most-used prompts, project context, or reusable instructions.",
-                "Copied": "Notes you've already used. They move to the Copied section so your active stack stays clean.",
-            ],
-            "tools": [
-                ["name": BacktickMCPToolNaming.exposedName("status"), "use": "Report the current Backtick MCP app version, build, helper path, and tool surface version so you can verify a client is on the latest connector surface."],
-                ["name": BacktickMCPToolNaming.exposedName("list_saved_items"), "use": "Start here for generic Backtick inventory requests. For ChatGPT and Claude app clients, show Memory first. For CLI clients like Claude Code or Codex, show Stack first. Then clarify whether the user wants Memory, Stack, or both if it is still ambiguous."],
-                ["name": BacktickMCPToolNaming.exposedName("list_notes"), "use": "See all your notes grouped by pinned, active, and copied."],
-                ["name": BacktickMCPToolNaming.exposedName("create_note"), "use": "Save a new prompt or context to your stack. Set isPinned: true for permanent notes."],
-                ["name": BacktickMCPToolNaming.exposedName("update_note"), "use": "Edit a note's text, tags, or pin status."],
-                ["name": BacktickMCPToolNaming.exposedName("mark_notes_executed"), "use": "Mark notes as used after you've acted on them."],
-                ["name": BacktickMCPToolNaming.exposedName("get_note"), "use": "Fetch a single note with its full copy history."],
-                ["name": BacktickMCPToolNaming.exposedName("classify_notes"), "use": "Group notes by repository, session, or app for organized context."],
-                ["name": BacktickMCPToolNaming.exposedName("list_documents"), "use": "Discover reviewed Memory documents without loading their full content."],
-                ["name": BacktickMCPToolNaming.exposedName("recall_document"), "use": "Load one durable project document when a discussion needs prior context."],
-                ["name": BacktickMCPToolNaming.exposedName("propose_document_saves"), "use": "Draft reviewed save proposals before anything is written to Backtick Memory."],
-                ["name": BacktickMCPToolNaming.exposedName("save_document"), "use": "Save a reviewed markdown document for durable context across AI sessions after the user confirms what to keep."],
-                ["name": BacktickMCPToolNaming.exposedName("update_document"), "use": "Append, replace, or delete one ## section without rewriting the whole document."],
-            ],
-            "warmExamples": [
-                "Load my Backtick notes.",
-                "What do I have in Backtick right now?",
-                "We just settled an important decision. Propose how to save it to Backtick first.",
-                "Turn this conversation into a PRD and save it for later.",
-                "Document only the latest decisions we made about pricing.",
-                "Update our architecture summary with what we just decided.",
-                "Before answering, load the current pricing decisions.",
-            ],
-            "tryIt": noteCount + documentCount > 0
-                ? "You have \(documentCount) Memory documents and \(noteCount) Stack notes. Try: \"What do I have in Backtick?\""
-                : "Backtick is empty right now. Try: \"What do I have in Backtick?\" or \"Create a Backtick note: remember to review PR before merge\"",
-            "tip": "Capture with Cmd+` from anywhere on your Mac. Your notes appear here instantly.",
         ]
     }
 
@@ -1181,10 +1169,7 @@ final class BacktickMCPServerSession {
         }
 
         do {
-            let rendered = try MCPPromptRenderer.render(
-                template: template,
-                arguments: promptArguments
-            )
+            let rendered = try renderedPromptText(named: promptName, arguments: promptArguments)
             return successResponse(
                 id: id,
                 result: [
@@ -1205,6 +1190,29 @@ final class BacktickMCPServerSession {
         } catch {
             return errorResponse(id: id, code: .invalidParams, message: error.localizedDescription)
         }
+    }
+
+    private func workflowGuide() -> [String: Any] {
+        let rendered = try? renderedPromptText(named: "workflow", arguments: [:])
+        return [
+            "name": BacktickMCPToolNaming.exposedName("workflow"),
+            "source": "workflow-prompt-template",
+            "description": "Portable execute-routing playbook for Backtick.",
+            "content": rendered ?? "",
+        ]
+    }
+
+    private func renderedPromptText(
+        named promptName: String,
+        arguments: [String: String]
+    ) throws -> String {
+        guard let template = MCPPromptCatalog.template(named: promptName) else {
+            throw BacktickMCPToolError(message: "Unknown prompt: \(promptName)")
+        }
+        return try MCPPromptRenderer.render(
+            template: template,
+            arguments: arguments
+        )
     }
 
     private func noteDictionary(_ note: CaptureCard) -> [String: Any] {

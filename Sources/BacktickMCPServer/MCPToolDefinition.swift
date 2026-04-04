@@ -153,7 +153,7 @@ enum MCPToolCatalog {
 
     static let listNotes = MCPToolDefinition(
         name: "list_notes",
-        description: "List Stack notes grouped by category: pinned (permanent prompts), active (today's work), and copied (used prompts). Each group is returned separately.",
+        description: "List Stack notes grouped by category: pinned (permanent prompts), active (today's work), and copied (used prompts). Each group is returned separately. For execute requests like '백틱 노트 불러와서 실행해줘', call backtick_workflow first and then follow its gather phase.",
         inputSchema: MCPInputSchema(
             properties: [
                 ("scope", MCPSchemaProperty(
@@ -167,7 +167,7 @@ enum MCPToolCatalog {
 
     static let getNote = MCPToolDefinition(
         name: "get_note",
-        description: "Fetch one Stack note and its copy-event history.",
+        description: "Fetch one Stack note and its copy-event history. For execute requests, use this after backtick_workflow has already been loaded.",
         inputSchema: MCPInputSchema(
             properties: [
                 ("id", uuidProperty()),
@@ -242,7 +242,7 @@ enum MCPToolCatalog {
 
     static let classifyNotes = MCPToolDefinition(
         name: "classify_notes",
-        description: "Group Stack notes by metadata such as repository, session, or app.",
+        description: "Group Stack notes by metadata such as repository, session, or app. For execute requests, call backtick_workflow first and then use this during its gather phase.",
         inputSchema: MCPInputSchema(
             properties: [
                 ("scope", MCPSchemaProperty(
@@ -300,16 +300,16 @@ enum MCPToolCatalog {
         inputSchema: MCPInputSchema(properties: [])
     )
 
-    static let getStarted = MCPToolDefinition(
-        name: "get_started",
-        description: "Introduction to Backtick. Call this when the user first connects or asks what Backtick can do. Returns a guide explaining all available tools and example usage.",
+    static let workflow = MCPToolDefinition(
+        name: "workflow",
+        description: "Portable execute-routing playbook for Backtick. Call this first for execute-style requests like '백틱 노트 불러와서 실행해줘', 'implement this', or 'fix this', especially in clients that do not expose MCP prompts.",
         annotations: MCPToolAnnotations(readOnlyHint: true),
         inputSchema: MCPInputSchema(properties: [])
     )
 
     static let listSavedItems = MCPToolDefinition(
         name: "list_saved_items",
-        description: "Read-only overview across Backtick Memory documents and Stack notes. Use this first for generic requests like 'Backtick notes' or 'what do I have in Backtick', then follow the current client priority and clarify Memory, Stack, or both.",
+        description: "Read-only overview across Backtick Memory documents and Stack notes. Use this first for generic requests like 'Backtick notes' or 'what do I have in Backtick'. For execute-style requests like '백틱 노트 불러와서 실행해줘', call backtick_workflow first instead of starting here, then follow the current client priority and clarify Memory, Stack, or both if still needed.",
         annotations: MCPToolAnnotations(readOnlyHint: true),
         inputSchema: MCPInputSchema(properties: [])
     )
@@ -428,6 +428,7 @@ enum MCPToolCatalog {
 
     static let all: [MCPToolDefinition] = [
         status,
+        workflow,
         listNotes,
         getNote,
         createNote,
@@ -436,7 +437,6 @@ enum MCPToolCatalog {
         markNotesExecuted,
         classifyNotes,
         groupNotes,
-        getStarted,
         listSavedItems,
         listDocuments,
         recallDocument,

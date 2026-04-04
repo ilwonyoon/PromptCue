@@ -54,11 +54,16 @@ final class BacktickMCPServerTests: XCTestCase {
         let result = try XCTUnwrap(initializeResponse["result"] as? [String: Any])
         XCTAssertEqual(result["protocolVersion"] as? String, "2025-03-26")
         let instructions = try XCTUnwrap(result["instructions"] as? String)
+        let expectedWorkflowInstruction = "call \(exposedToolName("workflow")) before using any Backtick note or document tool"
         XCTAssertTrue(instructions.contains("Backtick"))
         XCTAssertTrue(instructions.contains("백틱"))
         XCTAssertTrue(instructions.contains("Do not save silently"))
         XCTAssertTrue(instructions.contains("Good examples"))
         XCTAssertTrue(instructions.contains("Bad examples"))
+        XCTAssertTrue(instructions.contains("Execution routing"))
+        XCTAssertTrue(instructions.contains(expectedWorkflowInstruction))
+        XCTAssertTrue(instructions.contains("Do not start execute-style requests with"))
+        XCTAssertTrue(instructions.contains(exposedToolName("list_saved_items")))
         XCTAssertTrue(instructions.contains("list_saved_items"))
         XCTAssertTrue(instructions.contains("ChatGPT and Claude app clients"))
         XCTAssertTrue(instructions.contains("Claude Code or Codex"))
@@ -72,6 +77,7 @@ final class BacktickMCPServerTests: XCTestCase {
             tools.compactMap { $0["name"] as? String },
             [
                 exposedToolName("status"),
+                exposedToolName("workflow"),
                 exposedToolName("list_notes"),
                 exposedToolName("get_note"),
                 exposedToolName("create_note"),
@@ -80,7 +86,6 @@ final class BacktickMCPServerTests: XCTestCase {
                 exposedToolName("mark_notes_executed"),
                 exposedToolName("classify_notes"),
                 exposedToolName("group_notes"),
-                exposedToolName("get_started"),
                 exposedToolName("list_saved_items"),
                 exposedToolName("list_documents"),
                 exposedToolName("recall_document"),
@@ -109,13 +114,13 @@ final class BacktickMCPServerTests: XCTestCase {
         let savedItemsTool = try XCTUnwrap(
             tools.first(where: { ($0["name"] as? String) == exposedToolName("list_saved_items") })
         )
+        XCTAssertTrue((savedItemsTool["description"] as? String ?? "").contains(exposedToolName("workflow")))
         let savedItemsAnnotations = try XCTUnwrap(savedItemsTool["annotations"] as? [String: Any])
         XCTAssertEqual(savedItemsAnnotations["readOnlyHint"] as? Bool, true)
-        let getStartedTool = try XCTUnwrap(
-            tools.first(where: { ($0["name"] as? String) == exposedToolName("get_started") })
+        let workflowTool = try XCTUnwrap(
+            tools.first(where: { ($0["name"] as? String) == exposedToolName("workflow") })
         )
-        let getStartedAnnotations = try XCTUnwrap(getStartedTool["annotations"] as? [String: Any])
-        XCTAssertEqual(getStartedAnnotations["readOnlyHint"] as? Bool, true)
+        XCTAssertTrue((workflowTool["description"] as? String ?? "").contains("Portable execute-routing playbook"))
         let statusTool = try XCTUnwrap(
             tools.first(where: { ($0["name"] as? String) == exposedToolName("status") })
         )
@@ -139,37 +144,18 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(statusPayload["product"] as? String, "Backtick")
         let serverPayload = try XCTUnwrap(statusPayload["server"] as? [String: Any])
         XCTAssertEqual(serverPayload["version"] as? String, "0.2.0")
-        XCTAssertEqual(serverPayload["surfaceVersion"] as? String, "2026-04-03.1")
+        XCTAssertEqual(serverPayload["surfaceVersion"] as? String, "2026-04-03.3")
         let surfacePayload = try XCTUnwrap(statusPayload["surface"] as? [String: Any])
         XCTAssertEqual(surfacePayload["toolCount"] as? Int, 17)
         XCTAssertEqual(surfacePayload["promptCount"] as? Int, 6)
         XCTAssertTrue((surfacePayload["toolNames"] as? [String] ?? []).contains(exposedToolName("status")))
-
-        let getStartedResponse = try await sendRequest(
-            session: session,
-            id: 4,
-            method: "tools/call",
-            params: [
-                "name": "get_started",
-                "arguments": [:],
-            ]
-        )
-        let getStartedPayload = try toolPayload(from: getStartedResponse)
-        XCTAssertNotNil(getStartedPayload["welcome"] as? String)
-        let getStartedTools = try XCTUnwrap(getStartedPayload["tools"] as? [[String: Any]])
-        XCTAssertTrue(
-            getStartedTools.contains(where: { ($0["name"] as? String) == exposedToolName("status") })
-        )
-        XCTAssertTrue(
-            getStartedTools.contains(where: { ($0["name"] as? String) == exposedToolName("list_saved_items") })
-        )
-        XCTAssertTrue((getStartedPayload["tryIt"] as? String ?? "").contains("What do I have in Backtick?"))
+        XCTAssertTrue((surfacePayload["toolNames"] as? [String] ?? []).contains(exposedToolName("workflow")))
 
         let capabilities = try XCTUnwrap(result["capabilities"] as? [String: Any])
         XCTAssertNotNil(capabilities["prompts"])
         XCTAssertNotNil(capabilities["resources"])
 
-        let resourcesResponse = try await sendRequest(session: session, id: 5, method: "resources/list")
+        let resourcesResponse = try await sendRequest(session: session, id: 4, method: "resources/list")
         let resourcesResult = try XCTUnwrap(resourcesResponse["result"] as? [String: Any])
         let resources = try XCTUnwrap(resourcesResult["resources"] as? [Any])
         XCTAssertTrue(resources.isEmpty)
@@ -1780,7 +1766,7 @@ final class BacktickMCPServerTests: XCTestCase {
             id: 2,
             method: "tools/call",
             params: [
-                "name": "get_started",
+                "name": "status",
                 "arguments": [:],
             ]
         )
@@ -1793,7 +1779,51 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertNil(activity.surface)
         XCTAssertEqual(activity.clientName, "claude-code")
         XCTAssertEqual(activity.clientVersion, "1.0.0")
-        XCTAssertEqual(activity.toolName, exposedToolName("get_started"))
+        XCTAssertEqual(activity.toolName, exposedToolName("status"))
+        XCTAssertNil(activity.sessionID)
+        XCTAssertEqual(activity.configuredClientID, "claudeCode")
+        XCTAssertEqual(activity.launchCommand, "/tmp/BacktickMCP")
+        XCTAssertEqual(activity.launchArguments ?? [], ["--stdio"])
+    }
+
+    func testSuccessfulPromptGetRecordsStdioConnectionActivity() async throws {
+        let session = await makeSession()
+        _ = try await sendRequest(
+            session: session,
+            id: 1,
+            method: "initialize",
+            params: [
+                "protocolVersion": "2025-03-26",
+                "capabilities": [:],
+                "clientInfo": [
+                    "name": "codex",
+                    "version": "1.0.0",
+                ],
+            ]
+        )
+
+        _ = try await sendRequest(
+            session: session,
+            id: 2,
+            method: "prompts/get",
+            params: [
+                "name": "workflow",
+                "arguments": [:],
+            ]
+        )
+
+        let state = try loadConnectionActivityState()
+        XCTAssertEqual(state.schemaVersion, 1)
+        XCTAssertEqual(state.activities.count, 1)
+        let activity = try XCTUnwrap(state.activities.first)
+        XCTAssertEqual(activity.transport, .stdio)
+        XCTAssertNil(activity.surface)
+        XCTAssertEqual(activity.clientName, "codex")
+        XCTAssertEqual(activity.clientVersion, "1.0.0")
+        XCTAssertEqual(activity.targetKind, .prompt)
+        XCTAssertEqual(activity.targetName, "workflow")
+        XCTAssertEqual(activity.toolName, "prompt:workflow")
+        XCTAssertEqual(activity.requestedToolName, "workflow")
         XCTAssertNil(activity.sessionID)
         XCTAssertEqual(activity.configuredClientID, "claudeCode")
         XCTAssertEqual(activity.launchCommand, "/tmp/BacktickMCP")
@@ -2340,7 +2370,7 @@ final class BacktickMCPServerTests: XCTestCase {
             id: 2,
             method: "tools/call",
             params: [
-                "name": "get_started",
+                "name": "status",
                 "arguments": [:],
             ]
         )
@@ -2366,12 +2396,12 @@ final class BacktickMCPServerTests: XCTestCase {
         XCTAssertEqual(activity.surface, "web")
         XCTAssertEqual(activity.clientName, "ChatGPT")
         XCTAssertEqual(activity.clientVersion, "web")
-        XCTAssertEqual(activity.toolName, exposedToolName("get_started"))
+        XCTAssertEqual(activity.toolName, exposedToolName("status"))
 
         XCTAssertEqual(logMessages.count, 1)
         XCTAssertTrue(logMessages[0].contains("served protected remote request"))
         XCTAssertTrue(logMessages[0].contains("rpcMethod=tools/call"))
-        XCTAssertTrue(logMessages[0].contains("targetName=get_started"))
+        XCTAssertTrue(logMessages[0].contains("targetName=status"))
     }
 
     func testOAuthTokenEndpointRejectsCodeReuseAndInvalidRefreshToken() async throws {

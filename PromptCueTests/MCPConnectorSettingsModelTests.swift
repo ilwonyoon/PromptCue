@@ -509,7 +509,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
                 exposedToolName("delete_note"),
                 exposedToolName("mark_notes_executed"),
             ],
-            verifiedToolName: exposedToolName("get_started")
+            verifiedToolName: exposedToolName("status")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -529,7 +529,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clientSetupTitle(for: claude), "Set up")
         XCTAssertEqual(model.clientVerificationTitle(for: claude), "Configured")
         XCTAssertTrue(model.clientSummary(for: claude).contains("local check passed"))
-        XCTAssertTrue(model.serverTestDetail.contains(exposedToolName("get_started")))
+        XCTAssertTrue(model.serverTestDetail.contains(exposedToolName("status")))
         XCTAssertEqual(model.connectedToolNames(for: claude), expectedReport.toolNames)
         XCTAssertEqual(model.clientNextStepTitle(for: claude), "Use Backtick in Claude Code")
         XCTAssertNil(model.primaryAction(for: claude))
@@ -628,7 +628,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
                 exposedToolName("get_note"),
                 exposedToolName("create_note"),
             ],
-            verifiedToolName: exposedToolName("get_started")
+            verifiedToolName: exposedToolName("status")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -699,7 +699,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
             MCPServerConnectionReport(
                 protocolVersion: "2025-03-26",
                 toolNames: [exposedToolName("list_notes")],
-                verifiedToolName: exposedToolName("get_started")
+                verifiedToolName: exposedToolName("status")
             )
         ))
         let model = MCPConnectorSettingsModel(
@@ -947,7 +947,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
                 MCPServerConnectionReport(
                     protocolVersion: "2025-03-26",
                     toolNames: [exposedToolName("list_notes")],
-                    verifiedToolName: exposedToolName("get_started")
+                    verifiedToolName: exposedToolName("status")
                 )
             )),
             connectionActivityReader: TestConnectionActivityReader(activities: [activity])
@@ -1004,7 +1004,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         let report = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
             toolNames: [exposedToolName("list_notes")],
-            verifiedToolName: exposedToolName("get_started")
+            verifiedToolName: exposedToolName("status")
         )
         let model = MCPConnectorSettingsModel(
             inspector: makeInspector(),
@@ -1191,7 +1191,7 @@ final class MCPConnectorSettingsModelTests: XCTestCase {
         let report = MCPServerConnectionReport(
             protocolVersion: "2025-03-26",
             toolNames: [exposedToolName("list_notes")],
-            verifiedToolName: exposedToolName("get_started")
+            verifiedToolName: exposedToolName("status")
         )
         let tester = RecordingConnectionTester(state: .passed(report))
         let model = MCPConnectorSettingsModel(

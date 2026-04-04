@@ -1,6 +1,11 @@
 import Foundation
 
 struct MCPConnectorConnectionActivity: Decodable, Equatable {
+    enum TargetKind: String, Decodable {
+        case tool
+        case prompt
+    }
+
     enum Transport: String, Decodable {
         case stdio
         case remoteHTTP = "remote_http"
@@ -11,6 +16,8 @@ struct MCPConnectorConnectionActivity: Decodable, Equatable {
     let clientName: String?
     let clientVersion: String?
     let sessionID: String?
+    let targetKind: TargetKind?
+    let targetName: String?
     let toolName: String
     let requestedToolName: String?
     let recordedAt: Date
@@ -24,6 +31,8 @@ struct MCPConnectorConnectionActivity: Decodable, Equatable {
         clientName: String?,
         clientVersion: String?,
         sessionID: String?,
+        targetKind: TargetKind? = nil,
+        targetName: String? = nil,
         toolName: String,
         requestedToolName: String? = nil,
         recordedAt: Date,
@@ -36,6 +45,8 @@ struct MCPConnectorConnectionActivity: Decodable, Equatable {
         self.clientName = clientName
         self.clientVersion = clientVersion
         self.sessionID = sessionID
+        self.targetKind = targetKind
+        self.targetName = targetName
         self.toolName = toolName
         self.requestedToolName = requestedToolName
         self.recordedAt = recordedAt
@@ -45,6 +56,10 @@ struct MCPConnectorConnectionActivity: Decodable, Equatable {
     }
 
     var usesLegacyToolAlias: Bool {
+        if targetKind == .prompt {
+            return false
+        }
+
         let requestedName = requestedToolName?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let requestedName, !requestedName.isEmpty {

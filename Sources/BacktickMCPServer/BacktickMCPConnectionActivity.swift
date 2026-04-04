@@ -1,6 +1,11 @@
 import Foundation
 
 struct BacktickMCPConnectionActivity: Codable, Equatable {
+    enum TargetKind: String, Codable {
+        case tool
+        case prompt
+    }
+
     enum Transport: String, Codable {
         case stdio
         case remoteHTTP = "remote_http"
@@ -11,6 +16,8 @@ struct BacktickMCPConnectionActivity: Codable, Equatable {
     let clientName: String?
     let clientVersion: String?
     let sessionID: String?
+    let targetKind: TargetKind?
+    let targetName: String?
     let toolName: String
     let requestedToolName: String?
     let recordedAt: Date
@@ -70,6 +77,62 @@ final class BacktickMCPConnectionActivityStore {
         launchCommand: String?,
         launchArguments: [String]
     ) {
+        recordSuccessfulTargetCall(
+            context: context,
+            clientName: clientName,
+            clientVersion: clientVersion,
+            sessionID: sessionID,
+            targetKind: .tool,
+            targetName: toolName,
+            requestedTargetName: requestedToolName,
+            toolName: toolName,
+            requestedToolName: requestedToolName,
+            configuredClientID: configuredClientID,
+            launchCommand: launchCommand,
+            launchArguments: launchArguments
+        )
+    }
+
+    func recordSuccessfulPromptCall(
+        context: BacktickMCPConnectionContext,
+        clientName: String?,
+        clientVersion: String?,
+        sessionID: String?,
+        promptName: String,
+        configuredClientID: String?,
+        launchCommand: String?,
+        launchArguments: [String]
+    ) {
+        recordSuccessfulTargetCall(
+            context: context,
+            clientName: clientName,
+            clientVersion: clientVersion,
+            sessionID: sessionID,
+            targetKind: .prompt,
+            targetName: promptName,
+            requestedTargetName: promptName,
+            toolName: "prompt:\(promptName)",
+            requestedToolName: promptName,
+            configuredClientID: configuredClientID,
+            launchCommand: launchCommand,
+            launchArguments: launchArguments
+        )
+    }
+
+    private func recordSuccessfulTargetCall(
+        context: BacktickMCPConnectionContext,
+        clientName: String?,
+        clientVersion: String?,
+        sessionID: String?,
+        targetKind: BacktickMCPConnectionActivity.TargetKind,
+        targetName: String,
+        requestedTargetName: String?,
+        toolName: String,
+        requestedToolName: String?,
+        configuredClientID: String?,
+        launchCommand: String?,
+        launchArguments: [String]
+    ) {
         guard let fileURL else {
             return
         }
@@ -87,6 +150,8 @@ final class BacktickMCPConnectionActivityStore {
             clientName: clientName,
             clientVersion: clientVersion,
             sessionID: sessionID,
+            targetKind: targetKind,
+            targetName: targetName,
             toolName: toolName,
             requestedToolName: requestedToolName,
             recordedAt: Date(),

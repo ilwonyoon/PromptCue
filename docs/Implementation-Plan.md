@@ -464,7 +464,7 @@ Current MCP platform queue:
    - `notifications/initialized`
    - `tools/list`
    - one safe read-only `tools/call`
-4. the first safe stdio verification probe should use a read-only Backtick tool with no user-data mutation in temp storage; `get_started` is the current preferred candidate
+4. the first safe stdio verification probe should use a read-only Backtick tool with no user-data mutation in temp storage; `status` is the current preferred candidate
 5. keep Settings wording split between `Configured`, `Connected`, and `Needs attention`; do not imply Claude/Codex approval or automation success unless that exact client path ran
 6. keep ChatGPT remote MCP clearly labeled as `experimental self-hosted`
 7. tighten reconnect/reset/health UX for stale ChatGPT apps and OAuth state, but keep the user-visible surface limited to current state, one-line reason, and one next action; then freeze a named failure matrix with repeatable stress coverage

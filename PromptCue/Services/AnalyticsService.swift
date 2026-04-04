@@ -337,7 +337,7 @@ final class AnalyticsService {
         case "backtick_list_docs", "backtick_recall_doc", "backtick_propose_save", "backtick_save_doc", "backtick_update_doc", "backtick_delete_doc",
             "list_documents", "recall_document", "propose_document_saves", "save_document", "update_document", "delete_document":
             return "memory"
-        case "backtick_get_started", "get_started":
+        case "backtick_status", "status", "backtick_workflow", "workflow":
             return "connector"
         case "backtick_list_notes", "backtick_get_note", "backtick_create_note", "backtick_update_note", "backtick_delete_note",
             "backtick_complete_notes", "backtick_classify_notes", "backtick_group_notes",

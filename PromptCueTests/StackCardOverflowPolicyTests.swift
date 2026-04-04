@@ -71,6 +71,7 @@ final class StackCardOverflowPolicyTests: XCTestCase {
         let styledText = InteractiveDetectedTextView.styledText(
             text: text,
             classification: .plain,
+            baseColor: .primary,
             highlightedRanges: [firstTagRange]
         )
 

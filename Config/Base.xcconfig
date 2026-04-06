@@ -7,3 +7,7 @@
 // Config/AppStore.xcconfig overrides this with the MAS compatibility file.
 
 CODE_SIGN_ENTITLEMENTS = PromptCue/PromptCue.entitlements
+
+// Sparkle stays off by default and is only enabled in the direct Release lane.
+PROMPTCUE_SPARKLE_ENABLED = NO
+PROMPTCUE_SPARKLE_PUBLIC_ED_KEY =

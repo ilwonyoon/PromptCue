@@ -22,6 +22,7 @@
 		188362E8999E75CE0E3D501C /* AppearanceSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F7660F7B8B4678081947386 /* AppearanceSettingsTests.swift */; };
 		191E6F78B35FD081762EB1E4 /* RecentScreenshotLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D372ADD4A30AC64621AF5E05 /* RecentScreenshotLocator.swift */; };
 		1A221597310D99FE05170A56 /* CaptureRuntimeMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD841B199B35A1509E1A787E /* CaptureRuntimeMetrics.swift */; };
+		1A8469C1EC42823F6C1E2D93 /* UpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B069D2EB352627811589568 /* UpdateCoordinator.swift */; };
 		1BE3156AB0E3AF62BAD6ECCA /* SettingsSidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B09DA8483113CAF4C6ED0DA /* SettingsSidebarItem.swift */; };
 		1DBA41A13007EBB6707D87C4 /* AnalyticsServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28ACE7F763DF887D6EE893C /* AnalyticsServiceTests.swift */; };
 		1F0DF73DFB7C80D7255E5730 /* CapturePanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E7982703EC6D0302F17A37 /* CapturePanelController.swift */; };
@@ -166,6 +167,7 @@
 		F31D9C369432E23265705FD8 /* SettingsGroupDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D6DB42BC146CA3B8533D1C3 /* SettingsGroupDivider.swift */; };
 		F3B98F6DF2F7372C28F9D70E /* StackPanelBackdropRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */; };
 		F4EAAB1A49A7BA9D57C83C0D /* CapturePanelAppearanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4D1168DA7714A429C346DC /* CapturePanelAppearanceTests.swift */; };
+		F5C86E116D77F2DD9735E7E6 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 96E75520350F17C92A75D956 /* Sparkle */; };
 		F7A44D600DBBF710CF2DAA83 /* AppearanceSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979ACA5A43213CAAE3000BE3 /* AppearanceSettingsModel.swift */; };
 		F820D4D247C1C6EC6D281F92 /* StackReadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90160A84A102945F4E0E99D3 /* StackReadService.swift */; };
 		F865250BDAC517625A471DE3 /* AppDelegateCloudSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7725BE080119E0BE4B98883 /* AppDelegateCloudSyncTests.swift */; };
@@ -218,11 +220,13 @@
 		26ACFF12DCE20541229BE3C4 /* StackPanelBackdropRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StackPanelBackdropRecipe.swift; sourceTree = "<group>"; };
 		29E54E69AEF465C0EC9A2699 /* SettingsSemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSemanticTokens.swift; sourceTree = "<group>"; };
 		2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransientScreenshotCache.swift; sourceTree = "<group>"; };
+		2B069D2EB352627811589568 /* UpdateCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCoordinator.swift; sourceTree = "<group>"; };
 		3578175AAD479D3659D72CE5 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		358114AA1F69A493530DB5A7 /* AppModel+CaptureTags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CaptureTags.swift"; sourceTree = "<group>"; };
 		358723B50B0EB526C0C3916D /* DesignSystemWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystemWindowController.swift; sourceTree = "<group>"; };
 		35FB81673343C38C9F3E992F /* CloudSyncSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncSettingsTests.swift; sourceTree = "<group>"; };
 		36F9CE543A7C554726FB056C /* LaunchAtLoginSettingsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginSettingsModel.swift; sourceTree = "<group>"; };
+		3786BCE705B870292BBEC885 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3823DFD1C47FC69FFB8F69A9 /* CardRetentionSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardRetentionSettingsTests.swift; sourceTree = "<group>"; };
 		3830229369DD9D1FB13025A9 /* ManagedScreenshotAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagedScreenshotAccess.swift; sourceTree = "<group>"; };
 		3A1A35DDD4DE852B69D3DA9D /* SemanticTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticTokens.swift; sourceTree = "<group>"; };
@@ -374,6 +378,7 @@
 				361D934FC4E08154C82C96C5 /* GRDB in Frameworks */,
 				56447FA1D5E295B63DB42DCA /* KeyboardShortcuts in Frameworks */,
 				B32949D089F173729F4A6F4D /* TelemetryDeck in Frameworks */,
+				F5C86E116D77F2DD9735E7E6 /* Sparkle in Frameworks */,
 				8D56CBCE8F246B624E2EB82B /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -467,6 +472,7 @@
 		55A1BA512B3A1905C478BE80 /* PromptCue */ = {
 			isa = PBXGroup;
 			children = (
+				3786BCE705B870292BBEC885 /* Info.plist */,
 				73CC45527540F4E64392E1C7 /* PrivacyInfo.xcprivacy */,
 				F792E0662541E86F69E0A48A /* PromptCue.entitlements */,
 				EB359B8DD0315E87935B397D /* PromptCueDev.entitlements */,
@@ -507,6 +513,7 @@
 				90160A84A102945F4E0E99D3 /* StackReadService.swift */,
 				F1FABC33B332039515080670 /* StackWriteService.swift */,
 				2ABC3CC7704E03CAB7D3959F /* TransientScreenshotCache.swift */,
+				2B069D2EB352627811589568 /* UpdateCoordinator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -777,6 +784,7 @@
 				5093C622943529B76FA5DD5C /* GRDB */,
 				27D0ADD95BEDD435CC0EAE9D /* KeyboardShortcuts */,
 				445DFFC957787C3E4B30A005 /* TelemetryDeck */,
+				96E75520350F17C92A75D956 /* Sparkle */,
 			);
 			productName = PromptCue;
 			productReference = BFFA8B21D5818DC4A6138C6E /* PromptCue.app */;
@@ -805,6 +813,7 @@
 			packageReferences = (
 				48DD230977FC6A7D5557BB14 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				3A892BF127A2B4435F71B6DD /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
+				96A34A87A160551D1B180EC6 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				8CDE0DD9B7D10B230BE8CB52 /* XCRemoteSwiftPackageReference "SwiftSDK" */,
 				27512798E8D9D94907A50C41 /* XCLocalSwiftPackageReference "." */,
 			);
@@ -1055,6 +1064,7 @@
 				F14864F9658354DF6E5906BB /* StackWriteService.swift in Sources */,
 				A3B388733B91B624F0344F36 /* TopEdgeStrokeOverlay.swift in Sources */,
 				9FDC842CD22533DEF3817216 /* TransientScreenshotCache.swift in Sources */,
+				1A8469C1EC42823F6C1E2D93 /* UpdateCoordinator.swift in Sources */,
 				E45BAF6D8F909939C646162D /* VisualEffectBackdrop.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1076,12 +1086,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
-				INFOPLIST_KEY_CFBundleName = Backtick;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PromptCue/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1102,12 +1108,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
-				INFOPLIST_KEY_CFBundleName = Backtick;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PromptCue/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1127,12 +1129,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
-				INFOPLIST_KEY_CFBundleName = Backtick;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PromptCue/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1402,12 +1400,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 11;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Backtick;
-				INFOPLIST_KEY_CFBundleName = Backtick;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHighResolutionCapable = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = PromptCue/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -1555,6 +1549,14 @@
 				minimumVersion = 2.0.0;
 			};
 		};
+		96A34A87A160551D1B180EC6 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.7.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -1586,6 +1588,11 @@
 		72E63F66D51437F9424F0BB5 /* PromptCueCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PromptCueCore;
+		};
+		96E75520350F17C92A75D956 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 96A34A87A160551D1B180EC6 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		AFC3CC710569DFF516D4E39C /* PromptCueCore */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -17,6 +17,11 @@ OUT_PATH=""
 VALIDATION_MODE="unsigned-ci"
 NOTARY_LOG=""
 GATEKEEPER_LOG=""
+SPARKLE_ARCHIVE_PATH=""
+SPARKLE_APPCAST_PATH=""
+SPARKLE_FEED_URL=""
+SPARKLE_DOWNLOAD_PREFIX=""
+SPARKLE_RELEASE_URL=""
 
 print_usage() {
   cat <<'EOF'
@@ -35,6 +40,12 @@ Options:
   --out PATH                 Metadata JSON output path
   --validation-mode NAME     Metadata label for the current lane
                              (default: unsigned-ci)
+  --sparkle-archive PATH     Optional Sparkle update archive path
+  --sparkle-appcast PATH     Optional generated Sparkle appcast path
+  --sparkle-feed-url URL     Optional published Sparkle appcast URL
+  --sparkle-download-prefix URL
+                             Optional download URL prefix used for Sparkle archives
+  --sparkle-release-url URL  Optional GitHub release URL used by Sparkle items
   --help                     Show this help
 EOF
 }
@@ -113,6 +124,31 @@ while [[ $# -gt 0 ]]; do
       VALIDATION_MODE="$2"
       shift 2
       ;;
+    --sparkle-archive)
+      [[ $# -ge 2 ]] || fail "--sparkle-archive requires a value"
+      SPARKLE_ARCHIVE_PATH="$2"
+      shift 2
+      ;;
+    --sparkle-appcast)
+      [[ $# -ge 2 ]] || fail "--sparkle-appcast requires a value"
+      SPARKLE_APPCAST_PATH="$2"
+      shift 2
+      ;;
+    --sparkle-feed-url)
+      [[ $# -ge 2 ]] || fail "--sparkle-feed-url requires a value"
+      SPARKLE_FEED_URL="$2"
+      shift 2
+      ;;
+    --sparkle-download-prefix)
+      [[ $# -ge 2 ]] || fail "--sparkle-download-prefix requires a value"
+      SPARKLE_DOWNLOAD_PREFIX="$2"
+      shift 2
+      ;;
+    --sparkle-release-url)
+      [[ $# -ge 2 ]] || fail "--sparkle-release-url requires a value"
+      SPARKLE_RELEASE_URL="$2"
+      shift 2
+      ;;
     --help)
       print_usage
       exit 0
@@ -142,6 +178,12 @@ fi
 if [[ -n "${GATEKEEPER_LOG}" ]]; then
   GATEKEEPER_LOG="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${GATEKEEPER_LOG}")"
 fi
+if [[ -n "${SPARKLE_ARCHIVE_PATH}" ]]; then
+  SPARKLE_ARCHIVE_PATH="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${SPARKLE_ARCHIVE_PATH}")"
+fi
+if [[ -n "${SPARKLE_APPCAST_PATH}" ]]; then
+  SPARKLE_APPCAST_PATH="$(python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "${SPARKLE_APPCAST_PATH}")"
+fi
 
 APP_INFO_PLIST="${APP_PATH}/Contents/Info.plist"
 [[ -f "${APP_INFO_PLIST}" ]] || fail "app Info.plist does not exist: ${APP_INFO_PLIST}"
@@ -159,6 +201,10 @@ HELPER_SHA256="$(sha256_of "${HELPER_PATH}")"
 ARTIFACT_SHA256=""
 if [[ -n "${ARTIFACT_PATH}" ]]; then
   ARTIFACT_SHA256="$(sha256_of "${ARTIFACT_PATH}")"
+fi
+SPARKLE_ARCHIVE_SHA256=""
+if [[ -n "${SPARKLE_ARCHIVE_PATH}" ]]; then
+  SPARKLE_ARCHIVE_SHA256="$(sha256_of "${SPARKLE_ARCHIVE_PATH}")"
 fi
 
 HELPER_FILE_OUTPUT=""
@@ -188,6 +234,8 @@ export APP_PATH ARCHIVE_PATH ARTIFACT_PATH VALIDATION_REPORT DISPLAY_NAME BUNDLE
 export MARKETING_VERSION BUILD_VERSION EXECUTABLE_NAME APP_BINARY_PATH APP_BINARY_SHA256
 export HELPER_PATH HELPER_FILE_OUTPUT HELPER_ARCHES HELPER_SHA256 ARTIFACT_SHA256
 export APP_SIGNED HELPER_SIGNED NOTARY_LOG GATEKEEPER_LOG
+export SPARKLE_ARCHIVE_PATH SPARKLE_ARCHIVE_SHA256 SPARKLE_APPCAST_PATH
+export SPARKLE_FEED_URL SPARKLE_DOWNLOAD_PREFIX SPARKLE_RELEASE_URL
 
 python3 - "${OUT_PATH}" <<'PY'
 import json
@@ -246,6 +294,14 @@ payload = {
     "artifact": {
         "path": maybe(os.environ.get("ARTIFACT_PATH")),
         "sha256": maybe(os.environ.get("ARTIFACT_SHA256")),
+    },
+    "sparkle": {
+        "archive_path": maybe(os.environ.get("SPARKLE_ARCHIVE_PATH")),
+        "archive_sha256": maybe(os.environ.get("SPARKLE_ARCHIVE_SHA256")),
+        "appcast_path": maybe(os.environ.get("SPARKLE_APPCAST_PATH")),
+        "feed_url": maybe(os.environ.get("SPARKLE_FEED_URL")),
+        "download_prefix": maybe(os.environ.get("SPARKLE_DOWNLOAD_PREFIX")),
+        "release_url": maybe(os.environ.get("SPARKLE_RELEASE_URL")),
     },
     "validation_report_path": maybe(os.environ.get("VALIDATION_REPORT")),
     "notarization": {

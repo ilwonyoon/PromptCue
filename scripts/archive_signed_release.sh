@@ -457,6 +457,39 @@ rm -rf "${EXPORTED_APP_PATH}" "${SUBMISSION_ZIP_PATH}" "${FINAL_ZIP_PATH}" "${FI
 rm -rf "${SPARKLE_FEED_ROOT}"
 
 run ditto "${ARCHIVE_APP_PATH}" "${EXPORTED_APP_PATH}"
+
+# Re-sign embedded Sparkle framework binaries with Developer ID + secure timestamp.
+# SPM binary xcframeworks ship with Sparkle's own signature, which Apple rejects
+# during notarization because it is not a Developer ID certificate.
+SPARKLE_FW="${EXPORTED_APP_PATH}/Contents/Frameworks/Sparkle.framework"
+if [[ -d "${SPARKLE_FW}" ]]; then
+  echo "Re-signing Sparkle framework with ${SIGNING_LABEL}"
+
+  # Sign XPC services first (innermost)
+  while IFS= read -r -d '' xpc; do
+    run codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${xpc}"
+  done < <(find "${SPARKLE_FW}" -name '*.xpc' -print0)
+
+  # Sign nested apps (e.g. Updater.app)
+  while IFS= read -r -d '' app; do
+    run codesign --force --deep --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${app}"
+  done < <(find "${SPARKLE_FW}" -name '*.app' -print0)
+
+  # Sign standalone executables (e.g. Autoupdate)
+  while IFS= read -r -d '' bin; do
+    [[ -f "${bin}" && -x "${bin}" ]] || continue
+    file "${bin}" | grep -q "Mach-O" || continue
+    run codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${bin}"
+  done < <(find "${SPARKLE_FW}/Versions/B" -maxdepth 1 -type f -print0)
+
+  # Sign the framework itself
+  run codesign --force --options runtime --timestamp \
+    --sign "${SIGNING_REFERENCE}" "${SPARKLE_FW}"
+fi
+
 run ditto -c -k --sequesterRsrc --keepParent "${EXPORTED_APP_PATH}" "${SUBMISSION_ZIP_PATH}"
 run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
   --archive "${ARCHIVE_PATH}" \

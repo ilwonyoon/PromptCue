@@ -248,7 +248,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: signed-release-${{ github.ref_name }}
+          name: signed-release-${{ github.sha }}
           if-no-files-found: warn
           path: |
             ${{ env.OUTPUT_ROOT }}/*.dmg

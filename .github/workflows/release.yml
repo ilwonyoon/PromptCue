@@ -39,8 +39,6 @@ jobs:
       KEYCHAIN_NAME: backtick-release-${{ github.run_id }}.keychain
       KEYCHAIN_PASSWORD: backtick-ci-${{ github.run_id }}
       OUTPUT_ROOT: build/signed-release
-      NOTARY_KEY_PATH: ${{ runner.temp }}/notary-api-key.p8
-
     steps:
       # -----------------------------------------------------------------------
       # 1. Checkout full history (needed for git describe / Sparkle release URL)
@@ -115,10 +113,10 @@ jobs:
           KEY_ISSUER: ${{ secrets.NOTARY_API_KEY_ISSUER }}
           KEY_CONTENT_BASE64: ${{ secrets.NOTARY_API_KEY_CONTENT }}
         run: |
-          echo "$KEY_CONTENT_BASE64" | base64 --decode > "$NOTARY_KEY_PATH"
+          echo "$KEY_CONTENT_BASE64" | base64 --decode > "$RUNNER_TEMP/notary-api-key.p8"
 
           xcrun notarytool store-credentials backtick-notary \
-            --key "$NOTARY_KEY_PATH" \
+            --key "$RUNNER_TEMP/notary-api-key.p8" \
             --key-id "$KEY_ID" \
             --issuer "$KEY_ISSUER" \
             --keychain "$KEYCHAIN_NAME"
@@ -276,7 +274,7 @@ jobs:
           security list-keychains -d user -s ~/Library/Keychains/login.keychain-db 2>/dev/null || true
 
           # Scrub credential files
-          rm -f "$NOTARY_KEY_PATH"
+          rm -f "$RUNNER_TEMP/notary-api-key.p8"
           rm -f Config/Local.xcconfig
 
           # Scrub the notary submission zip (contains the full app bundle)

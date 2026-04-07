@@ -75,6 +75,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let retentionSettingsModel: CardRetentionSettingsModel
     private let cloudSyncSettingsModel: CloudSyncSettingsModel
     private let mcpConnectorSettingsModel: MCPConnectorSettingsModel
+    private let updateCoordinator: UpdateCoordinator
     private let navigationModel = SettingsNavigationModel()
     init(
         screenshotSettingsModel: ScreenshotSettingsModel,
@@ -82,7 +83,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        mcpConnectorSettingsModel: MCPConnectorSettingsModel
+        mcpConnectorSettingsModel: MCPConnectorSettingsModel,
+        updateCoordinator: UpdateCoordinator
     ) {
         self.screenshotSettingsModel = screenshotSettingsModel
         self.launchAtLoginSettingsModel = launchAtLoginSettingsModel
@@ -90,6 +92,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
+        self.updateCoordinator = updateCoordinator
         super.init()
     }
 
@@ -288,7 +291,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             exportTailSettingsModel: exportTailSettingsModel,
             retentionSettingsModel: retentionSettingsModel,
             cloudSyncSettingsModel: cloudSyncSettingsModel,
-            mcpConnectorSettingsModel: mcpConnectorSettingsModel
+            mcpConnectorSettingsModel: mcpConnectorSettingsModel,
+            updateCoordinator: updateCoordinator
         )
     }
 

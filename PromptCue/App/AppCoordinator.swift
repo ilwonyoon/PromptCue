@@ -38,7 +38,8 @@ final class AppCoordinator: AppLifecycleCoordinating {
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,
-        mcpConnectorSettingsModel: mcpConnectorSettingsModel
+        mcpConnectorSettingsModel: mcpConnectorSettingsModel,
+        updateCoordinator: updateCoordinator
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?

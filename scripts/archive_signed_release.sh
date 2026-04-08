@@ -501,6 +501,7 @@ run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
 run_to_file "${NOTARY_LOG_PATH}" xcrun notarytool submit "${SUBMISSION_ZIP_PATH}" \
   --keychain-profile "${NOTARY_PROFILE}" \
   --wait \
+  --timeout 10m \
   --output-format json
 
 NOTARY_STATUS="$(notary_status_from_log "${NOTARY_LOG_PATH}")"

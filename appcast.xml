@@ -1,0 +1,16 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Backtick</title>
+        <item>
+            <title>0.1.0</title>
+            <pubDate>Thu, 09 Apr 2026 06:27:03 +0000</pubDate>
+            <link>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-11</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-11</sparkle:fullReleaseNotesLink>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/ilwonyoon/Backtick/releases/download/Backtick-0.1.0-11.zip" length="12638716" type="application/octet-stream" sparkle:edSignature="lDV4uHH+xV92Nfvj5g0k+O3A25w16TDXCVOjYBD2x5LeCStsSpwfLfxgr4QDqDvII9u6oHIPiRzE0z3qutm7Bw=="/>
+        </item>
+    </channel>
+</rss>

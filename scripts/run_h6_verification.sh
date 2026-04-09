@@ -76,12 +76,17 @@ has_signed_release_credentials() {
   local signing_identity=""
   local team_id=""
   local notary_profile=""
+  local sparkle_public_ed_key=""
+  local sparkle_key_account=""
   local auto_signing_sha=""
 
   signing_sha="$(read_local_config_value PROMPTCUE_RELEASE_SIGNING_SHA1)"
   signing_identity="$(read_local_config_value PROMPTCUE_RELEASE_SIGNING_IDENTITY)"
   team_id="$(read_local_config_value PROMPTCUE_RELEASE_TEAM_ID)"
   notary_profile="$(read_local_config_value PROMPTCUE_RELEASE_NOTARY_PROFILE)"
+  sparkle_public_ed_key="$(read_local_config_value PROMPTCUE_SPARKLE_PUBLIC_ED_KEY)"
+  sparkle_key_account="$(read_local_config_value PROMPTCUE_SPARKLE_KEY_ACCOUNT)"
+  [[ -n "${sparkle_key_account}" ]] || sparkle_key_account="backtick"
 
   if [[ -z "${signing_sha}" && -z "${signing_identity}" ]]; then
     auto_signing_sha="$(
@@ -92,7 +97,9 @@ has_signed_release_credentials() {
 
   [[ -n "${signing_sha}" || -n "${signing_identity}" || -n "${auto_signing_sha}" ]] \
     && [[ -n "${team_id}" ]] \
-    && [[ -n "${notary_profile}" ]]
+    && [[ -n "${notary_profile}" ]] \
+    && [[ -n "${sparkle_public_ed_key}" ]] \
+    && security find-generic-password -s https://sparkle-project.org -a "${sparkle_key_account}" >/dev/null 2>&1
 }
 
 while [[ $# -gt 0 ]]; do

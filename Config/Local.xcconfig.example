@@ -15,3 +15,8 @@ PROMPTCUE_RELEASE_SIGNING_SHA1 = YOUR_DEVELOPER_ID_APPLICATION_SHA1
 PROMPTCUE_RELEASE_SIGNING_IDENTITY = Developer ID Application: Example Name (TEAMID1234)
 PROMPTCUE_RELEASE_TEAM_ID = TEAMID1234
 PROMPTCUE_RELEASE_NOTARY_PROFILE = backtick-release
+
+// Sparkle release configuration. The public EdDSA key is not secret, but can
+// stay local until the first updater lane is ready to ship.
+PROMPTCUE_SPARKLE_KEY_ACCOUNT = backtick
+PROMPTCUE_SPARKLE_PUBLIC_ED_KEY = YOUR_BASE64_PUBLIC_ED25519_KEY

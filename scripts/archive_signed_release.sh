@@ -23,6 +23,7 @@ SIGNING_SHA1=""
 SIGNING_IDENTITY=""
 TEAM_ID=""
 NOTARY_PROFILE=""
+SPARKLE_KEY_ACCOUNT=""
 
 DERIVED_DATA_PATH=""
 SOURCE_PACKAGES_DIR=""
@@ -39,6 +40,15 @@ NOTARY_LOG_PATH=""
 GATEKEEPER_LOG_PATH=""
 CHECKSUM_PATH=""
 TEMP_WORK_ROOT=""
+SPARKLE_FEED_ROOT=""
+SPARKLE_ARCHIVE_PATH=""
+SPARKLE_APPCAST_PATH=""
+SPARKLE_FEED_URL=""
+SPARKLE_PUBLIC_ED_KEY=""
+SPARKLE_ENABLED="NO"
+RELEASE_TAG=""
+RELEASE_URL=""
+DOWNLOAD_URL_PREFIX=""
 
 print_usage() {
   cat <<'EOF'
@@ -76,6 +86,8 @@ Supported Config/Local.xcconfig keys:
   PROMPTCUE_RELEASE_SIGNING_IDENTITY
   PROMPTCUE_RELEASE_TEAM_ID
   PROMPTCUE_RELEASE_NOTARY_PROFILE
+  PROMPTCUE_SPARKLE_KEY_ACCOUNT
+  PROMPTCUE_SPARKLE_PUBLIC_ED_KEY
 EOF
 }
 
@@ -194,11 +206,15 @@ resolve_release_credentials() {
   if [[ -z "${NOTARY_PROFILE}" ]]; then
     NOTARY_PROFILE="$(read_local_config_value PROMPTCUE_RELEASE_NOTARY_PROFILE)"
   fi
+  if [[ -z "${SPARKLE_KEY_ACCOUNT}" ]]; then
+    SPARKLE_KEY_ACCOUNT="$(read_local_config_value PROMPTCUE_SPARKLE_KEY_ACCOUNT)"
+  fi
 
   resolve_signing_reference
 
   [[ -n "${TEAM_ID}" ]] || fail "missing Apple Team ID; set PROMPTCUE_RELEASE_TEAM_ID in Config/Local.xcconfig or pass --team-id"
   [[ -n "${NOTARY_PROFILE}" ]] || fail "missing notarytool profile; set PROMPTCUE_RELEASE_NOTARY_PROFILE in Config/Local.xcconfig or pass --notary-profile"
+  [[ -n "${SPARKLE_KEY_ACCOUNT}" ]] || SPARKLE_KEY_ACCOUNT="backtick"
 }
 
 ensure_clean_worktree() {
@@ -215,6 +231,21 @@ slugify() {
     | tr '[:space:]/' '--' \
     | tr -cd '[:alnum:]._-' \
     | sed -E 's/-+/-/g; s/^-//; s/-$//'
+}
+
+github_repo_slug() {
+  local remote_url="$1"
+
+  python3 - "${remote_url}" <<'PY'
+import re
+import sys
+
+url = sys.argv[1].strip()
+match = re.search(r'github\.com[:/](?P<slug>[^/]+/[^/.]+)(?:\.git)?$', url)
+if not match:
+    raise SystemExit(1)
+print(match.group("slug"))
+PY
 }
 
 notary_status_from_log() {
@@ -392,10 +423,18 @@ DISPLAY_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "${APP_I
 MARKETING_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${APP_INFO_PLIST}" 2>/dev/null || true)"
 BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${APP_INFO_PLIST}" 2>/dev/null || true)"
 APP_BUNDLE_NAME="$(basename "${ARCHIVE_APP_PATH}")"
+SPARKLE_ENABLED="$(/usr/libexec/PlistBuddy -c 'Print :BacktickSparkleEnabled' "${APP_INFO_PLIST}" 2>/dev/null || true)"
+SPARKLE_FEED_URL="$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "${APP_INFO_PLIST}" 2>/dev/null || true)"
+SPARKLE_PUBLIC_ED_KEY="$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "${APP_INFO_PLIST}" 2>/dev/null || true)"
 
 [[ -n "${DISPLAY_NAME}" ]] || DISPLAY_NAME="${APP_BUNDLE_NAME%.app}"
 [[ -n "${MARKETING_VERSION}" ]] || fail "CFBundleShortVersionString is missing from ${APP_INFO_PLIST}"
 [[ -n "${BUILD_VERSION}" ]] || fail "CFBundleVersion is missing from ${APP_INFO_PLIST}"
+
+if [[ "${SPARKLE_ENABLED}" == "YES" ]]; then
+  [[ -n "${SPARKLE_FEED_URL}" ]] || fail "Sparkle is enabled but SUFeedURL is missing from ${APP_INFO_PLIST}"
+  [[ -n "${SPARKLE_PUBLIC_ED_KEY}" ]] || fail "Sparkle is enabled but SUPublicEDKey is missing from ${APP_INFO_PLIST}; set PROMPTCUE_SPARKLE_PUBLIC_ED_KEY in Config/Local.xcconfig"
+fi
 
 if [[ -z "${ARTIFACT_BASENAME}" ]]; then
   ARTIFACT_BASENAME="$(slugify "${DISPLAY_NAME}")"
@@ -409,10 +448,48 @@ SUBMISSION_ZIP_PATH="${OUTPUT_ROOT}/notary-submit.zip"
 FINAL_ZIP_PATH="${OUTPUT_ROOT}/${ARTIFACT_BASENAME}-${MARKETING_VERSION}-${BUILD_VERSION}.zip"
 FINAL_DMG_PATH="${OUTPUT_ROOT}/${ARTIFACT_BASENAME}-${MARKETING_VERSION}-${BUILD_VERSION}.dmg"
 CHECKSUM_PATH="${OUTPUT_ROOT}/${ARTIFACT_BASENAME}-${MARKETING_VERSION}-${BUILD_VERSION}.sha256.txt"
+SPARKLE_FEED_ROOT="${OUTPUT_ROOT}/sparkle"
+SPARKLE_APPCAST_PATH="${SPARKLE_FEED_ROOT}/appcast.xml"
+SPARKLE_ARCHIVE_PATH="${SPARKLE_FEED_ROOT}/${ARTIFACT_BASENAME}-${MARKETING_VERSION}-${BUILD_VERSION}.zip"
+RELEASE_TAG="v${MARKETING_VERSION}-${BUILD_VERSION}"
 
 rm -rf "${EXPORTED_APP_PATH}" "${SUBMISSION_ZIP_PATH}" "${FINAL_ZIP_PATH}" "${FINAL_DMG_PATH}" "${CHECKSUM_PATH}"
+rm -rf "${SPARKLE_FEED_ROOT}"
 
 run ditto "${ARCHIVE_APP_PATH}" "${EXPORTED_APP_PATH}"
+
+# Re-sign embedded Sparkle framework binaries with Developer ID + secure timestamp.
+# SPM binary xcframeworks ship with Sparkle's own signature, which Apple rejects
+# during notarization because it is not a Developer ID certificate.
+SPARKLE_FW="${EXPORTED_APP_PATH}/Contents/Frameworks/Sparkle.framework"
+if [[ -d "${SPARKLE_FW}" ]]; then
+  echo "Re-signing Sparkle framework with ${SIGNING_LABEL}"
+
+  # Sign XPC services first (innermost)
+  while IFS= read -r -d '' xpc; do
+    run codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${xpc}"
+  done < <(find "${SPARKLE_FW}" -name '*.xpc' -print0)
+
+  # Sign nested apps (e.g. Updater.app)
+  while IFS= read -r -d '' app; do
+    run codesign --force --deep --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${app}"
+  done < <(find "${SPARKLE_FW}" -name '*.app' -print0)
+
+  # Sign standalone executables (e.g. Autoupdate)
+  while IFS= read -r -d '' bin; do
+    [[ -f "${bin}" && -x "${bin}" ]] || continue
+    file "${bin}" | grep -q "Mach-O" || continue
+    run codesign --force --options runtime --timestamp \
+      --sign "${SIGNING_REFERENCE}" "${bin}"
+  done < <(find "${SPARKLE_FW}/Versions/B" -maxdepth 1 -type f -print0)
+
+  # Sign the framework itself
+  run codesign --force --options runtime --timestamp \
+    --sign "${SIGNING_REFERENCE}" "${SPARKLE_FW}"
+fi
+
 run ditto -c -k --sequesterRsrc --keepParent "${EXPORTED_APP_PATH}" "${SUBMISSION_ZIP_PATH}"
 run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
   --archive "${ARCHIVE_PATH}" \
@@ -424,6 +501,7 @@ run "${PROJECT_ROOT}/scripts/validate_release_artifact.sh" \
 run_to_file "${NOTARY_LOG_PATH}" xcrun notarytool submit "${SUBMISSION_ZIP_PATH}" \
   --keychain-profile "${NOTARY_PROFILE}" \
   --wait \
+  --timeout 10m \
   --output-format json
 
 NOTARY_STATUS="$(notary_status_from_log "${NOTARY_LOG_PATH}")"
@@ -481,6 +559,23 @@ esac
 
 [[ -n "${PRIMARY_ARTIFACT_PATH}" ]] || fail "primary artifact path was not produced"
 
+mkdir -p "${SPARKLE_FEED_ROOT}"
+run ditto -c -k --sequesterRsrc --keepParent "${EXPORTED_APP_PATH}" "${SPARKLE_ARCHIVE_PATH}"
+
+if [[ "${SPARKLE_ENABLED}" == "YES" ]]; then
+  REPO_SLUG="$(github_repo_slug "$(git -C "${PROJECT_ROOT}" remote get-url origin)")" \
+    || fail "unable to determine GitHub repository slug from origin remote"
+  DOWNLOAD_URL_PREFIX="https://github.com/${REPO_SLUG}/releases/download/${RELEASE_TAG}"
+  RELEASE_URL="https://github.com/${REPO_SLUG}/releases/tag/${RELEASE_TAG}"
+  run "${PROJECT_ROOT}/scripts/generate_sparkle_appcast.sh" \
+    --source-packages-dir "${SOURCE_PACKAGES_DIR}" \
+    --archives-dir "${SPARKLE_FEED_ROOT}" \
+    --download-url-prefix "${DOWNLOAD_URL_PREFIX}" \
+    --release-url "${RELEASE_URL}" \
+    --key-account "${SPARKLE_KEY_ACCOUNT}" \
+    --output-path "${SPARKLE_APPCAST_PATH}"
+fi
+
 run_to_file "${CHECKSUM_PATH}" shasum -a 256 "${PRIMARY_ARTIFACT_PATH}"
 run "${PROJECT_ROOT}/scripts/write_release_metadata.sh" \
   --archive "${ARCHIVE_PATH}" \
@@ -489,6 +584,11 @@ run "${PROJECT_ROOT}/scripts/write_release_metadata.sh" \
   --validation-report "${VALIDATION_REPORT_PATH}" \
   --notary-log "${NOTARY_LOG_PATH}" \
   --gatekeeper-log "${GATEKEEPER_LOG_PATH}" \
+  --sparkle-archive "${SPARKLE_ARCHIVE_PATH}" \
+  --sparkle-appcast "${SPARKLE_APPCAST_PATH}" \
+  --sparkle-feed-url "${SPARKLE_FEED_URL}" \
+  --sparkle-download-prefix "${DOWNLOAD_URL_PREFIX}" \
+  --sparkle-release-url "${RELEASE_URL}" \
   --validation-mode developer-id-notarized \
   --out "${METADATA_PATH}"
 
@@ -500,6 +600,12 @@ if [[ -f "${FINAL_ZIP_PATH}" ]]; then
 fi
 if [[ -f "${FINAL_DMG_PATH}" ]]; then
   echo "Final dmg:         ${FINAL_DMG_PATH}"
+fi
+if [[ -f "${SPARKLE_ARCHIVE_PATH}" ]]; then
+  echo "Sparkle archive:   ${SPARKLE_ARCHIVE_PATH}"
+fi
+if [[ -f "${SPARKLE_APPCAST_PATH}" ]]; then
+  echo "Sparkle appcast:   ${SPARKLE_APPCAST_PATH}"
 fi
 echo "Primary artifact:  ${PRIMARY_ARTIFACT_PATH}"
 echo "Validation report: ${VALIDATION_REPORT_PATH}"

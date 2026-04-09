@@ -19,6 +19,7 @@ final class AppCoordinator: AppLifecycleCoordinating {
     private let retentionSettingsModel = CardRetentionSettingsModel()
     private let cloudSyncSettingsModel = CloudSyncSettingsModel()
     private let mcpConnectorSettingsModel = MCPConnectorSettingsModel()
+    private let updateCoordinator = UpdateCoordinator()
     private let environment = AppEnvironment.current
     private lazy var capturePanelController = CapturePanelController(model: model)
     private lazy var stackPanelController = StackPanelController(
@@ -37,7 +38,8 @@ final class AppCoordinator: AppLifecycleCoordinating {
         exportTailSettingsModel: exportTailSettingsModel,
         retentionSettingsModel: retentionSettingsModel,
         cloudSyncSettingsModel: cloudSyncSettingsModel,
-        mcpConnectorSettingsModel: mcpConnectorSettingsModel
+        mcpConnectorSettingsModel: mcpConnectorSettingsModel,
+        updateCoordinator: updateCoordinator
     )
     private var statusItem: NSStatusItem?
     private var pendingStackToggleTask: Task<Void, Never>?
@@ -295,6 +297,9 @@ final class AppCoordinator: AppLifecycleCoordinating {
         menu.addItem(toggleMemoryItem)
 
         menu.addItem(.separator())
+        if updateCoordinator.availability == .available {
+            menu.addItem(NSMenuItem(title: "Check for Updates…", action: #selector(handleCheckForUpdates), keyEquivalent: ""))
+        }
         menu.addItem(NSMenuItem(title: "Settings…", action: #selector(handleOpenSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Quit Backtick", action: #selector(handleQuit), keyEquivalent: "q"))
 
@@ -326,6 +331,10 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
     @objc private func handleOpenSettings() {
         showSettingsWindow()
+    }
+
+    @objc private func handleCheckForUpdates() {
+        updateCoordinator.checkForUpdates()
     }
 
     @objc private func handleToggleMemory() {

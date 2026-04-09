@@ -1,0 +1,308 @@
+# Release workflow for Backtick (PromptCue)
+#
+# Triggered by pushing a version tag (e.g. v0.1.0-11).
+#
+# Required repository secrets:
+#   DEVELOPER_ID_CERT_P12        — base64-encoded Developer ID Application .p12 (cert + private key)
+#   DEVELOPER_ID_CERT_PASSWORD   — password for the .p12 file
+#   NOTARY_API_KEY_ID            — App Store Connect API key ID
+#   NOTARY_API_KEY_ISSUER        — App Store Connect API issuer UUID
+#   NOTARY_API_KEY_CONTENT       — base64-encoded .p8 API key content
+#   SPARKLE_PRIVATE_KEY          — Sparkle Ed25519 private key
+#                                  (output of `generate_keys --export-secret-key`)
+#   SPARKLE_PUBLIC_ED_KEY        — Sparkle Ed25519 public key string
+#                                  e.g. iorAgfRRHC+qXOCE2CcwX45IZROrED76iRsNv6BMv94=
+#
+# Required repository / environment permissions:
+#   contents: write   — create GitHub Releases and push to gh-pages
+#   pages: write      — (optional; contents:write covers branch push)
+#   id-token: write   — (none required for this workflow)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Archive, Sign, Notarize & Publish
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+
+    env:
+      # Reusable paths
+      KEYCHAIN_PATH: ${{ github.workspace }}/../backtick-release-${{ github.run_id }}.keychain
+      KEYCHAIN_PASSWORD: backtick-ci-${{ github.run_id }}
+      OUTPUT_ROOT: build/signed-release
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout full history (needed for git describe / Sparkle release URL)
+      # -----------------------------------------------------------------------
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # 2. Tooling
+      # -----------------------------------------------------------------------
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # -----------------------------------------------------------------------
+      # 3. Tests (fast package-level tests; no signing required)
+      # -----------------------------------------------------------------------
+      - name: Run package tests
+        run: swift test
+
+      # -----------------------------------------------------------------------
+      # 4. Generate Xcode project from project.yml
+      # -----------------------------------------------------------------------
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # -----------------------------------------------------------------------
+      # 5. Import Developer ID signing certificate into a temporary keychain
+      # -----------------------------------------------------------------------
+      - name: Create temporary keychain
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 7200 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add temporary keychain to the search list alongside the login keychain
+          EXISTING=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING
+
+      - name: Import Developer ID certificate
+        env:
+          P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          P12_PATH="$RUNNER_TEMP/developer-id.p12"
+          echo "$P12_BASE64" | base64 --decode > "$P12_PATH"
+
+          security import "$P12_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          # Allow codesign to use the key without UI prompts
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          rm -f "$P12_PATH"
+
+      # -----------------------------------------------------------------------
+      # 6. Install provisioning profile
+      # -----------------------------------------------------------------------
+      - name: Install provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_UUID: ${{ secrets.PROVISIONING_PROFILE_UUID }}
+        run: |
+          PROFILES_DIR="$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          echo "$PROFILE_BASE64" | base64 --decode > "$PROFILES_DIR/${PROFILE_UUID}.provisionprofile"
+
+      # -----------------------------------------------------------------------
+      # 7. Store notarytool API key credentials in the keychain
+      # -----------------------------------------------------------------------
+      - name: Store notarytool credentials
+        env:
+          KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          KEY_ISSUER: ${{ secrets.NOTARY_API_KEY_ISSUER }}
+          KEY_CONTENT_BASE64: ${{ secrets.NOTARY_API_KEY_CONTENT }}
+        run: |
+          echo "$KEY_CONTENT_BASE64" | base64 --decode > "$RUNNER_TEMP/notary-api-key.p8"
+
+          xcrun notarytool store-credentials backtick-notary \
+            --key "$RUNNER_TEMP/notary-api-key.p8" \
+            --key-id "$KEY_ID" \
+            --issuer "$KEY_ISSUER" \
+            --keychain "$KEYCHAIN_PATH"
+
+          # Keep the .p8 on disk only until the archive script runs;
+          # it is removed in the cleanup step below.
+
+      # -----------------------------------------------------------------------
+      # 7. Import Sparkle Ed25519 private key into the keychain
+      #    Service:  https://sparkle-project.org
+      #    Account:  backtick
+      # -----------------------------------------------------------------------
+      - name: Import Sparkle private key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          # generate_appcast reads the private key from the keychain using the
+          # service/account pair below. Store it as a generic password entry.
+          security add-generic-password \
+            -a "backtick" \
+            -s "https://sparkle-project.org" \
+            -w "$SPARKLE_PRIVATE_KEY" \
+            -U \
+            "$KEYCHAIN_PATH"
+
+          # Allow generate_appcast to access the key without UI prompts
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign:,security: \
+            -s -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+      # -----------------------------------------------------------------------
+      # 8. Write Config/Local.xcconfig with release credentials
+      # -----------------------------------------------------------------------
+      - name: Write Local.xcconfig
+        env:
+          SPARKLE_PUBLIC_ED_KEY: ${{ secrets.SPARKLE_PUBLIC_ED_KEY }}
+        run: |
+          mkdir -p Config
+          cat > Config/Local.xcconfig <<EOF
+          PROMPTCUE_RELEASE_SIGNING_IDENTITY = Developer ID Application: ILWON YOON (LG7667PAS6)
+          PROMPTCUE_RELEASE_TEAM_ID = LG7667PAS6
+          PROMPTCUE_RELEASE_NOTARY_PROFILE = backtick-notary
+          PROMPTCUE_SPARKLE_PUBLIC_ED_KEY = ${SPARKLE_PUBLIC_ED_KEY}
+          PROMPTCUE_SPARKLE_KEY_ACCOUNT = backtick
+          EOF
+          # Strip leading whitespace from heredoc lines (YAML indentation artifact)
+          sed -i '' 's/^[[:space:]]*//' Config/Local.xcconfig
+
+      # -----------------------------------------------------------------------
+      # 9. Archive, sign, notarize, staple, package (zip + dmg), generate
+      #    Sparkle archive and appcast
+      # -----------------------------------------------------------------------
+      - name: Run archive_signed_release.sh
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          SPARKLE_ED_KEY_FILE: ${{ runner.temp }}/sparkle-ed-key.txt
+        run: |
+          echo "$SPARKLE_PRIVATE_KEY" > "$SPARKLE_ED_KEY_FILE"
+          scripts/archive_signed_release.sh \
+            --package-format both \
+            --output-root "$OUTPUT_ROOT" \
+            --allow-dirty \
+            --skip-xcodegen
+          rm -f "$SPARKLE_ED_KEY_FILE"
+
+      # -----------------------------------------------------------------------
+      # 10. Create GitHub Release and upload artifacts
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # Collect artifacts produced by the archive script.
+          # The script names files as <Basename>-<marketing>-<build>.<ext>.
+          ARTIFACTS=()
+          while IFS= read -r -d '' f; do
+            ARTIFACTS+=("$f")
+          done < <(find "$OUTPUT_ROOT" -maxdepth 1 \
+            \( -name '*.dmg' -o -name '*.zip' -o -name '*.sha256.txt' \) \
+            ! -name 'notary-submit.zip' \
+            -print0)
+
+          METADATA="$OUTPUT_ROOT/release-metadata.json"
+          if [[ -f "$METADATA" ]]; then
+            ARTIFACTS+=("$METADATA")
+          fi
+
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            "${ARTIFACTS[@]}"
+
+      # -----------------------------------------------------------------------
+      # 11. Deploy appcast to GitHub Pages (gh-pages branch)
+      # -----------------------------------------------------------------------
+      - name: Deploy appcast to gh-pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APPCAST_SRC="$OUTPUT_ROOT/sparkle/appcast.xml"
+
+          if [[ ! -f "$APPCAST_SRC" ]]; then
+            echo "No appcast.xml found at $APPCAST_SRC — skipping gh-pages deploy."
+            exit 0
+          fi
+
+          GH_PAGES_DIR="$RUNNER_TEMP/gh-pages"
+
+          # Shallow-clone only the gh-pages branch (create it if it doesn't exist)
+          if git ls-remote --exit-code --heads origin gh-pages > /dev/null 2>&1; then
+            git clone --depth 1 --branch gh-pages \
+              "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" \
+              "$GH_PAGES_DIR"
+          else
+            mkdir -p "$GH_PAGES_DIR"
+            git -C "$GH_PAGES_DIR" init
+            git -C "$GH_PAGES_DIR" remote add origin \
+              "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+            git -C "$GH_PAGES_DIR" checkout --orphan gh-pages
+          fi
+
+          cp "$APPCAST_SRC" "$GH_PAGES_DIR/appcast.xml"
+
+          git -C "$GH_PAGES_DIR" config user.name  "github-actions[bot]"
+          git -C "$GH_PAGES_DIR" config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git -C "$GH_PAGES_DIR" add appcast.xml
+          git -C "$GH_PAGES_DIR" commit \
+            --allow-empty \
+            -m "chore: update appcast for ${{ github.ref_name }}"
+
+          git -C "$GH_PAGES_DIR" push origin HEAD:gh-pages
+
+      # -----------------------------------------------------------------------
+      # 12. Upload build artifacts for audit / debugging
+      # -----------------------------------------------------------------------
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-release-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            ${{ env.OUTPUT_ROOT }}/*.dmg
+            ${{ env.OUTPUT_ROOT }}/*.zip
+            ${{ env.OUTPUT_ROOT }}/*.sha256.txt
+            ${{ env.OUTPUT_ROOT }}/release-metadata.json
+            ${{ env.OUTPUT_ROOT }}/release-validation.txt
+            ${{ env.OUTPUT_ROOT }}/archive.log
+            ${{ env.OUTPUT_ROOT }}/notary-log.json
+            ${{ env.OUTPUT_ROOT }}/gatekeeper.log
+            ${{ env.OUTPUT_ROOT }}/sparkle/appcast.xml
+
+      # -----------------------------------------------------------------------
+      # 13. Cleanup — always runs, even on failure
+      # -----------------------------------------------------------------------
+      - name: Cleanup sensitive material
+        if: always()
+        run: |
+          # Remove temporary keychain
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+
+          # Restore original keychain search list (login keychain only)
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db 2>/dev/null || true
+
+          # Scrub credential files
+          rm -f "$RUNNER_TEMP/notary-api-key.p8"
+          rm -f Config/Local.xcconfig
+
+          # Remove provisioning profile
+          rm -rf "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"
+
+          # Scrub the notary submission zip (contains the full app bundle)
+          rm -f "$OUTPUT_ROOT/notary-submit.zip"

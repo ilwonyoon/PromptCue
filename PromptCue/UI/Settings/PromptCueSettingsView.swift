@@ -12,6 +12,7 @@ struct PromptCueSettingsView: View {
     @ObservedObject private var retentionSettingsModel: CardRetentionSettingsModel
     @ObservedObject private var cloudSyncSettingsModel: CloudSyncSettingsModel
     @ObservedObject private var mcpConnectorSettingsModel: MCPConnectorSettingsModel
+    private let updateCoordinator: UpdateCoordinator
     @State private var installGuideClient: MCPConnectorClient?
     @State private var setupGuideClient: MCPConnectorClient?
     @State private var alternateSetupClient: MCPConnectorClient?
@@ -39,7 +40,8 @@ struct PromptCueSettingsView: View {
         exportTailSettingsModel: PromptExportTailSettingsModel,
         retentionSettingsModel: CardRetentionSettingsModel,
         cloudSyncSettingsModel: CloudSyncSettingsModel,
-        mcpConnectorSettingsModel: MCPConnectorSettingsModel
+        mcpConnectorSettingsModel: MCPConnectorSettingsModel,
+        updateCoordinator: UpdateCoordinator
     ) {
         _navigationModel = ObservedObject(
             wrappedValue: navigationModel ?? SettingsNavigationModel(selectedTab: selectedTab)
@@ -51,6 +53,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = retentionSettingsModel
         self.cloudSyncSettingsModel = cloudSyncSettingsModel
         self.mcpConnectorSettingsModel = mcpConnectorSettingsModel
+        self.updateCoordinator = updateCoordinator
     }
 
     init() {
@@ -64,6 +67,7 @@ struct PromptCueSettingsView: View {
         self.retentionSettingsModel = CardRetentionSettingsModel()
         self.cloudSyncSettingsModel = CloudSyncSettingsModel()
         self.mcpConnectorSettingsModel = MCPConnectorSettingsModel()
+        self.updateCoordinator = UpdateCoordinator()
     }
 
     var body: some View {
@@ -231,14 +235,16 @@ struct PromptCueSettingsView: View {
         settingsScrollPage {
             generalSections
 
-            HStack {
-                Spacer()
-                Text(appVersionString)
-                    .font(PrimitiveTokens.Typography.meta)
-                    .foregroundStyle(SemanticTokens.Text.secondary)
-                Spacer()
+            if updateCoordinator.availability != .available {
+                HStack {
+                    Spacer()
+                    Text(appVersionString)
+                        .font(PrimitiveTokens.Typography.meta)
+                        .foregroundStyle(SemanticTokens.Text.secondary)
+                    Spacer()
+                }
+                .padding(.top, PrimitiveTokens.Space.sm)
             }
-            .padding(.top, PrimitiveTokens.Space.sm)
         }
     }
 
@@ -347,6 +353,29 @@ struct PromptCueSettingsView: View {
                         tone: cloudSyncStatusBadgeTone
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+
+        if updateCoordinator.availability == .available {
+            SettingsSection(
+                title: "Updates",
+                footer: "Backtick checks for updates via Sparkle."
+            ) {
+                SettingsRows {
+                    SettingsTwoColumnGroupRow("Check", contentAlignment: .trailing) {
+                        Button("Check for Updates…") {
+                            updateCoordinator.checkForUpdates()
+                        }
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+
+                    SettingsTwoColumnGroupRow("Version", showsDivider: false, contentAlignment: .trailing) {
+                        Text(appVersionString)
+                            .font(PrimitiveTokens.Typography.meta)
+                            .foregroundStyle(SemanticTokens.Text.secondary)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
             }
         }

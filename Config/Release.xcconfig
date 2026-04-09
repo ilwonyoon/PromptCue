@@ -1,3 +1,5 @@
 #include "Base.xcconfig"
+#include? "Local.xcconfig"
 
 ENABLE_HARDENED_RUNTIME = YES
+PROMPTCUE_SPARKLE_ENABLED = YES

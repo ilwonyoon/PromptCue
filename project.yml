@@ -46,6 +46,9 @@ packages:
   TelemetryDeck:
     url: https://github.com/TelemetryDeck/SwiftSDK.git
     from: 2.0.0
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    exactVersion: 2.7.3
 targets:
   PromptCue:
     type: application
@@ -89,18 +92,16 @@ targets:
         product: KeyboardShortcuts
       - package: TelemetryDeck
         product: TelemetryDeck
+      - package: Sparkle
+        product: Sparkle
       - sdk: AppIntents.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.promptcue.promptcue
         PRODUCT_NAME: Backtick
         PRODUCT_MODULE_NAME: Prompt_Cue
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Backtick
-        INFOPLIST_KEY_CFBundleName: Backtick
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
-        INFOPLIST_KEY_LSUIElement: YES
-        INFOPLIST_KEY_NSHighResolutionCapable: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: PromptCue/Info.plist
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 11
       configs:

@@ -33,7 +33,7 @@ enum PanelBackdropFamily {
     }
 
     static var captureShellFillDark: NSColor {
-        NSColor(calibratedWhite: 0.17, alpha: 0.94)
+        NSColor(calibratedWhite: 0.09, alpha: 1.0)
     }
 
     static var captureShellStrokeLight: NSColor {

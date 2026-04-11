@@ -78,7 +78,16 @@ struct SearchFieldSurface<Content: View>: View {
         .promptCueCaptureSurfaceShadow()
     }
 
+    @ViewBuilder
     private var quietBackground: some View {
+        if colorScheme == .dark {
+            quietDarkBackground
+        } else {
+            quietLightBackground
+        }
+    }
+
+    private var quietLightBackground: some View {
         baseQuietBackground
             .overlay {
                 shape.fill(CaptureShellChromeRecipe.quietRaisedFill)
@@ -116,6 +125,14 @@ struct SearchFieldSurface<Content: View>: View {
                     }
             }
             .promptCueCaptureSurfaceShadow()
+    }
+
+    private var quietDarkBackground: some View {
+        shape.fill(SemanticTokens.Surface.notificationCardFill)
+            .overlay {
+                shape.stroke(SemanticTokens.Border.notificationCard)
+            }
+            .promptCuePanelShadow()
     }
 
     private var showcaseBackground: some View {

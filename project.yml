@@ -103,7 +103,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: PromptCue/Info.plist
         MARKETING_VERSION: 0.1.0
-        CURRENT_PROJECT_VERSION: 11
+        CURRENT_PROJECT_VERSION: 12
       configs:
         Release:
           PROVISIONING_PROFILE_SPECIFIER: Backtick Developer ID

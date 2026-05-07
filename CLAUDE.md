@@ -112,6 +112,26 @@ SemanticTokens.adaptiveColor(
 
 This pattern ensures colors update automatically when the system theme changes, without requiring view rebuilds or runloop deferrals.
 
+**But `adaptiveColor` alone is not enough for SwiftUI views.** A SwiftUI `View` only re-runs its `body` when its declared dependencies change. Adaptive NSColor handles AppKit drawing, but SwiftUI `Text`, `AttributedString`, and any `let`-bound Color inside `body` get baked from the current appearance and stay stale across system theme changes — the view tree never re-evaluates because nothing in its dependency graph changed.
+
+If your view reads adaptive color tokens, also declare `@Environment(\.colorScheme)`:
+
+```swift
+struct MyCardView: View {
+    // Registers a SwiftUI dependency on system appearance so `body`
+    // re-runs on light↔dark transitions. Value itself is unused;
+    // declaring the @Environment is enough for the dependency edge.
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let _ = colorScheme  // optional; declaring the @Environment alone is sufficient
+        // ...adaptive colors here will now refresh on theme flips
+    }
+}
+```
+
+This was the root of recurring Stack card text regressions: tokens used `adaptiveColor`, but the views holding them never declared a colorScheme dependency, so SwiftUI cached the materialized `Color` and theme transitions silently produced stale text on a fresh background.
+
 ### Dependencies
 
 | Package | Version | Purpose |

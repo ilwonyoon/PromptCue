@@ -58,6 +58,13 @@ struct CaptureCardView: View {
     @State private var isDeleteHovered = false
     @State private var isShowingCopyFeedback = false
     @State private var isOverflowAffordanceHovered = false
+    // Reading colorScheme registers a SwiftUI dependency on the system
+    // appearance. Without it, light/dark transitions never re-evaluate
+    // this view's body, leaving `actionStyle.bodyColor` baked from the
+    // previous appearance and producing the recurring stack-card text
+    // regression. We never branch on this value — its mere presence is
+    // what wires the redraw.
+    @Environment(\.colorScheme) private var colorScheme
     #if DEBUG
     @State private var lastRawHoverNanos: UInt64?
     @State private var lastEmphasizedNanos: UInt64?
@@ -69,7 +76,6 @@ struct CaptureCardView: View {
             isSelected: isSelected,
             isRecentlyCopied: isRecentlyCopied,
             selectionMode: selectionMode,
-            appearance: inheritedAppearance,
             isCardHovered: isCardHoveredState,
             isCopyHovered: isCopyHovered,
             isDeleteHovered: isDeleteHovered,
@@ -120,6 +126,14 @@ struct CaptureCardView: View {
     }
 
     var body: some View {
+        // Read colorScheme so SwiftUI registers a body-level dependency on
+        // the system appearance. Without it, light↔dark transitions never
+        // re-evaluate this view, leaving `actionStyle.bodyColor` baked
+        // from whichever appearance was active when the card was first
+        // rendered — the canonical Stack-card text regression. The value
+        // itself is unused; we only need the dependency edge.
+        let _ = colorScheme
+
         let visibleInlineText = card.visibleInlineText
         let styledText = InteractiveDetectedTextView.styledText(
             text: visibleInlineText,
@@ -691,41 +705,42 @@ private struct CaptureCardActionStyle {
     let deleteIconColor: Color
     let deleteIconBackground: Color
 
-    // Adaptive tokens — resolve at draw time via NSColor, independent of
-    // SwiftUI's @Environment(\.colorScheme) propagation timing.
-    private static func restingBodyColor(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
+    // Adaptive tokens — built fresh on every `resolve()` call.
+    //
+    // We deliberately avoid `static let` here. SwiftUI materializes a
+    // `Color` once and caches the resulting CGColor; if the cached
+    // instance is shared across appearance changes the cards keep the
+    // first-seen palette regardless of system theme. Building a new
+    // `Color(nsColor: NSColor(name: nil) { ... })` each time forces a
+    // brand-new dynamic color that AppKit re-resolves on draw.
+    private static func restingBodyColor() -> Color {
+        SemanticTokens.adaptiveColor(
             light: NSColor.labelColor.withAlphaComponent(0.74),
-            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
-            appearance: appearance
+            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78)
         )
     }
-    private static func defaultPrimaryIconColor(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
+    private static func defaultPrimaryIconColor() -> Color {
+        SemanticTokens.adaptiveColor(
             light: NSColor.secondaryLabelColor.withAlphaComponent(0.80),
-            dark: NSColor.white.withAlphaComponent(0.50),
-            appearance: appearance
+            dark: NSColor.white.withAlphaComponent(0.50)
         )
     }
-    private static func defaultDeleteIconColor(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
+    private static func defaultDeleteIconColor() -> Color {
+        SemanticTokens.adaptiveColor(
             light: NSColor.secondaryLabelColor.withAlphaComponent(0.76),
-            dark: NSColor.white.withAlphaComponent(0.45),
-            appearance: appearance
+            dark: NSColor.white.withAlphaComponent(0.45)
         )
     }
-    private static func screenshotPrimaryIconBg(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
+    private static func screenshotPrimaryIconBg() -> Color {
+        SemanticTokens.adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.02 * 0.72),
-            dark: NSColor.white.withAlphaComponent(0.006 * 0.54),
-            appearance: appearance
+            dark: NSColor.white.withAlphaComponent(0.006 * 0.54)
         )
     }
-    private static func screenshotDeleteIconBg(appearance: NSAppearance?) -> Color {
-        SemanticTokens.resolvedAdaptiveColor(
+    private static func screenshotDeleteIconBg() -> Color {
+        SemanticTokens.adaptiveColor(
             light: NSColor.black.withAlphaComponent(0.02 * 0.60),
-            dark: NSColor.white.withAlphaComponent(0.006 * 0.46),
-            appearance: appearance
+            dark: NSColor.white.withAlphaComponent(0.006 * 0.46)
         )
     }
 
@@ -734,7 +749,6 @@ private struct CaptureCardActionStyle {
         isSelected: Bool,
         isRecentlyCopied: Bool,
         selectionMode: Bool,
-        appearance: NSAppearance?,
         isCardHovered: Bool,
         isCopyHovered: Bool,
         isDeleteHovered: Bool,
@@ -747,7 +761,7 @@ private struct CaptureCardActionStyle {
         if isSelected || isCardHovered || isCopyHovered || isDeleteHovered {
             bodyColor = SemanticTokens.Text.primary
         } else {
-            bodyColor = restingBodyColor(appearance: appearance)
+            bodyColor = restingBodyColor()
         }
 
         let primaryIconColor: Color
@@ -762,7 +776,7 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             primaryIconColor = SemanticTokens.Text.primary
         } else {
-            primaryIconColor = defaultPrimaryIconColor(appearance: appearance)
+            primaryIconColor = defaultPrimaryIconColor()
         }
 
         let primaryIconSystemName: String
@@ -782,7 +796,7 @@ private struct CaptureCardActionStyle {
         if isDeleteHovered {
             deleteIconColor = SemanticTokens.Text.primary
         } else {
-            deleteIconColor = defaultDeleteIconColor(appearance: appearance)
+            deleteIconColor = defaultDeleteIconColor()
         }
 
         let primaryIconBackground: Color
@@ -797,7 +811,7 @@ private struct CaptureCardActionStyle {
         } else if isPrimaryCopyHover {
             primaryIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.strong)
         } else if usesPersistentActionBackdrop {
-            primaryIconBackground = screenshotPrimaryIconBg(appearance: appearance)
+            primaryIconBackground = screenshotPrimaryIconBg()
         } else {
             primaryIconBackground = .clear
         }
@@ -806,7 +820,7 @@ private struct CaptureCardActionStyle {
         if isDeleteHovered {
             deleteIconBackground = SemanticTokens.Surface.accentFill.opacity(PrimitiveTokens.Opacity.medium)
         } else if usesPersistentActionBackdrop {
-            deleteIconBackground = screenshotDeleteIconBg(appearance: appearance)
+            deleteIconBackground = screenshotDeleteIconBg()
         } else {
             deleteIconBackground = .clear
         }

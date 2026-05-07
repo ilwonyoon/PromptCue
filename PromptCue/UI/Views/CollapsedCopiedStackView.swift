@@ -65,12 +65,16 @@ struct CollapsedCopiedStackView: View {
     }
 
     private var frontTextColor: Color {
-        SemanticTokens.resolvedAdaptiveColor(
-            light: NSColor.labelColor.withAlphaComponent(0.74),
-            dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78),
-            appearance: inheritedAppearance
-        )
+        // Draw-time adaptive: re-resolves at every redraw so Auto theme
+        // transitions can't leave a stale palette baked in. (Mirrors the
+        // CaptureCardActionStyle fix — see CLAUDE.md theme adaptation rules.)
+        Self.frontTextColor
     }
+
+    private static let frontTextColor: Color = SemanticTokens.adaptiveColor(
+        light: NSColor.labelColor.withAlphaComponent(0.74),
+        dark: NSColor.secondaryLabelColor.withAlphaComponent(0.78)
+    )
 
     private var collapsedFooterText: String? {
         var segments: [String] = []

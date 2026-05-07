@@ -35,7 +35,7 @@ Backtick is a native macOS menu-bar utility for capturing thoughts while AI agen
 A thought hits while your AI is mid-task. Two seconds later, it's captured. You never left.
 </td>
 <td width="60%">
-<img src="./docs/assets/capture.png" alt="Capture demo" width="100%" />
+<img src="./docs/assets/capture.gif" alt="Capture demo" width="100%" />
 </td>
 </tr>
 <tr>

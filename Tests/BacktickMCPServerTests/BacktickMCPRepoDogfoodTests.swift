@@ -43,7 +43,11 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
         XCTAssertTrue(mcpResearch.contains("ProjectDocument"))
         XCTAssertTrue(mcpPolishEvalPlan.contains("list_documents"))
 
+        // Mixed-case input is intentional: project names are normalised
+        // to lowercase by the MCP entry points so callers that retype a
+        // name in different cases don't fork the project.
         let project = "Backtick-eval-codex"
+        let normalizedProject = project.lowercased()
         let session = await makeSession()
         _ = try await sendRequest(session: session, id: 1, method: "initialize")
 
@@ -76,7 +80,7 @@ final class BacktickMCPRepoDogfoodTests: XCTestCase {
             ]
         )
         let briefDocument = try documentPayload(from: saveBriefResponse)
-        XCTAssertEqual(briefDocument["project"] as? String, project)
+        XCTAssertEqual(briefDocument["project"] as? String, normalizedProject)
         XCTAssertEqual(briefDocument["topic"] as? String, "brief")
         XCTAssertEqual(briefDocument["documentType"] as? String, "reference")
 

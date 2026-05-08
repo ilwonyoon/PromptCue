@@ -756,6 +756,7 @@ final class BacktickMCPServerSession {
 
     private func listDocuments(arguments: [String: Any]) throws -> [String: Any] {
         let project = try parseOptionalString(arguments["project"])
+            .map(Self.normalizedProjectName)
         let includeDormant = (arguments["include_dormant"] as? Bool) ?? false
         let allDocuments = try documentStore.list(project: project)
 
@@ -805,7 +806,7 @@ final class BacktickMCPServerSession {
     }
 
     private func proposeDocumentSaves(arguments: [String: Any]) throws -> [String: Any] {
-        let project = try requiredString(arguments, key: "project")
+        let project = Self.normalizedProjectName(try requiredString(arguments, key: "project"))
         let content = try requiredString(arguments, key: "content", allowEmpty: true)
         let userIntent = try parseOptionalString(arguments["userIntent"])
         let preferredTopic = try parseOptionalString(arguments["preferredTopic"])
@@ -1445,10 +1446,19 @@ final class BacktickMCPServerSession {
         let documentType = try requiredProjectDocumentType(arguments["documentType"])
 
         return ProjectDocumentKey(
-            project: project,
+            project: Self.normalizedProjectName(project),
             topic: topic,
             documentType: documentType
         )
+    }
+
+    /// Project names are case-insensitive. Callers that retype "Backtick"
+    /// vs "backtick" or "Portfolio 2026" vs "portfolio 2026" otherwise
+    /// produce parallel projects and split memory across both. We
+    /// lowercase at every MCP entry point that reads `project` so the
+    /// store sees a single canonical key.
+    static func normalizedProjectName(_ project: String) -> String {
+        project.lowercased()
     }
 
     private func requiredProjectDocumentType(_ value: Any?) throws -> ProjectDocumentType {

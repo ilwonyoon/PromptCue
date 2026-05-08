@@ -86,6 +86,33 @@ final class OnboardingServiceTests: XCTestCase {
 
         XCTAssertEqual(reborn.lane, .lane2CaptureStack)
     }
+
+    func testMigrationSkipsOnboardingForExistingUsers() {
+        service.applyExistingUserMigrationIfNeeded(hasExistingData: true)
+
+        XCTAssertTrue(service.hasCompletedOnboarding)
+        XCTAssertEqual(service.lane, .skipped)
+        XCTAssertFalse(service.shouldPresentOnFirstLaunch)
+    }
+
+    func testMigrationLeavesNewInstallsAlone() {
+        service.applyExistingUserMigrationIfNeeded(hasExistingData: false)
+
+        XCTAssertFalse(service.hasCompletedOnboarding)
+        XCTAssertNil(service.lane)
+        XCTAssertTrue(service.shouldPresentOnFirstLaunch)
+    }
+
+    func testMigrationOnlyRunsOnce() {
+        service.applyExistingUserMigrationIfNeeded(hasExistingData: false)
+
+        // Even if data appears later (e.g. CloudSync arrives) we don't
+        // retroactively flip onboarding off — they already saw the flow
+        // or chose to skip it.
+        service.applyExistingUserMigrationIfNeeded(hasExistingData: true)
+
+        XCTAssertFalse(service.hasCompletedOnboarding)
+    }
 }
 
 @MainActor

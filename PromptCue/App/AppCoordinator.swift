@@ -253,7 +253,17 @@ final class AppCoordinator: AppLifecycleCoordinating {
 
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 400_000_000)
-            self?.onboardingWindowController.presentIfNeeded()
+            guard let self else { return }
+            // First time this build runs we need to decide whether the
+            // user installed before onboarding existed. If they have any
+            // captured cards or saved Memory docs, they're a returning
+            // user — skip the welcome flow rather than surprising them.
+            let hasExistingCards = !self.model.cards.isEmpty
+            let hasExistingDocs = (try? self.model.documentStore.allCurrentDocuments().isEmpty == false) ?? false
+            self.onboardingService.applyExistingUserMigrationIfNeeded(
+                hasExistingData: hasExistingCards || hasExistingDocs
+            )
+            self.onboardingWindowController.presentIfNeeded()
         }
 
         if PerformanceTrace.shouldTraceCaptureToggleOnStart {

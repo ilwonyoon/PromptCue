@@ -45,12 +45,35 @@ final class OnboardingService {
         static let step = "com.backtick.onboarding.step"
         static let lane1Completed = "com.backtick.onboarding.lane1.completed"
         static let lane2Completed = "com.backtick.onboarding.lane2.completed"
+        /// True once we've decided whether this install needs the
+        /// onboarding flow at all. Used to seed `completed = true` for
+        /// pre-existing users on the build that introduces onboarding.
+        static let migrationApplied = "com.backtick.onboarding.migration.v1Applied"
     }
 
     private let store: any OnboardingPersisting
 
     init(store: any OnboardingPersisting = UserDefaults.standard) {
         self.store = store
+    }
+
+    /// Seed `completed = true` for users who installed before onboarding
+    /// existed. Called once on the first launch of the onboarding-capable
+    /// build with a `hasExistingData` signal from the host (presence of
+    /// stored cards, docs, or other "this is not a fresh install" markers).
+    /// New installs hit this with `hasExistingData == false` and proceed
+    /// to the regular first-run flow.
+    func applyExistingUserMigrationIfNeeded(hasExistingData: Bool) {
+        guard !store.bool(forKey: Keys.migrationApplied) else {
+            return
+        }
+        store.set(true, forKey: Keys.migrationApplied)
+
+        if hasExistingData, !hasCompletedOnboarding {
+            store.set(true, forKey: Keys.completed)
+            store.setString(OnboardingLane.skipped.rawValue, forKey: Keys.lane)
+            store.setString(OnboardingStep.completed.rawValue, forKey: Keys.step)
+        }
     }
 
     var hasCompletedOnboarding: Bool {

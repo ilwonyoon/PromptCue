@@ -565,7 +565,7 @@ run ditto -c -k --sequesterRsrc --keepParent "${EXPORTED_APP_PATH}" "${SPARKLE_A
 if [[ "${SPARKLE_ENABLED}" == "YES" ]]; then
   REPO_SLUG="$(github_repo_slug "$(git -C "${PROJECT_ROOT}" remote get-url origin)")" \
     || fail "unable to determine GitHub repository slug from origin remote"
-  DOWNLOAD_URL_PREFIX="https://github.com/${REPO_SLUG}/releases/download/${RELEASE_TAG}"
+  DOWNLOAD_URL_PREFIX="https://github.com/${REPO_SLUG}/releases/download/${RELEASE_TAG}/"
   RELEASE_URL="https://github.com/${REPO_SLUG}/releases/tag/${RELEASE_TAG}"
   run "${PROJECT_ROOT}/scripts/generate_sparkle_appcast.sh" \
     --source-packages-dir "${SOURCE_PACKAGES_DIR}" \

@@ -116,7 +116,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
     func prepareForCaptureSession() {
         setCaptureSessionMonitoringActive(true)
         clipboardProvider.refreshNow()
-        refreshState(allowSynchronousSignalProbe: true)
+        refreshState()
         scheduleSettlePollingIfNeeded(referenceDate: now())
     }
 
@@ -830,6 +830,7 @@ final class RecentScreenshotCoordinator: RecentScreenshotCoordinating {
         }
 
         applyScanResult(scanResult, referenceDate: referenceDate)
+        scheduleSettlePollingIfNeeded(referenceDate: referenceDate)
         finishAsyncRefresh()
     }
 

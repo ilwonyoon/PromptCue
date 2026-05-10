@@ -26,7 +26,7 @@ Generate a Sparkle appcast for a directory containing notarized update archives.
 Options:
   --source-packages-dir PATH   Source packages root produced by xcodebuild
   --archives-dir PATH          Directory containing Sparkle update archives
-  --download-url-prefix URL    Prefix used for appcast enclosure URLs
+  --download-url-prefix URL    Directory prefix used for appcast enclosure URLs
   --release-url URL            GitHub release URL used for release notes / link
   --output-path PATH           Output appcast path
   --key-account NAME           Sparkle keychain account (default: Local.xcconfig or "backtick")
@@ -51,6 +51,41 @@ run() {
 
 absolute_path() {
   python3 -c 'import os,sys; print(os.path.abspath(sys.argv[1]))' "$1"
+}
+
+url_directory_prefix() {
+  case "$1" in
+    */) printf '%s\n' "$1" ;;
+    *) printf '%s/\n' "$1" ;;
+  esac
+}
+
+validate_enclosure_urls() {
+  python3 - "$OUTPUT_PATH" "$DOWNLOAD_URL_PREFIX" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+appcast_path = sys.argv[1]
+download_url_prefix = sys.argv[2]
+
+root = ET.parse(appcast_path).getroot()
+invalid_urls = []
+
+for enclosure in root.findall(".//enclosure"):
+    url = enclosure.attrib.get("url", "")
+    if not url.startswith(download_url_prefix):
+        invalid_urls.append(url or "<missing url>")
+
+if invalid_urls:
+    print(
+        "generate_sparkle_appcast: generated enclosure URLs do not use "
+        f"download prefix {download_url_prefix!r}:",
+        file=sys.stderr,
+    )
+    for url in invalid_urls:
+        print(f"  {url}", file=sys.stderr)
+    sys.exit(1)
+PY
 }
 
 read_local_config_value() {
@@ -139,6 +174,7 @@ done
 [[ -n "${RELEASE_URL}" ]] || fail "--release-url is required"
 [[ -n "${OUTPUT_PATH}" ]] || fail "--output-path is required"
 
+DOWNLOAD_URL_PREFIX="$(url_directory_prefix "${DOWNLOAD_URL_PREFIX}")"
 ARCHIVES_DIR="$(absolute_path "${ARCHIVES_DIR}")"
 OUTPUT_PATH="$(absolute_path "${OUTPUT_PATH}")"
 if [[ -n "${SOURCE_PACKAGES_DIR}" ]]; then
@@ -177,5 +213,6 @@ fi
 GENERATOR_ARGS+=("${ARCHIVES_DIR}")
 
 run "${GENERATOR_PATH}" "${GENERATOR_ARGS[@]}"
+validate_enclosure_urls
 
 echo "Sparkle appcast: ${OUTPUT_PATH}"

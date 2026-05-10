@@ -262,8 +262,8 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             locator.signalProbeCallCount,
-            1,
-            "Idle capture preparation should not keep repeating synchronous signal probes when nothing is pending."
+            0,
+            "Idle capture preparation should not run synchronous signal probes when nothing is pending."
         )
     }
 
@@ -314,8 +314,8 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             locator.signalProbeCallCount,
-            1,
-            "Clipboard-ready capture should not keep repeating synchronous signal probes."
+            0,
+            "Clipboard-ready capture should not run synchronous signal probes."
         )
     }
 
@@ -458,8 +458,8 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             locator.signalProbeCallCount,
-            1,
-            "File-backed detected sessions should rely on async refresh for readable promotion instead of repeating sync signal probes."
+            0,
+            "File-backed detected sessions should rely on async refresh for readable promotion instead of sync signal probes."
         )
         XCTAssertGreaterThan(
             locator.locateRecentScreenshotCallCount,
@@ -526,7 +526,7 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: previewCacheURL), Data("png".utf8))
     }
 
-    func testPrepareForCaptureSessionShowsDetectedImmediatelyBeforeAsyncReadablePromotion() async throws {
+    func testPrepareForCaptureSessionResolvesReadableScreenshotFromAsyncScan() async throws {
         let screenshotsURL = tempDirectoryURL.appendingPathComponent("Screenshots", isDirectory: true)
         let cacheURL = tempDirectoryURL.appendingPathComponent("TransientScreenshots", isDirectory: true)
         try FileManager.default.createDirectory(at: screenshotsURL, withIntermediateDirectories: true)
@@ -566,10 +566,6 @@ final class RecentScreenshotCoordinatorTests: XCTestCase {
 
         coordinator.start()
         coordinator.prepareForCaptureSession()
-
-        guard case .detected = coordinator.state else {
-            return XCTFail("Expected immediate detected state from synchronous capture probe")
-        }
 
         let resolvedURL = await coordinator.resolveCurrentCaptureAttachment(timeout: 0.8)
 

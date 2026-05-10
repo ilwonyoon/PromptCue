@@ -4,13 +4,13 @@
         <title>Backtick</title>
         <item>
             <title>0.1.0</title>
-            <pubDate>Fri, 08 May 2026 23:35:48 +0000</pubDate>
-            <link>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-14</link>
-            <sparkle:fullReleaseNotesLink>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-14</sparkle:fullReleaseNotesLink>
-            <sparkle:version>14</sparkle:version>
+            <pubDate>Sun, 10 May 2026 06:57:32 +0000</pubDate>
+            <link>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-15</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/ilwonyoon/Backtick/releases/tag/v0.1.0-15</sparkle:fullReleaseNotesLink>
+            <sparkle:version>15</sparkle:version>
             <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/ilwonyoon/Backtick/releases/download/Backtick-0.1.0-14.zip" length="12926799" type="application/octet-stream" sparkle:edSignature="L9yOspuH9RAdolGMUuQiiT6qLbesSPe4PQcMNwt+ZcZjIu7SgLHi8s8ptK0tQDMBWP/rrIj1wc78/jzucol0Dw=="/>
+            <enclosure url="https://github.com/ilwonyoon/Backtick/releases/download/v0.1.0-15/Backtick-0.1.0-15.zip" length="12926934" type="application/octet-stream" sparkle:edSignature="XngoLfXBxbSrq5+SWwh+NgjdmahoYJ+Ism2WTEOw5pzbiAui6wKUpTncqgCbtsuPnvei2lPlqchy+Kz76qnMCQ=="/>
         </item>
     </channel>
 </rss>
